@@ -1,0 +1,233 @@
+//! WebKit follows no redirect answered through a custom scheme, neither for a
+//! navigation nor for `fetch()`: the runtime does it.
+//!
+//! - A navigation gets a page that replaces itself with the target, so the
+//!   address and the history end up where a browser would put them.
+//! - A `fetch()` or XHR gets the target's response directly. The page then
+//!   sees `redirected: false` and the original URL: a known limitation.
+
+use http::header::{CONTENT_LENGTH, CONTENT_TYPE, COOKIE, LOCATION};
+use http::{Method, Request, Response, StatusCode, Uri};
+use url::Url;
+
+/// Redirects followed for one `fetch()` before giving up, as browsers do.
+pub(crate) const MAX_REDIRECTS: usize = 20;
+
+pub(crate) enum Next {
+    /// Send this response to the webview.
+    Respond(Response<Vec<u8>>),
+    /// Serve this request instead: the target of a redirect.
+    Follow(Request<Vec<u8>>),
+}
+
+/// WebKit sends no `Sec-Fetch-Mode` to a custom scheme, but navigations carry
+/// `Upgrade-Insecure-Requests` and `fetch()` never does.
+pub(crate) fn is_navigation(request: &Request<Vec<u8>>) -> bool {
+    request.headers().contains_key("upgrade-insecure-requests")
+}
+
+/// What to do with `response`, given a copy of the request it answers.
+pub(crate) fn next(
+    request: Request<Vec<u8>>,
+    response: Response<Vec<u8>>,
+    navigation: bool,
+) -> Next {
+    if !response.status().is_redirection() {
+        return Next::Respond(response);
+    }
+    let Some(location) = response
+        .headers()
+        .get(LOCATION)
+        .and_then(|value| value.to_str().ok())
+    else {
+        return Next::Respond(response);
+    };
+
+    let base = php_url(request.uri());
+    let target = match base.join(location) {
+        Ok(target) => target,
+        Err(error) => {
+            eprintln!("[redirect] Ignored the invalid Location \"{location}\": {error}.");
+
+            return Next::Respond(response);
+        }
+    };
+    let same_origin = target.origin() == base.origin();
+
+    if navigation {
+        let href = if same_origin {
+            path_and_query(&target)
+        } else {
+            target.to_string()
+        };
+        eprintln!(
+            "[redirect] {} to {href}, replaced by a client-side navigation.",
+            response.status().as_u16()
+        );
+
+        return Next::Respond(navigate_to(&href));
+    }
+
+    // Another origin is not served by PHP: the page gets the redirect itself.
+    if !same_origin {
+        return Next::Respond(response);
+    }
+
+    let (mut parts, mut body) = request.into_parts();
+    let status = response.status();
+    let becomes_get = status == StatusCode::SEE_OTHER && parts.method != Method::HEAD
+        || matches!(status, StatusCode::MOVED_PERMANENTLY | StatusCode::FOUND)
+            && parts.method == Method::POST;
+    if becomes_get {
+        parts.method = Method::GET;
+        parts.headers.remove(CONTENT_TYPE);
+        parts.headers.remove(CONTENT_LENGTH);
+        body.clear();
+    }
+    // The cookie jar adds the cookies again, maybe new ones.
+    parts.headers.remove(COOKIE);
+    parts.uri = webview_uri(&parts.uri, &path_and_query(&target));
+
+    Next::Follow(Request::from_parts(parts, body))
+}
+
+/// A copy of `request`, to build the request that follows a redirect.
+pub(crate) fn copy(request: &Request<Vec<u8>>) -> Request<Vec<u8>> {
+    let mut copy = Request::new(request.body().clone());
+    *copy.method_mut() = request.method().clone();
+    *copy.uri_mut() = request.uri().clone();
+    *copy.version_mut() = request.version();
+    *copy.headers_mut() = request.headers().clone();
+
+    copy
+}
+
+/// The URL PHP believes it serves: plain HTTP on port 80 of the request host,
+/// see the server variables in sapi.rs. Applications build their absolute
+/// URLs from it.
+fn php_url(uri: &Uri) -> Url {
+    let path = uri.path_and_query().map_or("/", |path| path.as_str());
+
+    Url::parse(&format!(
+        "http://{}{path}",
+        uri.host().unwrap_or("localhost")
+    ))
+    .expect("A host and a path from a valid URI make a valid URL.")
+}
+
+fn webview_uri(uri: &Uri, path_and_query: &str) -> Uri {
+    let mut parts = uri.clone().into_parts();
+    parts.path_and_query = Some(
+        path_and_query
+            .parse()
+            .expect("A path from a valid URL is valid."),
+    );
+
+    Uri::from_parts(parts).expect("Changing the path of a valid URI keeps it valid.")
+}
+
+fn path_and_query(url: &Url) -> String {
+    match url.query() {
+        Some(query) => format!("{}?{query}", url.path()),
+        None => url.path().to_owned(),
+    }
+}
+
+fn navigate_to(href: &str) -> Response<Vec<u8>> {
+    // A JSON string is a valid JavaScript string; escaping "<" keeps
+    // "</script>" out of the page.
+    let target = serde_json::to_string(href)
+        .expect("A string serializes to JSON.")
+        .replace('<', "\\u003c");
+    let body = format!(
+        "<!DOCTYPE html><meta charset=\"UTF-8\"><script>location.replace({target});</script>"
+    );
+
+    Response::builder()
+        .header(CONTENT_TYPE, "text/html; charset=UTF-8")
+        .body(body.into_bytes())
+        .expect("A content type is a valid header.")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn redirect(status: u16, location: &str) -> Response<Vec<u8>> {
+        Response::builder()
+            .status(status)
+            .header(LOCATION, location)
+            .body(Vec::new())
+            .unwrap()
+    }
+
+    fn post(uri: &str) -> Request<Vec<u8>> {
+        Request::post(uri)
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .header(COOKIE, "PHPSESSID=abc")
+            .body(b"title=Hello".to_vec())
+            .unwrap()
+    }
+
+    #[test]
+    fn a_fetch_follows_a_post_redirect_with_a_get() {
+        let Next::Follow(request) = next(
+            post("php://localhost/native/title"),
+            redirect(302, "/?done=1"),
+            false,
+        ) else {
+            panic!("The redirect is not followed.");
+        };
+
+        assert_eq!(request.method(), Method::GET);
+        assert_eq!(request.uri(), "php://localhost/?done=1");
+        assert!(request.body().is_empty());
+        assert!(!request.headers().contains_key(CONTENT_TYPE));
+        assert!(!request.headers().contains_key(COOKIE));
+    }
+
+    #[test]
+    fn a_fetch_keeps_the_method_and_body_for_a_307() {
+        let Next::Follow(request) = next(
+            post("php://localhost/a"),
+            redirect(307, "http://localhost/b"),
+            false,
+        ) else {
+            panic!("The redirect is not followed.");
+        };
+
+        assert_eq!(request.method(), Method::POST);
+        assert_eq!(request.uri(), "php://localhost/b");
+        assert_eq!(request.body(), b"title=Hello");
+    }
+
+    #[test]
+    fn a_fetch_does_not_follow_another_origin() {
+        let response = next(
+            post("php://localhost/a"),
+            redirect(302, "https://example.com/"),
+            false,
+        );
+
+        assert!(
+            matches!(response, Next::Respond(response) if response.status() == StatusCode::FOUND)
+        );
+    }
+
+    #[test]
+    fn a_navigation_replaces_itself_with_the_target() {
+        let Next::Respond(response) = next(
+            post("php://localhost/native/title"),
+            redirect(302, "/?from=post"),
+            true,
+        ) else {
+            panic!("A navigation is never followed by the runtime.");
+        };
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            String::from_utf8(response.into_body()).unwrap(),
+            r#"<!DOCTYPE html><meta charset="UTF-8"><script>location.replace("/?from=post");</script>"#
+        );
+    }
+}

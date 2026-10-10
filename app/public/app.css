@@ -1,0 +1,133 @@
+:root {
+    --bg: #f6f7f9;
+    --fg: #1d2330;
+    --muted: #6b7280;
+    --accent: #4f46e5;
+    --card: #fff;
+    --border: #e5e7eb;
+    --ok: #e8f5e9;
+    --warn: #fff4e5;
+    color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #14161b;
+        --fg: #e6e8ee;
+        --muted: #9aa1ad;
+        --accent: #8b85ff;
+        --card: #1c1f26;
+        --border: #2c313b;
+        --ok: #1f3324;
+        --warn: #3a2d17;
+    }
+}
+
+body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.5 system-ui, sans-serif;
+    margin: 0;
+}
+
+main {
+    margin: 0 auto;
+    max-width: 760px;
+    padding: 24px 16px 48px;
+}
+
+h1 {
+    margin: 0;
+}
+
+h2 {
+    font-size: 1.05rem;
+    margin: 0 0 12px;
+}
+
+.lead,
+.muted {
+    color: var(--muted);
+}
+
+section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-top: 16px;
+    padding: 16px;
+}
+
+.facts dl {
+    display: grid;
+    gap: 8px 24px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    margin: 0;
+}
+
+.facts dt {
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+.facts dd {
+    font-weight: 600;
+    margin: 0;
+}
+
+.flash {
+    background: var(--ok);
+    border-radius: 8px;
+    margin: 16px 0 0;
+    padding: 10px 14px;
+}
+
+.flash.warning {
+    background: var(--warn);
+}
+
+form {
+    margin: 0;
+}
+
+.inline {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--fg);
+    flex: 1;
+    font: inherit;
+    padding: 6px 10px;
+}
+
+button {
+    background: var(--accent);
+    border: 0;
+    border-radius: 6px;
+    color: #fff;
+    cursor: pointer;
+    font: inherit;
+    padding: 7px 12px;
+}
+
+button:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+}
+
+.events {
+    margin: 0;
+    padding-left: 20px;
+}
