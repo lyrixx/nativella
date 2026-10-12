@@ -1,0 +1,18 @@
+#!/bin/sh
+# Stands in for the php-config of a mobile target in ext-php-rs's build
+# script, see ./php.
+set -eu
+dir=${NATIVELLA_PHP_DIR:?Set NATIVELLA_PHP_DIR to a PHP build extracted by mobile/php/fetch.sh.}
+# Android builds have include/, iOS ones Include/.
+include="$dir/include/php"
+[ -d "$include" ] || include="$dir/Include/php"
+
+case "${1:-}" in
+    --includes)
+        echo "-I$include -I$include/main -I$include/TSRM -I$include/Zend -I$include/ext -I$include/ext/date/lib"
+        ;;
+    *)
+        echo "This stand-in only answers \`php-config --includes\`." >&2
+        exit 1
+        ;;
+esac

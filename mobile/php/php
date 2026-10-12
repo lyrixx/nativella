@@ -1,0 +1,23 @@
+#!/bin/sh
+# Stands in for the PHP of a mobile target in ext-php-rs's build script, which
+# reads `php -i`: the PHP of the host cannot describe a cross-compiled one.
+# NATIVELLA_PHP_DIR is the directory fetch.sh extracted.
+set -eu
+dir=${NATIVELLA_PHP_DIR:?Set NATIVELLA_PHP_DIR to a PHP build extracted by mobile/php/fetch.sh.}
+# Android builds have include/, iOS ones Include/.
+include="$dir/include/php"
+[ -d "$include" ] || include="$dir/Include/php"
+config="$include/main/php_config.h"
+
+if [ "${1:-}" != "-i" ]; then
+    echo "This stand-in only answers \`php -i\`." >&2
+    exit 1
+fi
+
+api=$(sed -n 's/^#define PHP_API_VERSION \([0-9]*\).*/\1/p' "$include/main/php.h")
+thread_safety=disabled
+grep -q '^#define ZTS 1' "$config" && thread_safety=enabled
+debug=no
+grep -q '^#define ZEND_DEBUG 1' "$config" && debug=yes
+
+printf 'PHP API => %s\nThread Safety => %s\nDebug Build => %s\n' "$api" "$thread_safety" "$debug"
