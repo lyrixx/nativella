@@ -1,0 +1,57 @@
+{
+    "name": "nativella/symfony-bundle",
+    "description": "Runs Symfony applications as desktop applications with Nativella.",
+    "type": "symfony-bundle",
+    "keywords": ["desktop", "native", "symfony", "nativella"],
+    "license": "MIT",
+    "require": {
+        "php": ">=8.4",
+        "nativella/nativella": "^0.1",
+        "symfony/config": "^7.4|^8.0",
+        "symfony/dependency-injection": "^7.4|^8.0",
+        "symfony/event-dispatcher": "^7.4|^8.0",
+        "symfony/http-foundation": "^7.4|^8.0",
+        "symfony/http-kernel": "^7.4|^8.0"
+    },
+    "require-dev": {
+        "doctrine/doctrine-migrations-bundle": "^3.4|^4.0",
+        "phpunit/phpunit": "^12.4",
+        "symfony/framework-bundle": "^7.4|^8.0",
+        "symfony/twig-bundle": "^7.4|^8.0",
+        "symfony/web-profiler-bundle": "^7.4|^8.0"
+    },
+    "suggest": {
+        "doctrine/doctrine-migrations-bundle": "To migrate the database when the application starts."
+    },
+    "autoload": {
+        "psr-4": {
+            "Nativella\\Symfony\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Nativella\\Symfony\\Tests\\": "tests/"
+        }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../nativella",
+            "options": {
+                "versions": {
+                    "nativella/nativella": "0.1.x-dev"
+                }
+            }
+        }
+    ],
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.1.x-dev"
+        }
+    }
+}

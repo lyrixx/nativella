@@ -1,0 +1,36 @@
+{
+    "name": "nativella/nativella",
+    "description": "The desktop APIs of Nativella for PHP: windows, menus, dialogs, notifications, clipboard, tray…",
+    "type": "library",
+    "keywords": [
+        "desktop",
+        "native",
+        "tauri",
+        "nativella"
+    ],
+    "license": "MIT",
+    "require": {
+        "php": ">=8.4"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Nativella\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Nativella\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.1.x-dev"
+        }
+    }
+}

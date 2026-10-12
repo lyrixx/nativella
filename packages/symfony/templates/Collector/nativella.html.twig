@@ -1,0 +1,93 @@
+{% extends '@WebProfiler/Profiler/layout.html.twig' %}
+
+{% block toolbar %}
+    {% set icon %}
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
+        <span class="sf-toolbar-value">{{ collector.callCount }}</span>
+        <span class="sf-toolbar-label">native</span>
+    {% endset %}
+
+    {% set text %}
+        <div class="sf-toolbar-info-piece">
+            <b>Runtime</b>
+            <span>{{ collector.native ? 'Nativella ' ~ collector.version : 'not Nativella' }}</span>
+        </div>
+        {% if collector.window %}
+            <div class="sf-toolbar-info-piece">
+                <b>Window</b>
+                <span>{{ collector.window }}</span>
+            </div>
+        {% endif %}
+        <div class="sf-toolbar-info-piece">
+            <b>Native calls</b>
+            <span class="sf-toolbar-status {{ collector.errorCount ? 'sf-toolbar-status-red' }}">{{ collector.callCount }}</span>
+        </div>
+        <div class="sf-toolbar-info-piece">
+            <b>Time in native calls</b>
+            <span>{{ '%0.1f'|format(collector.duration) }} ms</span>
+        </div>
+    {% endset %}
+
+    {{ include('@WebProfiler/Profiler/toolbar_item.html.twig', {link: true, status: collector.errorCount ? 'red' : ''}) }}
+{% endblock %}
+
+{% block menu %}
+    <span class="label {{ collector.callCount ? '' : 'disabled' }} {{ collector.errorCount ? 'label-status-error' }}">
+        <span class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
+        </span>
+        <strong>Nativella</strong>
+        {% if collector.errorCount %}
+            <span class="count"><span>{{ collector.errorCount }}</span></span>
+        {% endif %}
+    </span>
+{% endblock %}
+
+{% block panel %}
+    <h2>Nativella</h2>
+
+    <div class="metrics">
+        <div class="metric">
+            <span class="value">{{ collector.callCount }}</span>
+            <span class="label">Native calls</span>
+        </div>
+        <div class="metric">
+            <span class="value">{{ collector.errorCount }}</span>
+            <span class="label">Failed</span>
+        </div>
+        <div class="metric">
+            <span class="value">{{ '%0.1f'|format(collector.duration) }} <span class="unit">ms</span></span>
+            <span class="label">Time in native calls</span>
+        </div>
+    </div>
+
+    <table>
+        <tbody>
+            <tr><th>Runtime</th><td>{{ collector.native ? 'Nativella ' ~ collector.version : 'Not running in Nativella' }}</td></tr>
+            <tr><th>Window</th><td>{{ collector.window ?? 'none (internal request)' }}</td></tr>
+            <tr><th>Data directory</th><td>{{ collector.dataDir ?? 'none' }}</td></tr>
+        </tbody>
+    </table>
+
+    <h3>Calls</h3>
+    {% if collector.callCount == 0 %}
+        <div class="empty"><p>No native call during this request.</p></div>
+    {% else %}
+        <table>
+            <thead>
+                <tr><th>#</th><th>Method</th><th>Payload</th><th>Result</th><th>Time</th></tr>
+            </thead>
+            <tbody>
+                {% for call in collector.calls %}
+                    <tr class="{{ call.error ? 'status-error' }}">
+                        <td>{{ loop.index }}</td>
+                        <td><code>{{ call.method }}</code></td>
+                        <td>{{ profiler_dump(call.payload, maxDepth: 2) }}</td>
+                        <td>{% if call.error %}{{ call.error }}{% else %}{{ profiler_dump(call.result, maxDepth: 2) }}{% endif %}</td>
+                        <td>{{ '%0.1f'|format(call.duration) }}&nbsp;ms</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock %}
