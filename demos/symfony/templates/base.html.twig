@@ -1,23 +1,49 @@
 <!DOCTYPE html>
-<html>
+<html lang="en"{% if nativella_is_native() %} data-native="1"{% endif %}{% if nativella_is_mobile() %} data-mobile="1"{% endif %}>
     <head>
         <meta charset="UTF-8">
-        <title>{% block title %}Welcome!{% endblock %}</title>
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>⚫️</text><text y=%221.3em%22 x=%220.2em%22 font-size=%2276%22 fill=%22%23fff%22>sf</text></svg>">
-        {% block stylesheets %}
-        {% endblock %}
-
-        {% block javascripts %}
-        {% endblock %}
-
-        {% set frankenphp_hot_reload = app.request.server.get('FRANKENPHP_HOT_RELOAD') %}
-        {% if frankenphp_hot_reload %}
-        <meta name="frankenphp-hot-reload:url" content="{{ frankenphp_hot_reload }}">
-        <script src="https://cdn.jsdelivr.net/npm/idiomorph"></script>
-        <script src="https://cdn.jsdelivr.net/npm/frankenphp-hot-reload/+esm" type="module"></script>
-        {% endif %}
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+        <meta name="color-scheme" content="light dark">
+        <title>{% block title %}Notes{% endblock %}</title>
+        <link rel="icon" href="{{ asset('icon.svg') }}">
+        <link rel="stylesheet" href="{{ asset('app.css') }}">
+        <script src="{{ asset('app.js') }}" defer></script>
     </head>
     <body>
-        {% block body %}{% endblock %}
+        <aside class="sidebar">
+            <form class="search" action="{{ path('note_search') }}" method="get" role="search">
+                <input type="search" name="q" value="{{ q ?? '' }}" placeholder="Search notes" aria-label="Search notes">
+            </form>
+            <nav aria-label="Notes">
+                {% for item in notes %}
+                    <a href="{{ path('note_show', {id: item.id}) }}"
+                       class="note-link{% if note is defined and note and note.id == item.id %} active{% endif %}"
+                       data-context-menu="{{ path('note_context_menu', {id: item.id}) }}">
+                        <span class="note-title">{% if item.pinned %}<span class="pin" title="Pinned">●</span> {% endif %}{{ item.title }}</span>
+                        <span class="note-date">{{ item.updatedAt|date('M j, H:i') }}</span>
+                    </a>
+                {% else %}
+                    <p class="muted empty-list">No note.</p>
+                {% endfor %}
+            </nav>
+            <footer class="sidebar-actions">
+                <a class="button primary" href="{{ path('note_new') }}">New note</a>
+                {% if nativella_is_native() %}
+                    <form action="{{ path('note_import') }}" method="post"><button>Import…</button></form>
+                {% endif %}
+                <a class="button ghost" href="{{ path('settings') }}" title="Settings" aria-label="Settings">⚙</a>
+            </footer>
+        </aside>
+
+        <main>
+            {% for message in app.flashes('success') %}
+                <p class="flash" role="status">{{ message }}</p>
+            {% endfor %}
+            {% if not nativella_is_native() %}
+                <p class="flash warning">Running in a browser: native features (dialogs, clipboard, export…) need Nativella.</p>
+            {% endif %}
+
+            {% block body %}{% endblock %}
+        </main>
     </body>
 </html>

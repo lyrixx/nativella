@@ -1,0 +1,12 @@
+# tools/phpstan/project.neon, with Larastan: it understands the container,
+# the facades and Eloquent, booting the application.
+includes:
+    - ../../tools/phpstan/project.neon
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - app
+        - database
+        - routes
+        - tests

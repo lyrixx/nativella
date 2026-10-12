@@ -1,0 +1,34 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ note.title }} — Notes{% endblock %}
+
+{% block body %}
+    <article class="note">
+        <header class="toolbar">
+            <div>
+                <h1>{{ note.title }}</h1>
+                <p class="muted">Updated {{ note.updatedAt|date('F j, Y \\a\\t H:i') }}</p>
+            </div>
+            <div class="actions">
+                <a class="button" href="{{ path('note_edit', {id: note.id}) }}">Edit</a>
+                <form action="{{ path('note_pin', {id: note.id}) }}" method="post"><button>{{ note.pinned ? 'Unpin' : 'Pin' }}</button></form>
+                {% if nativella_is_native() %}
+                    <form action="{{ path('note_copy', {id: note.id}) }}" method="post"><button name="format" value="markdown">Copy</button></form>
+                    <form action="{{ path('note_copy', {id: note.id}) }}" method="post"><button name="format" value="html">Copy as rich text</button></form>
+                    {% if nativella_is_mobile() %}
+                        <form action="{{ path('note_location', {id: note.id}) }}" method="post"><button>Add my location</button></form>
+                    {% else %}
+                        <form action="{{ path('note_export', {id: note.id}) }}" method="post"><button>Export…</button></form>
+                    {% endif %}
+                {% endif %}
+                <form action="{{ path('note_delete', {id: note.id}) }}" method="post" data-confirm="Delete “{{ note.title }}”? This cannot be undone.">
+                    <button class="danger">Delete</button>
+                </form>
+            </div>
+        </header>
+
+        <div class="markdown">
+            {{ note.body|markdown_to_html }}
+        </div>
+    </article>
+{% endblock %}

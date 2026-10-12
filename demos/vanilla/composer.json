@@ -1,0 +1,47 @@
+{
+    "name": "nativella/demo-vanilla",
+    "description": "Snippets: a Nativella demo written in plain PHP, without any framework.",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.4",
+        "ext-mbstring": "*",
+        "ext-pdo_sqlite": "*",
+        "doctrine/dbal": "^4.3",
+        "nativella/nativella": "^0.1@dev"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12.4"
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../../packages/*"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "App\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "nativella": {
+            "name": "Nativella Snippets",
+            "identifier": "dev.nativella.demo.vanilla",
+            "window": {
+                "title": "Snippets",
+                "width": 900,
+                "height": 640
+            },
+            "permissions": ["biometrics"]
+        }
+    }
+}

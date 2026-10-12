@@ -1,6 +1,10 @@
 # see https://symfony.com/doc/current/reference/configuration/framework.html
+parameters:
+    app.secret: '%env(APP_SECRET)%'
+
 framework:
-    secret: '%env(APP_SECRET)%'
+    # Each installation has its own secret in Nativella; APP_SECRET otherwise.
+    secret: '%env(default:app.secret:NATIVELLA_SECRET)%'
 
     # Note that the session will be started ONLY if you read or write from it.
     session: true

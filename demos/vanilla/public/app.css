@@ -1,0 +1,431 @@
+/*
+ * Snippets: one stylesheet, no build step. It follows the system: its font,
+ * its light or dark appearance, compact controls.
+ */
+
+:root {
+    color-scheme: light dark;
+
+    --accent: #0a64d6;
+    --accent-text: #fff;
+    --background: #f4f4f6;
+    --border: #d4d4da;
+    --code-background: #f7f7f9;
+    --danger: #c42b1c;
+    --muted: #6b6b73;
+    --radius: 8px;
+    --shadow: 0 1px 2px rgb(0 0 0 / 6%);
+    --surface: #fff;
+    --text: #1d1d1f;
+    --toolbar: rgb(244 244 246 / 85%);
+
+    --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Cantarell, Ubuntu, "Noto Sans", sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "Cascadia Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --accent: #3d8bfd;
+        --background: #1e1e20;
+        --border: #3b3b40;
+        --code-background: #232326;
+        --danger: #ff6b5f;
+        --muted: #9a9aa2;
+        --shadow: none;
+        --surface: #2a2a2d;
+        --text: #ececf0;
+        --toolbar: rgb(30 30 32 / 85%);
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    background: var(--background);
+    color: var(--text);
+    font: 13px/1.45 var(--font);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* An application, not a document: chrome is not selectable, and only links
+   and fields change the cursor. */
+body {
+    cursor: default;
+    margin: 0;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+pre, code, dd, input, textarea, .flash, .toast {
+    cursor: auto;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+h1 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 16px;
+}
+
+h2 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0;
+}
+
+a {
+    color: var(--accent);
+}
+
+code, pre {
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.muted {
+    color: var(--muted);
+}
+
+.hint {
+    color: var(--muted);
+    font-size: 12px;
+    margin: 12px 0 0;
+}
+
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* Toolbar */
+
+.toolbar {
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    background: var(--toolbar);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: center;
+    padding: 8px 16px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.segmented {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    box-shadow: var(--shadow);
+    display: flex;
+    padding: 2px;
+}
+
+.segmented a {
+    border-radius: 5px;
+    color: var(--text);
+    cursor: default;
+    padding: 3px 14px;
+    text-decoration: none;
+}
+
+.segmented a[aria-current="page"] {
+    background: var(--accent);
+    color: var(--accent-text);
+}
+
+.banner {
+    background: color-mix(in srgb, var(--accent) 12%, var(--background));
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    margin: 0;
+    padding: 6px 16px;
+    text-align: center;
+}
+
+main {
+    margin: 0 auto;
+    max-width: 860px;
+    padding: 20px 24px 48px;
+}
+
+/* Phones draw the page under the status and navigation bars: the toolbar
+   reaches under the status bar, the content keeps clear of the edges. */
+
+[data-mobile] .toolbar {
+    padding: calc(8px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 8px calc(16px + env(safe-area-inset-left));
+}
+
+[data-mobile] main {
+    padding: 20px calc(24px + env(safe-area-inset-right)) calc(48px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
+}
+
+[data-mobile] .toast {
+    bottom: calc(20px + env(safe-area-inset-bottom));
+}
+
+/* Controls */
+
+button, .button {
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+    color: var(--text);
+    cursor: default;
+    display: inline-flex;
+    font: inherit;
+    gap: 4px;
+    min-height: 26px;
+    padding: 2px 12px;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+button:hover, .button:hover {
+    background: color-mix(in srgb, var(--text) 5%, var(--surface));
+}
+
+button:active, .button:active {
+    background: color-mix(in srgb, var(--text) 10%, var(--surface));
+}
+
+.primary {
+    background: var(--accent);
+    border-color: transparent;
+    color: var(--accent-text);
+}
+
+.primary:hover {
+    background: color-mix(in srgb, #000 10%, var(--accent));
+}
+
+.primary:active {
+    background: color-mix(in srgb, #000 20%, var(--accent));
+}
+
+.danger {
+    color: var(--danger);
+}
+
+input, textarea {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font: inherit;
+    padding: 5px 8px;
+    width: 100%;
+}
+
+textarea {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    resize: vertical;
+}
+
+input:focus, textarea:focus {
+    border-color: var(--accent);
+    outline: 3px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    outline-offset: 0;
+}
+
+[aria-invalid="true"] {
+    border-color: var(--danger);
+}
+
+.error {
+    color: var(--danger);
+    font-size: 12px;
+    margin: 4px 0 0;
+}
+
+form {
+    margin: 0;
+}
+
+/* Messages */
+
+.flash {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin: 0 0 16px;
+    padding: 8px 12px;
+}
+
+.toast {
+    background: color-mix(in srgb, var(--text) 88%, transparent);
+    border-radius: var(--radius);
+    bottom: 20px;
+    box-shadow: 0 4px 16px rgb(0 0 0 / 20%);
+    color: var(--background);
+    left: 50%;
+    max-width: min(480px, calc(100vw - 32px));
+    padding: 8px 14px;
+    position: fixed;
+    transform: translateX(-50%);
+    white-space: pre-line;
+}
+
+.empty {
+    color: var(--muted);
+    padding: 64px 16px;
+    text-align: center;
+}
+
+.empty h1 {
+    color: var(--text);
+    margin-bottom: 8px;
+}
+
+/* The list */
+
+.page-header {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.search {
+    flex: 1;
+}
+
+.snippets {
+    display: grid;
+    gap: 12px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.snippet, .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 12px 14px;
+}
+
+.snippet-header {
+    align-items: baseline;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+}
+
+.snippet-header h2 {
+    overflow-wrap: anywhere;
+}
+
+.snippet-header time {
+    color: var(--muted);
+    flex-shrink: 0;
+    font-size: 12px;
+}
+
+.snippet pre {
+    background: var(--code-background);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin: 8px 0;
+    max-height: 9.5em;
+    overflow: auto;
+    padding: 6px 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.snippet-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+/* The form */
+
+.editor {
+    display: grid;
+    gap: 14px;
+}
+
+.editor h1 {
+    margin: 0;
+}
+
+.field label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+/* The system page */
+
+.cards {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.card {
+    margin: 0 0 12px;
+}
+
+.card h2 {
+    margin-bottom: 8px;
+}
+
+.facts {
+    display: grid;
+    gap: 4px 16px;
+    grid-template-columns: max-content 1fr;
+    margin: 0;
+}
+
+.facts dt {
+    color: var(--muted);
+}
+
+.facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+th, td {
+    border-bottom: 1px solid var(--border);
+    padding: 5px 8px 5px 0;
+    text-align: left;
+}
+
+th {
+    color: var(--muted);
+    font-weight: 500;
+}
+
+.badge {
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-size: 11px;
+    margin-left: 4px;
+    padding: 1px 5px;
+}

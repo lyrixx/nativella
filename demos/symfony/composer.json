@@ -1,12 +1,18 @@
 {
     "type": "project",
-    "license": "proprietary",
+    "license": "MIT",
     "minimum-stability": "stable",
     "prefer-stable": true,
     "require": {
         "php": ">=8.4",
         "ext-ctype": "*",
         "ext-iconv": "*",
+        "doctrine/doctrine-bundle": "^3.3",
+        "doctrine/doctrine-migrations-bundle": "^4.0",
+        "doctrine/orm": "^3.7",
+        "league/commonmark": "^2.10",
+        "nativella/nativella": "^0.1@dev",
+        "nativella/symfony-bundle": "^0.1@dev",
         "phpdocumentor/reflection-docblock": "^6.0",
         "phpstan/phpdoc-parser": "^2.3",
         "symfony/asset": "8.1.*",
@@ -14,15 +20,18 @@
         "symfony/dotenv": "8.1.*",
         "symfony/expression-language": "8.1.*",
         "symfony/flex": "^2",
+        "symfony/form": "8.1.*",
         "symfony/framework-bundle": "8.1.*",
         "symfony/property-access": "8.1.*",
         "symfony/property-info": "8.1.*",
         "symfony/runtime": "8.1.*",
+        "symfony/security-csrf": "8.1.*",
         "symfony/serializer": "8.1.*",
         "symfony/twig-bundle": "8.1.*",
         "symfony/validator": "8.1.*",
         "symfony/yaml": "8.1.*",
         "twig/extra-bundle": "^2.12|^3.0",
+        "twig/markdown-extra": "^3.29",
         "twig/twig": "^2.12|^3.0"
     },
     "config": {
@@ -75,6 +84,38 @@
         "symfony": {
             "allow-contrib": false,
             "require": "8.1.*"
+        },
+        "nativella": {
+            "name": "Nativella Notes",
+            "identifier": "dev.nativella.demo.symfony",
+            "deepLinks": [
+                "nativella-notes"
+            ],
+            "permissions": [
+                "geolocation"
+            ]
         }
+    },
+    "name": "nativella/demo-symfony",
+    "description": "Nativella Notes: a Symfony application running as a desktop application.",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../../packages/*",
+            "options": {
+                "versions": {
+                    "nativella/nativella": "0.1.x-dev",
+                    "nativella/symfony-bundle": "0.1.x-dev",
+                    "nativella/laravel": "0.1.x-dev"
+                }
+            }
+        }
+    ],
+    "require-dev": {
+        "phpunit/phpunit": "^13.4",
+        "symfony/browser-kit": "8.1.*",
+        "symfony/css-selector": "8.1.*",
+        "symfony/debug-bundle": "8.1.*",
+        "symfony/web-profiler-bundle": "8.1.*"
     }
 }

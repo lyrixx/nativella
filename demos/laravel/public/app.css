@@ -1,0 +1,404 @@
+/* Nativella Tasks: a native-looking window, light or dark as the system. */
+
+:root {
+    color-scheme: light dark;
+
+    --accent: #2f6fdf;
+    --accent-text: #ffffff;
+    --background: #f5f5f4;
+    --banner: #e7effc;
+    --banner-error: #fbe9e7;
+    --border: #dcdcd9;
+    --danger: #c9372c;
+    --surface: #ffffff;
+    --surface-hover: #f0f0ee;
+    --text: #1f1f1e;
+    --text-muted: #73736f;
+
+    --radius: 8px;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 0 0 1px var(--border);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --accent: #5b8ff0;
+        --accent-text: #0e1a30;
+        --background: #1e1e1d;
+        --banner: #23324d;
+        --banner-error: #4a2723;
+        --border: #3a3a38;
+        --danger: #ef7a6f;
+        --surface: #2a2a29;
+        --surface-hover: #333331;
+        --text: #ececea;
+        --text-muted: #9b9b96;
+
+        --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 0 0 1px var(--border);
+    }
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    background: var(--background);
+    color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Cantarell, Ubuntu, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    /* A desktop window: text is not selectable unless it is content. */
+    user-select: none;
+    cursor: default;
+}
+
+/* Header ------------------------------------------------------------------ */
+
+.toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 24px;
+    background: color-mix(in srgb, var(--background) 85%, transparent);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+}
+
+.toolbar h1 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.segmented {
+    display: flex;
+    padding: 2px;
+    border-radius: var(--radius);
+    background: var(--background);
+    box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.segmented a {
+    padding: 3px 14px;
+    border-radius: 6px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.segmented a.active {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+}
+
+main {
+    flex: 1;
+    width: 100%;
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+/* Controls ---------------------------------------------------------------- */
+
+.button {
+    padding: 5px 14px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-weight: 500;
+    box-shadow: var(--shadow);
+    cursor: default;
+}
+
+.button:hover:not(:disabled) {
+    background: var(--surface-hover);
+}
+
+.button.primary {
+    background: var(--accent);
+    color: var(--accent-text);
+    box-shadow: none;
+}
+
+.button.primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 88%, black);
+}
+
+.button:disabled {
+    opacity: 0.45;
+}
+
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    box-shadow: var(--shadow);
+    user-select: text;
+}
+
+input[type="text"]:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 0;
+}
+
+kbd {
+    padding: 2px 8px;
+    border-radius: 5px;
+    background: var(--surface-hover);
+    box-shadow: inset 0 -1px 0 var(--border), 0 0 0 1px var(--border);
+    font: 12px/1.6 ui-monospace, "SF Mono", "Cascadia Mono", "Ubuntu Mono", monospace;
+    white-space: nowrap;
+}
+
+/* Messages ---------------------------------------------------------------- */
+
+.banner {
+    margin: 0 0 16px;
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    background: var(--banner);
+    overflow-wrap: anywhere;
+}
+
+.banner.error {
+    background: var(--banner-error);
+}
+
+.field-error {
+    margin: 6px 0 0;
+    color: var(--danger);
+}
+
+.hint,
+.empty {
+    color: var(--text-muted);
+}
+
+.empty {
+    margin: 48px 0;
+    text-align: center;
+}
+
+/* Tasks ------------------------------------------------------------------- */
+
+.new-task {
+    display: flex;
+    gap: 8px;
+}
+
+.tasks {
+    margin: 20px 0 0;
+    padding: 0;
+    list-style: none;
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.task {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 12px;
+}
+
+.task + .task {
+    border-top: 1px solid var(--border);
+}
+
+.task:hover {
+    background: var(--surface-hover);
+}
+
+.task form {
+    display: contents;
+}
+
+.task .title {
+    flex: 1;
+    overflow-wrap: anywhere;
+    user-select: text;
+}
+
+.task.completed .title {
+    color: var(--text-muted);
+    text-decoration: line-through;
+}
+
+.check {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 1.5px solid var(--text-muted);
+    border-radius: 50%;
+    background: transparent;
+}
+
+.check:hover {
+    border-color: var(--accent);
+}
+
+.task.completed .check {
+    border-color: var(--accent);
+    background: var(--accent);
+}
+
+.task.completed .check::after {
+    content: "";
+    width: 5px;
+    height: 9px;
+    margin-top: -2px;
+    border: solid var(--accent-text);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.delete {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 18px;
+    line-height: 1;
+    opacity: 0;
+}
+
+.task:hover .delete,
+.delete:focus-visible {
+    opacity: 1;
+}
+
+.delete:hover {
+    background: color-mix(in srgb, var(--danger) 15%, transparent);
+    color: var(--danger);
+}
+
+.statusbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.statusbar .count {
+    flex: 1;
+    color: var(--text-muted);
+}
+
+.statusbar form {
+    display: contents;
+}
+
+/* Settings ---------------------------------------------------------------- */
+
+.settings {
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+}
+
+.setting {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+}
+
+.setting + .setting {
+    border-top: 1px solid var(--border);
+}
+
+.setting small {
+    display: block;
+    color: var(--text-muted);
+}
+
+.settings .actions,
+.settings .hint {
+    margin: 0;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+}
+
+.settings .actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* A switch, as the systems draw them. */
+input[role="switch"] {
+    appearance: none;
+    flex: none;
+    position: relative;
+    width: 36px;
+    height: 20px;
+    margin: 0;
+    border-radius: 10px;
+    background: var(--border);
+    transition: background 0.15s;
+}
+
+input[role="switch"]::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+    transition: transform 0.15s;
+}
+
+input[role="switch"]:checked {
+    background: var(--accent);
+}
+
+input[role="switch"]:checked::after {
+    transform: translateX(16px);
+}
+
+input[role="switch"]:disabled {
+    opacity: 0.45;
+}
+
+/* Phones draw the page under the status and navigation bars. */
+[data-mobile] body {
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}

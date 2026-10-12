@@ -1,0 +1,15 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ note ? 'Edit ' ~ note.title : 'New note' }} — Notes{% endblock %}
+
+{% block body %}
+    {{ form_start(form, {attr: {class: 'editor'}}) }}
+        {{ form_errors(form) }}
+        {{ form_row(form.title) }}
+        {{ form_row(form.body) }}
+        <div class="actions">
+            <button class="primary">Save</button>
+            <a class="button ghost" href="{{ note ? path('note_show', {id: note.id}) : path('note_home') }}">Cancel</a>
+        </div>
+    {{ form_end(form) }}
+{% endblock %}

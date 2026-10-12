@@ -1,0 +1,58 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Settings — Notes{% endblock %}
+
+{% block body %}
+    <section class="settings">
+        <h1>Settings</h1>
+
+        {% if nativella_is_native() %}
+            {% if not nativella_is_mobile() %}
+            <form method="post" action="{{ path('settings_save') }}" class="panel">
+                <label class="switch">
+                    <input type="checkbox" name="autostart" value="1"{% if autostart %} checked{% endif %}>
+                    <span>Open Notes when I log in</span>
+                </label>
+                <label class="switch">
+                    <input type="checkbox" name="alwaysOnTop" value="1"{% if alwaysOnTop %} checked{% endif %}>
+                    <span>Keep the window above the others</span>
+                </label>
+                <p class="muted">Press <kbd>{{ shortcut|replace({CmdOrCtrl: 'Ctrl', '+': ' + '}) }}</kbd> anywhere to write a quick note.</p>
+                <button class="primary">Save</button>
+            </form>
+            {% endif %}
+
+            <h2>Application</h2>
+            <dl class="facts panel">
+                <div><dt>Name</dt><dd>{{ appInfo.name }} {{ appInfo.version }}</dd></div>
+                <div><dt>Identifier</dt><dd><code>{{ appInfo.identifier }}</code></dd></div>
+                <div><dt>Nativella</dt><dd>{{ appInfo.nativellaVersion }}</dd></div>
+                <div><dt>PHP</dt><dd>{{ constant('PHP_VERSION') }}, {{ constant('PHP_SAPI') }} SAPI</dd></div>
+                <div><dt>Symfony</dt><dd>{{ constant('Symfony\\Component\\HttpKernel\\Kernel::VERSION') }}</dd></div>
+                <div>
+                    <dt>Data</dt>
+                    <dd>
+                        <code>{{ dataDir }}</code>
+                        <form method="post" action="{{ path('settings_open_data_dir') }}" class="inline"><button class="small">Open</button></form>
+                    </dd>
+                </div>
+            </dl>
+
+            <h2>System</h2>
+            <dl class="facts panel">
+                <div><dt>System</dt><dd>{{ system.os }} {{ system.version }} ({{ system.arch }})</dd></div>
+                <div><dt>Host</dt><dd>{{ system.hostname ?? '—' }}</dd></div>
+                <div><dt>Locale</dt><dd>{{ system.locale ?? '—' }}</dd></div>
+                <div><dt>Theme</dt><dd>{{ theme.value }}</dd></div>
+                {% for screen in screens %}
+                    <div>
+                        <dt>Screen {{ loop.index }}</dt>
+                        <dd>{{ screen.name ?? 'Unnamed' }}: {{ screen.bounds.width|round }} × {{ screen.bounds.height|round }}, scale {{ screen.scaleFactor }}{% if screen.primary %}, primary{% endif %}</dd>
+                    </div>
+                {% endfor %}
+            </dl>
+        {% else %}
+            <p>Settings are stored by Nativella: open the application in Nativella to change them.</p>
+        {% endif %}
+    </section>
+{% endblock %}

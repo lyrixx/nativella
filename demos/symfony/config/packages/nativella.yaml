@@ -1,0 +1,6 @@
+nativella:
+    migrate_on_boot: true
+
+when@test:
+    nativella:
+        fake_client: true
