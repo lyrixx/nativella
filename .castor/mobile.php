@@ -150,12 +150,22 @@ function ios(
         fs()->dumpFile("{$root}/crates/nativella/gen/apple/.nativella-generation", $config['identifier']);
     }
 
-    run([
-        'cargo', 'tauri', 'ios', 'build', '--ci', '--target', 'aarch64-sim', '--no-sign',
-        ...($release ? [] : ['--debug']),
-        '--config', json_encode($config, \JSON_THROW_ON_ERROR),
-        ...features($project),
-    ], context: $c);
+    // Tauri hands the Rust build to Xcode, which runs it from crates/nativella
+    // with TAURI_*, CARGO_*, RUST_* and PATH only: cargo sets the rest from its
+    // configuration, there and for the time of the build
+    $cargoConfig = "{$root}/crates/nativella/.cargo/config.toml";
+    fs()->dumpFile($cargoConfig, cargo_env($environment));
+
+    try {
+        run([
+            'cargo', 'tauri', 'ios', 'build', '--ci', '--target', 'aarch64-sim', '--no-sign',
+            ...($release ? [] : ['--debug']),
+            '--config', json_encode($config, \JSON_THROW_ON_ERROR),
+            ...features($project),
+        ], context: $c);
+    } finally {
+        fs()->remove(\dirname($cargoConfig));
+    }
 
     io()->success('The app: '.built("{$root}/crates/nativella/gen/apple/build", '*.app', $bundle));
 }
@@ -336,6 +346,23 @@ function nativella_config(Project $project): array
     $composer = json_decode((string) file_get_contents($project->directory().'/composer.json'), true, flags: \JSON_THROW_ON_ERROR);
 
     return $composer['extra']['nativella'] ?? [];
+}
+
+/**
+ * The [env] section of a cargo configuration: the variables cargo gives the
+ * build scripts and the compiler.
+ *
+ * @param array<string, string> $environment
+ */
+function cargo_env(array $environment): string
+{
+    $toml = "[env]\n";
+    foreach ($environment as $name => $value) {
+        // A JSON string without escaped slashes is a TOML basic string
+        $toml .= $name.' = '.json_encode($value, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n";
+    }
+
+    return $toml;
 }
 
 /**
