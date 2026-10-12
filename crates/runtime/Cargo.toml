@@ -1,7 +1,10 @@
 [package]
-name = "php-runtime"
-version = "0.1.0"
-edition = "2024"
+name = "nativella-runtime"
+description = "Runs a PHP application in-process, through a custom SAPI."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
 
 [dependencies]
 cookie = "0.18"

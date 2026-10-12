@@ -1,0 +1,8 @@
+/buildroot/
+/downloads/
+/source/
+/pkgroot/
+/log/
+/spc
+/spc-*.tar.gz
+/craft.log

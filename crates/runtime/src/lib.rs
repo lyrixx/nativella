@@ -8,12 +8,17 @@
 //! single dedicated thread for the whole life of the process and requests are
 //! queued to it.
 
+mod absolute_urls;
 mod bridge;
 mod cookies;
+#[cfg(all(nativella_static_php, target_os = "linux", target_env = "gnu"))]
+mod glibc_compat;
+#[cfg(any(target_os = "android", target_os = "ios"))]
+mod nativephp_stubs;
 mod redirects;
 mod runtime;
 mod sapi;
 mod static_files;
 
-pub use bridge::NativeHandler;
+pub use bridge::{NativeCall, NativeHandler};
 pub use runtime::{PhpApp, PhpRuntime, RequestOrigin};

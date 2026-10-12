@@ -16,7 +16,7 @@ use ext_php_rs::ffi::{
     ZEND_RESULT_CODE_SUCCESS, ext_php_rs_sapi_globals, php_module_shutdown, php_module_startup,
     php_request_shutdown, php_request_startup, sapi_request_info, sapi_shutdown, sapi_startup,
 };
-use http::header::{CONTENT_LENGTH, CONTENT_TYPE, COOKIE, HOST};
+use http::header::{CONTENT_LENGTH, CONTENT_TYPE, COOKIE, HOST, ORIGIN, REFERER};
 use http::{HeaderName, HeaderValue, Request, Response, StatusCode};
 
 use crate::bridge;
@@ -28,19 +28,44 @@ const HTTP_1_1: u16 = 1001;
 /// The PHP engine, started once on the PHP thread.
 pub(crate) struct Engine {
     module: *mut SapiModule,
+    /// `module.ini_entries`, which PHP reads at startup and never frees.
+    ini_entries: Option<CString>,
 }
 
 impl Engine {
-    pub(crate) fn start() -> Self {
+    /// `ini` settings apply on top of php.ini, as `php -d` would.
+    pub(crate) fn start(ini: &[(String, String)]) -> Self {
         let mut module = NativeSapi::build_module().expect("The SAPI names contain no NUL byte.");
         // ext-php-rs answers with a new C string for every request and PHP
         // never frees it: hand PHP the one the request context owns instead.
         module.read_cookies = Some(read_cookies);
+
+        // Before the settings of the application, which may override it.
+        //
+        // PHP built without threads times a request with ITIMER_PROF: the CPU
+        // time of the whole process, the GTK thread included, which runs
+        // while a dialog waits for the user. Past max_execution_time, the
+        // hard timeout kills the process (exit 124), the application with
+        // it: only the error of max_execution_time remains, which PHP raises
+        // once the dialog is answered, and which bridge::restart_time_limit()
+        // prevents.
+        let defaults = [("hard_timeout".to_owned(), "0".to_owned())];
+        let entries: String = defaults
+            .iter()
+            .chain(ini)
+            .map(|(name, value)| format!("{name}=\"{}\"\n", value.replace('"', "")))
+            .collect();
+        let ini_entries = Some(CString::new(entries).expect("INI settings contain no NUL byte."));
         let module = Box::into_raw(Box::new(module));
 
         unsafe {
             ext_php_rs_sapi_startup();
             sapi_startup(module);
+            // sapi_startup() resets them: php_module_startup() reads them,
+            // after php.ini, as the embed SAPI does.
+            if let Some(entries) = &ini_entries {
+                (*module).ini_entries = entries.as_ptr();
+            }
         }
 
         let started = unsafe { php_module_startup(module, bridge::module_entry()) };
@@ -49,14 +74,17 @@ impl Engine {
             "PHP failed to start: check the errors above (php.ini, extensions)."
         );
 
-        Self { module }
+        Self {
+            module,
+            ini_entries,
+        }
     }
 
     pub(crate) fn handle(
         &self,
         app: &PhpApp,
         request: Request<Vec<u8>>,
-        origin: RequestOrigin,
+        origin: &RequestOrigin,
     ) -> Response<Vec<u8>> {
         let mut context = RequestContext::new(app, request, origin);
 
@@ -68,6 +96,10 @@ impl Engine {
             let globals = &mut *ext_php_rs_sapi_globals();
             globals.server_context = (&raw mut context).cast();
             strings.apply(&mut globals.request_info, &info);
+            // PHP keeps the status of the previous request otherwise, and
+            // only turns a fatal error into a 500 from a 200, as php-fpm
+            // and the built-in server start every request with.
+            globals.sapi_headers.http_response_code = 200;
         }
 
         if unsafe { php_request_startup() } == ZEND_RESULT_CODE_SUCCESS {
@@ -107,6 +139,7 @@ impl Drop for Engine {
             cleanup_sapi_allocations(self.module);
             drop(Box::from_raw(self.module));
         }
+        drop(self.ini_entries.take());
     }
 }
 
@@ -116,11 +149,11 @@ impl Sapi for NativeSapi {
     type Context = RequestContext;
 
     fn name() -> &'static str {
-        "native-php"
+        "nativella"
     }
 
     fn pretty_name() -> &'static str {
-        "Native PHP"
+        "Nativella"
     }
 
     fn ub_write(context: &mut RequestContext, buf: &[u8]) -> usize {
@@ -134,7 +167,11 @@ impl Sapi for NativeSapi {
     }
 
     fn send_headers(context: &mut RequestContext, headers: &SapiHeaders) -> SendHeadersResult {
-        context.status = headers.http_response_code();
+        // 0 when the script set none: PHP leaves the default to the SAPI.
+        context.status = match headers.http_response_code() {
+            0 => 200,
+            code => code,
+        };
 
         SendHeadersResult::DoSend
     }
@@ -179,7 +216,7 @@ struct RequestContext {
 }
 
 impl RequestContext {
-    fn new(app: &PhpApp, request: Request<Vec<u8>>, origin: RequestOrigin) -> Self {
+    fn new(app: &PhpApp, request: Request<Vec<u8>>, origin: &RequestOrigin) -> Self {
         let (parts, body) = request.into_parts();
 
         let request_uri = parts
@@ -209,7 +246,7 @@ impl RequestContext {
 
         server_variables.extend(
             [
-                ("SERVER_SOFTWARE", "native-php".to_owned()),
+                ("SERVER_SOFTWARE", "nativella".to_owned()),
                 (
                     "SERVER_NAME",
                     parts.uri.host().unwrap_or("localhost").to_owned(),
@@ -249,12 +286,18 @@ impl RequestContext {
                 continue;
             };
 
+            let value = if name == ORIGIN || name == REFERER {
+                as_php_origin(&parts.uri, value)
+            } else {
+                value.to_owned()
+            };
+
             server_variables.push((
                 format!(
                     "HTTP_{}",
                     name.as_str().to_ascii_uppercase().replace('-', "_")
                 ),
-                value.to_owned(),
+                value,
             ));
         }
 
@@ -266,8 +309,15 @@ impl RequestContext {
             ));
         }
 
-        if origin == RequestOrigin::Internal {
-            server_variables.push(("NATIVE_PHP_INTERNAL".to_owned(), "1".to_owned()));
+        server_variables.extend(app.server_variables.iter().cloned());
+
+        match origin {
+            RequestOrigin::Webview { window } => {
+                server_variables.push(("NATIVELLA_WINDOW".to_owned(), window.clone()));
+            }
+            RequestOrigin::Internal => {
+                server_variables.push(("NATIVELLA_INTERNAL".to_owned(), "1".to_owned()));
+            }
         }
 
         let info = RequestInfo {
@@ -417,9 +467,48 @@ fn as_ptr(value: &Option<CString>) -> *const c_char {
     value.as_ref().map_or(ptr::null(), |value| value.as_ptr())
 }
 
+/// PHP believes it is served over plain HTTP (see SERVER_PORT above): an
+/// `Origin` or `Referer` of the webview's own scheme ("php://localhost") is
+/// rewritten to match, or same-origin checks (CSRF protections) would fail.
+fn as_php_origin(uri: &http::Uri, value: &str) -> String {
+    let (Some(scheme), Some(host)) = (uri.scheme_str(), uri.host()) else {
+        return value.to_owned();
+    };
+    let webview_origin = format!("{scheme}://{host}");
+
+    match value.strip_prefix(&webview_origin) {
+        Some(rest) if rest.is_empty() || rest.starts_with('/') => format!("http://{host}{rest}"),
+        _ => value.to_owned(),
+    }
+}
+
 fn header_str(headers: &http::HeaderMap, name: &HeaderName) -> Option<String> {
     headers
         .get(name)
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_webview_origin_becomes_the_php_one() {
+        let uri: http::Uri = "php://localhost/notes".parse().unwrap();
+
+        assert_eq!(as_php_origin(&uri, "php://localhost"), "http://localhost");
+        assert_eq!(
+            as_php_origin(&uri, "php://localhost/notes/1?a=b"),
+            "http://localhost/notes/1?a=b"
+        );
+        assert_eq!(
+            as_php_origin(&uri, "php://localhost.evil.com"),
+            "php://localhost.evil.com"
+        );
+        assert_eq!(
+            as_php_origin(&uri, "https://example.com/"),
+            "https://example.com/"
+        );
+    }
 }

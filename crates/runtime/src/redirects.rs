@@ -35,17 +35,19 @@ pub(crate) fn next(
     if !response.status().is_redirection() {
         return Next::Respond(response);
     }
+    // Bytes beyond ASCII (an accented query) are percent-encoded by the join.
     let Some(location) = response
         .headers()
         .get(LOCATION)
-        .and_then(|value| value.to_str().ok())
+        .map(|value| String::from_utf8_lossy(value.as_bytes()).into_owned())
     else {
         return Next::Respond(response);
     };
+    let location = location.as_str();
 
     let base = php_url(request.uri());
     let target = match base.join(location) {
-        Ok(target) => target,
+        Ok(target) => as_php_url(target, request.uri()),
         Err(error) => {
             eprintln!("[redirect] Ignored the invalid Location \"{location}\": {error}.");
 
@@ -54,9 +56,31 @@ pub(crate) fn next(
     };
     let same_origin = target.origin() == base.origin();
 
+    // Browsers only follow redirects to web pages: a `javascript:` or `data:`
+    // Location would run in the origin of the application.
+    if !same_origin && !matches!(target.scheme(), "http" | "https") {
+        eprintln!(
+            "[redirect] Refused to follow a redirect to a {} URL.",
+            target.scheme()
+        );
+
+        return Next::Respond(
+            Response::builder()
+                .status(StatusCode::BAD_GATEWAY)
+                .body(Vec::new())
+                .expect("A response with a status and no header is valid."),
+        );
+    }
+
     if navigation {
         let href = if same_origin {
-            path_and_query(&target)
+            let mut href = path_and_query(&target);
+            if let Some(fragment) = target.fragment() {
+                href.push('#');
+                href.push_str(fragment);
+            }
+
+            href
         } else {
             target.to_string()
         };
@@ -113,6 +137,22 @@ fn php_url(uri: &Uri) -> Url {
         uri.host().unwrap_or("localhost")
     ))
     .expect("A host and a path from a valid URI make a valid URL.")
+}
+
+/// A Location on the webview's own scheme ("php://localhost/…", as a
+/// framework told so builds it) is the same page as on PHP's: the origin of
+/// a custom scheme is opaque, and would never match.
+fn as_php_url(target: Url, uri: &Uri) -> Url {
+    if Some(target.scheme()) != uri.scheme_str() || target.host_str() != uri.host() {
+        return target;
+    }
+
+    let mut php = php_url(uri);
+    php.set_path(target.path());
+    php.set_query(target.query());
+    php.set_fragment(target.fragment());
+
+    php
 }
 
 fn webview_uri(uri: &Uri, path_and_query: &str) -> Uri {
@@ -199,6 +239,68 @@ mod tests {
         assert_eq!(request.method(), Method::POST);
         assert_eq!(request.uri(), "php://localhost/b");
         assert_eq!(request.body(), b"title=Hello");
+    }
+
+    #[test]
+    fn a_fetch_follows_a_location_on_the_webview_scheme() {
+        let Next::Follow(request) = next(
+            post("php://localhost/tasks"),
+            redirect(302, "php://localhost/?added=1"),
+            false,
+        ) else {
+            panic!("The redirect is not followed.");
+        };
+
+        assert_eq!(request.uri(), "php://localhost/?added=1");
+    }
+
+    #[test]
+    fn a_navigation_keeps_the_fragment() {
+        let Next::Respond(response) = next(
+            post("php://localhost/notes"),
+            redirect(303, "/?q=x#note-5"),
+            true,
+        ) else {
+            panic!("A navigation is never followed by the runtime.");
+        };
+
+        assert!(
+            String::from_utf8(response.into_body())
+                .unwrap()
+                .contains(r#"location.replace("/?q=x#note-5")"#)
+        );
+    }
+
+    #[test]
+    fn a_redirect_never_runs_script() {
+        for location in [
+            "javascript:alert(document.cookie)",
+            "data:text/html,<script>alert(1)</script>",
+        ] {
+            let Next::Respond(response) =
+                next(post("php://localhost/login"), redirect(302, location), true)
+            else {
+                panic!("A navigation is never followed by the runtime.");
+            };
+
+            assert_eq!(response.status(), StatusCode::BAD_GATEWAY, "{location}");
+            assert!(response.body().is_empty());
+        }
+    }
+
+    #[test]
+    fn a_location_beyond_ascii_is_followed() {
+        let mut response = redirect(302, "/");
+        response.headers_mut().insert(
+            LOCATION,
+            http::HeaderValue::from_bytes("/search?q=café".as_bytes()).unwrap(),
+        );
+
+        let Next::Follow(request) = next(post("php://localhost/search"), response, false) else {
+            panic!("The redirect is not followed.");
+        };
+
+        assert_eq!(request.uri(), "php://localhost/search?q=caf%C3%A9");
     }
 
     #[test]

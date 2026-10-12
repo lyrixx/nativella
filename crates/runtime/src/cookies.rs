@@ -1,6 +1,10 @@
 //! WebKit neither stores nor sends cookies for a custom scheme, so the runtime
 //! plays the browser's part.
 
+use std::fs;
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
+
 use cookie::Cookie;
 use cookie::time::OffsetDateTime;
 use http::header::{COOKIE, SET_COOKIE};
@@ -9,14 +13,51 @@ use http::{HeaderValue, Request, Response};
 /// The cookies PHP set, sent back with the following requests.
 ///
 /// It lives on the PHP thread: requests are served one at a time, so the
-/// cookies of a response always reach the next request. It is kept in memory:
-/// cookies are lost when the application quits.
+/// cookies of a response always reach the next request.
+///
+/// As in a browser, the cookies with an expiry date outlive the application
+/// when the jar has a file; session cookies end with it.
 #[derive(Default)]
 pub(crate) struct CookieJar {
     cookies: Vec<Cookie<'static>>,
+    file: Option<PathBuf>,
 }
 
 impl CookieJar {
+    /// The jar saved in `file`, empty if there is none yet.
+    pub(crate) fn load(file: PathBuf) -> Self {
+        let now = OffsetDateTime::now_utc();
+        let cookies = match fs::read_to_string(&file) {
+            Ok(content) => content
+                .lines()
+                .filter_map(|line| match Cookie::parse(line.to_owned()) {
+                    Ok(cookie) => Some(cookie),
+                    Err(error) => {
+                        eprintln!(
+                            "[cookies] Ignored an invalid line of {}: {error}.",
+                            file.display()
+                        );
+                        None
+                    }
+                })
+                .filter(|cookie| is_persistent(cookie, now))
+                .collect(),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
+            Err(error) => {
+                eprintln!(
+                    "[cookies] Could not read {}, starting without cookies: {error}.",
+                    file.display()
+                );
+                Vec::new()
+            }
+        };
+
+        Self {
+            cookies,
+            file: Some(file),
+        }
+    }
+
     pub(crate) fn add_to(&self, request: &mut Request<Vec<u8>>) {
         let now = OffsetDateTime::now_utc();
         let path = request.uri().path();
@@ -53,6 +94,7 @@ impl CookieJar {
 
     pub(crate) fn store(&mut self, request_path: &str, response: &Response<Vec<u8>>) {
         let now = OffsetDateTime::now_utc();
+        let mut changed = false;
 
         for value in response.headers().get_all(SET_COOKIE) {
             let Some(mut cookie) = value
@@ -64,12 +106,20 @@ impl CookieJar {
                 continue;
             };
 
-            if cookie.path().is_none() {
+            // RFC 6265, 5.2.4: a path that does not start with "/" is the
+            // default one.
+            if !cookie.path().is_some_and(|path| path.starts_with('/')) {
                 cookie.set_path(default_path(request_path));
             }
-            // Max-Age wins over Expires (RFC 6265, 5.3): turn it into a date now.
+            // Max-Age wins over Expires (RFC 6265, 5.3): turn it into a date
+            // now, which a saved cookie keeps. A huge one (PHP_INT_MAX) is as
+            // good as never.
             if let Some(max_age) = cookie.max_age() {
-                cookie.set_expires(now + max_age);
+                let expires = now
+                    .checked_add(max_age)
+                    .unwrap_or(cookie::time::PrimitiveDateTime::MAX.assume_utc());
+                cookie.set_expires(expires);
+                cookie.set_max_age(None);
             }
 
             self.cookies
@@ -77,8 +127,47 @@ impl CookieJar {
             if !is_expired(&cookie, now) {
                 self.cookies.push(cookie);
             }
+            changed = true;
+        }
+
+        if changed && let Some(file) = &self.file {
+            let content: String = self
+                .cookies
+                .iter()
+                .filter(|cookie| is_persistent(cookie, now))
+                .map(|cookie| format!("{cookie}\n"))
+                .collect();
+            if let Err(error) = save(file, &content) {
+                eprintln!(
+                    "[cookies] Could not save the cookies to {}: {error}.",
+                    file.display()
+                );
+            }
         }
     }
+}
+
+/// Session ids are as good as passwords: readable by the user only, and
+/// written aside then renamed, so that a crash never leaves half a file.
+fn save(file: &Path, content: &str) -> io::Result<()> {
+    let temporary = file.with_extension("tmp");
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(&temporary)?.write_all(content.as_bytes())?;
+
+    fs::rename(&temporary, file)
+}
+
+/// Whether `cookie` outlives the application: it has an expiry date, to come.
+fn is_persistent(cookie: &Cookie<'_>, now: OffsetDateTime) -> bool {
+    cookie
+        .expires_datetime()
+        .is_some_and(|expires| expires > now)
 }
 
 fn is_expired(cookie: &Cookie<'_>, now: OffsetDateTime) -> bool {
@@ -157,6 +246,54 @@ mod tests {
         );
 
         assert_eq!(cookie_header(&jar, "/").as_deref(), Some("PHPSESSID=def"));
+    }
+
+    #[test]
+    fn a_huge_max_age_never_expires() {
+        let mut jar = CookieJar::default();
+        jar.store(
+            "/",
+            &response(&["remember=1; path=/; max-age=999999999999999"]),
+        );
+
+        assert_eq!(cookie_header(&jar, "/").as_deref(), Some("remember=1"));
+    }
+
+    #[test]
+    fn a_relative_path_is_the_default_one() {
+        let mut jar = CookieJar::default();
+        jar.store("/admin/users", &response(&["theme=dark; path=admin"]));
+
+        assert_eq!(
+            cookie_header(&jar, "/admin/x").as_deref(),
+            Some("theme=dark")
+        );
+    }
+
+    #[test]
+    fn keeps_the_cookies_with_an_expiry_date() {
+        let file = Path::new(env!("OUT_DIR")).join(format!("cookies-{}", std::process::id()));
+        let _ = fs::remove_file(&file);
+
+        let mut jar = CookieJar::load(file.clone());
+        jar.store(
+            "/",
+            &response(&[
+                "PHPSESSID=abc; path=/",
+                "remember=1; path=/; max-age=3600",
+                "gone=1; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT",
+            ]),
+        );
+
+        assert_eq!(
+            cookie_header(&CookieJar::load(file.clone()), "/").as_deref(),
+            Some("remember=1")
+        );
+
+        jar.store("/", &response(&["remember=; path=/; max-age=0"]));
+        assert_eq!(cookie_header(&CookieJar::load(file.clone()), "/"), None);
+
+        fs::remove_file(file).unwrap();
     }
 
     #[test]
