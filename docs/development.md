@@ -158,9 +158,10 @@ An embed-only PHP has no `php` binary for ext-php-rs to ask `php -i`: the stand-
 ```bash
 castor mobile:android symfony [--release]
 castor mobile:ios symfony [--bundle=<file>]      # on a Mac
+castor mobile:ios-simulator symfony              # on a Mac, after mobile:ios
 ```
 
-`mobile:android` builds the `android` image, then the APK in it: it lands in `crates/nativella/gen/android/app/build/outputs/apk/`. `mobile:ios` runs on the Mac itself, which needs Xcode and XcodeGen. See [Mobile](mobile.md#building-an-apk).
+`mobile:android` builds the `android` image, then the APK in it: it lands in `crates/nativella/gen/android/app/build/outputs/apk/`. `mobile:ios` runs on the Mac itself, which needs Xcode and XcodeGen. `mobile:ios-simulator` opens the app it built in a simulator, takes a screenshot once it had 30 seconds to start, and fails if it stopped: the screenshot and the output of the app land in `target/nativella/`. See [Mobile](mobile.md#building-an-apk).
 
 ## Contexts
 
@@ -194,6 +195,6 @@ The workflows of `.github/workflows/` run Castor tasks in the same stack:
 |---|---|---|
 | `ci.yml` | Pull requests, `main`, weekly | `castor start`, the PHP checks and tests, the frontend over HTTPS (`castor qa:frontend`); in parallel, `castor qa:rust` and `castor nativella:smoke`, in the builder and on macOS (arm64, the host context, with the static PHP); the static PHP on Linux, in the `static` image: `castor nativella:smoke --static`, then `castor nativella:build --static` and `castor nativella:package`, as the release does; hadolint on the Dockerfile. |
 | `website.yml` | Changes to `website/`, `docs/` or `tools/mkdocs/` | `castor website:build`, which fails on a broken link; on `main`, deploys `website/dist/` to GitHub Pages: the landing page, and the documentation under `docs/`. Pages must be set to "GitHub Actions" in the settings of the repository. |
-| `mobile.yml` | Changes to `crates/`, `mobile/`, `packages/`, `demos/symfony/` or the Docker stack, manually | `castor mobile:android symfony`: the APK as an artifact. Then, experimentally, `castor mobile:ios symfony` on macOS, with the bundle of the Android job: the simulator app as an artifact. |
+| `mobile.yml` | Changes to `crates/`, `mobile/`, `packages/`, `demos/symfony/` or the Docker stack, manually | `castor mobile:android symfony`: the APK as an artifact. Then, experimentally, `castor mobile:ios symfony` on macOS, with the bundle of the Android job, and `castor mobile:ios-simulator symfony`: the simulator app, its screenshot and its output as artifacts. |
 | `release.yml` | `v*` tags, manually | `castor nativella:build --static` and `castor nativella:package`: the Linux x86_64 executables, in the `static` image, and the macOS arm64 ones; as artifacts and, for a tag, on the GitHub release. |
 | `cache.yml` | Changes to `infrastructure/docker/` on `main` | `castor docker:push`: pushes the build cache of the images to `ghcr.io/lyrixx/nativella`, which the other workflows build from. |

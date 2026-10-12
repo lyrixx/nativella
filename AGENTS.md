@@ -71,6 +71,7 @@ castor nativella:smoke           # each demo answers through the runtime, withou
 castor nativella:build [demo]    # dist/nativella and the standalone executables of the demos (staged for production)
 castor static-php:build          # PHP as a static library, for --static (nativella:build, qa:rust…), in the static service
 castor mobile:android symfony    # an Android APK of the demo (android service)
+castor mobile:ios symfony        # an iOS simulator app of the demo (macOS), then mobile:ios-simulator
 castor logs [--service=service]  # logs (frontend, router)
 ```
 

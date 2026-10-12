@@ -175,6 +175,97 @@ function ios(
 }
 
 /**
+ * Opens the app mobile:ios built in a simulator, the newest iPhone of the
+ * newest iOS: the output of the app goes next to the screenshot, which is
+ * taken once the app had the time to start. Fails if the app does not run
+ * any more by then.
+ *
+ * EXPERIMENTAL: .github/workflows/mobile.yml runs it on a macOS runner.
+ */
+#[AsTask(name: 'ios-simulator', description: 'Opens the iOS app of a demo in a simulator and takes a screenshot, on macOS (experimental)')]
+function ios_simulator(
+    #[AsArgument(description: 'The demo to open, e.g. symfony', autocomplete: 'project\complete_demo_names')]
+    string $demo,
+    #[AsOption(description: 'The screenshot, from the root of the repository')]
+    string $screenshot = 'target/nativella/ios-simulator.png',
+    #[AsOption(description: 'The time the app has to start, in seconds')]
+    int $wait = 30,
+): void {
+    if (!context()['macos']) {
+        throw new \RuntimeException('An iOS simulator needs macOS, with Xcode.');
+    }
+
+    $project = demo($demo);
+    $identifier = tauri_config($project)['identifier'];
+    $root = variable('root_dir');
+
+    if (generated('apple') !== $identifier) {
+        throw new \RuntimeException(\sprintf('There is no iOS app of %s: run "castor mobile:ios %s" first.', $project->path, $demo));
+    }
+
+    $apps = iterator_to_array(finder()->in("{$root}/crates/nativella/gen/apple/build")->directories()->name('*.app')->sortByModifiedTime(), false);
+    $app = end($apps) ?: throw new \RuntimeException(\sprintf('There is no iOS app of %s: run "castor mobile:ios %s" first.', $project->path, $demo));
+
+    $device = simulator();
+    io()->title("Opening {$project->path} in {$device['name']}");
+
+    // -b boots it first, if needed
+    run(['xcrun', 'simctl', 'bootstatus', $device['udid'], '-b']);
+    run(['xcrun', 'simctl', 'install', $device['udid'], $app->getPathname()]);
+
+    // Two files: simctl would truncate one twice
+    $output = preg_replace('/\.png$/', '', $screenshot);
+    $logs = ["{$output}.stdout.log", "{$output}.stderr.log"];
+    fs()->mkdir(\dirname("{$root}/{$screenshot}"));
+    run(['xcrun', 'simctl', 'launch', '--terminate-running-process', "--stdout={$root}/{$logs[0]}", "--stderr={$root}/{$logs[1]}", $device['udid'], $identifier]);
+
+    io()->comment("Waiting {$wait} seconds for the app to start...");
+    sleep($wait);
+
+    // Even if the app is gone: the screenshot shows what is left
+    run(['xcrun', 'simctl', 'io', $device['udid'], 'screenshot', "{$root}/{$screenshot}"]);
+
+    // PID, status and label of each service: a PID while the app runs
+    $running = preg_match('/^\d+\s+\S+\s+UIKitApplication:'.preg_quote($identifier, '/').'\[/m', capture(['xcrun', 'simctl', 'spawn', $device['udid'], 'launchctl', 'list']));
+    if (1 !== $running) {
+        foreach ($logs as $log) {
+            io()->section($log);
+            io()->writeln((string) file_get_contents("{$root}/{$log}"));
+        }
+
+        throw new \RuntimeException(\sprintf('The app stopped within %d seconds: its output is above.', $wait));
+    }
+
+    io()->success(\sprintf('The app runs. The screenshot: %s, its output: %s.', $screenshot, implode(', ', $logs)));
+}
+
+/**
+ * The newest iPhone of the newest iOS among the simulators of Xcode.
+ *
+ * @return array{name: string, udid: string}
+ */
+function simulator(): array
+{
+    /** @var array{devices: array<string, list<array{name: string, udid: string}>>} $list */
+    $list = json_decode(capture(['xcrun', 'simctl', 'list', 'devices', 'available', '--json']), true, flags: \JSON_THROW_ON_ERROR);
+
+    // Runtimes are named com.apple.CoreSimulator.SimRuntime.iOS-18-2
+    $runtimes = array_filter(array_keys($list['devices']), static fn (string $runtime): bool => str_contains($runtime, '.SimRuntime.iOS-'));
+    usort($runtimes, static fn (string $a, string $b): int => strnatcmp($b, $a));
+
+    foreach ($runtimes as $runtime) {
+        $iPhones = array_filter($list['devices'][$runtime], static fn (array $device): bool => str_starts_with($device['name'], 'iPhone'));
+        usort($iPhones, static fn (array $a, array $b): int => strnatcmp($b['name'], $a['name']));
+
+        if ([] !== $iPhones) {
+            return $iPhones[0];
+        }
+    }
+
+    throw new \RuntimeException('Xcode has no iPhone simulator: add one in Xcode, Settings > Components.');
+}
+
+/**
  * Downloads a static PHP build for Android or iOS: libphp.a, the libraries
  * it needs and its headers, into mobile/php/dist/<platform>-<php version>/.
  *
