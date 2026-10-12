@@ -1,0 +1,21 @@
+{
+    "type": "project",
+    "require": {
+        "phpstan/extension-installer": "^1.4.3",
+        "phpstan/phpstan": "^2.3.1",
+        "phpstan/phpstan-deprecation-rules": "^2.0.5",
+        "phpstan/phpstan-doctrine": "^2.0.28",
+        "phpstan/phpstan-phpunit": "^2.1.1",
+        "phpstan/phpstan-symfony": "^2.1.0"
+    },
+    "config": {
+        "allow-plugins": {
+            "phpstan/extension-installer": true
+        },
+        "bump-after-update": true,
+        "platform": {
+            "php": "8.5"
+        },
+        "sort-packages": true
+    }
+}

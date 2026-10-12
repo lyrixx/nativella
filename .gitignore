@@ -1,2 +1,15 @@
 /target/
-/crates/desktop/gen/
+/crates/nativella/gen/
+# Written by mobile/ios/build.sh.
+/crates/nativella/Info.ios.plist
+/.claude/tmp/
+
+# Docker / Castor
+/.castor.stub.php
+/dist/
+/infrastructure/docker/docker-compose.override.yml
+/infrastructure/docker/services/router/certs/*.pem
+
+# Tools
+.php-cs-fixer.cache
+.twig-cs-fixer.cache

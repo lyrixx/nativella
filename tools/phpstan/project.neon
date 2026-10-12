@@ -1,0 +1,12 @@
+# The configuration of the projects (packages/*, demos/*, website) that have
+# none of their own: `castor qa:phpstan` runs PHPStan from the directory of the
+# project, so that PHPStan finds its classes through its composer.json and
+# vendor/, over its PSR-4 directories. A project that needs more (a baseline,
+# an extension) adds a phpstan.dist.neon that includes this file.
+parameters:
+    level: 8
+    # Set by castor qa:phpstan: a cache per project, as they share no class
+    tmpDir: %env.PHPSTAN_TMP_DIR%
+    inferPrivatePropertyTypeFromConstructor: true
+    scanFiles:
+        - stubs/nativella.php

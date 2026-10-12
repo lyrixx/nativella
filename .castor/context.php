@@ -1,0 +1,79 @@
+<?php
+
+namespace context;
+
+use Castor\Attribute\AsContext;
+use Castor\Context;
+use Symfony\Component\Process\Process;
+
+use function Castor\log;
+use function worktree\get_worktree_name;
+
+#[AsContext(default: true)]
+function create_default_context(): Context
+{
+    $data = create_default_variables() + [
+        'project_name' => 'nativella',
+        'root_domain' => 'nativella.test',
+        'extra_domains' => [],
+        'php_version' => '8.5',
+        'docker_compose_files' => [
+            'docker-compose.yml',
+            'docker-compose.dev.yml',
+        ],
+        'docker_compose_run_environment' => [],
+        // Service in which `docker_compose_run()` executes commands (composer, cargo...)
+        'docker_compose_run_service' => 'builder',
+        'macos' => false,
+        'power_shell' => false,
+        // check if posix_geteuid is available, if not, use getmyuid (windows)
+        'user_id' => \function_exists('posix_geteuid') ? posix_geteuid() : getmyuid(),
+        'root_dir' => \dirname(__DIR__),
+    ];
+
+    if (file_exists($data['root_dir'].'/infrastructure/docker/docker-compose.override.yml')) {
+        $data['docker_compose_files'][] = 'docker-compose.override.yml';
+    }
+
+    $platform = strtolower(php_uname('s'));
+    if (str_contains($platform, 'darwin')) {
+        $data['macos'] = true;
+    } elseif (\in_array($platform, ['win32', 'win64', 'windows nt'], true)) {
+        $data['power_shell'] = true;
+    }
+
+    //                                                   2³² - 1
+    if (false === $data['user_id'] || $data['user_id'] > 4294967295) {
+        $data['user_id'] = 1000;
+    }
+
+    if (0 === $data['user_id']) {
+        log('Running as root? Fallback to fake user id.', 'warning');
+        $data['user_id'] = 1000;
+    }
+
+    $worktreeName = get_worktree_name($data['root_dir']);
+    if (null !== $worktreeName) {
+        $data['project_name'] .= '-wt-'.$worktreeName;
+    }
+
+    return new Context(
+        $data,
+        pty: Process::isPtySupported(),
+        environment: [
+            'BUILDKIT_PROGRESS' => 'plain',
+        ]
+    );
+}
+
+#[AsContext(name: 'ci')]
+function create_ci_context(): Context
+{
+    $c = create_default_context();
+
+    return $c
+        ->withEnvironment([
+            'COMPOSE_ANSI' => 'never',
+        ])
+    ;
+}

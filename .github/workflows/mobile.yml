@@ -1,0 +1,202 @@
+name: Mobile
+
+# Builds the Symfony demo for Android (arm64), on the runner: the builder image
+# has no Android SDK, and GitHub's Ubuntu runners ship one, with NDKs. On
+# demand, an experimental job tries the iOS simulator on macOS.
+
+"on":
+    push:
+        branches: ["main"]
+        paths:
+            - ".castor/**"
+            - ".github/workflows/mobile.yml"
+            - "Cargo.lock"
+            - "Cargo.toml"
+            - "castor.php"
+            - "crates/**"
+            - "demos/symfony/**"
+            - "mobile/**"
+            - "packages/**"
+    pull_request:
+        branches: ["main"]
+        paths:
+            - ".castor/**"
+            - ".github/workflows/mobile.yml"
+            - "Cargo.lock"
+            - "Cargo.toml"
+            - "castor.php"
+            - "crates/**"
+            - "demos/symfony/**"
+            - "mobile/**"
+            - "packages/**"
+    workflow_dispatch:
+
+concurrency:
+    group: mobile-${{ github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+env:
+    # Fix for symfony/color detection. We know GitHub Actions can handle it
+    ANSICON: 1
+    CASTOR_CONTEXT: ci
+
+jobs:
+    android:
+        name: Android APK of the Symfony demo
+        runs-on: ubuntu-latest
+        timeout-minutes: 60
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false
+
+            - name: setup-castor
+              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+
+            - name: "Set up Java"
+              uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+              with:
+                  distribution: temurin
+                  java-version: "21"
+
+            # The build compiles the nativella command of the runner first, to
+            # bundle the project, and stages it with PHP, Composer and rsync
+            # (see docs/mobile.md): the desktop packages of docs/installation.md
+            - name: "Install PHP and the desktop libraries"
+              shell: bash
+              run: |
+                  set -e
+
+                  sudo add-apt-repository --yes ppa:ondrej/php
+                  sudo apt-get update
+                  sudo apt-get install -y --no-install-recommends \
+                      libclang-dev \
+                      libphp8.5-embed \
+                      librsvg2-dev \
+                      libwebkit2gtk-4.1-dev \
+                      libxdo-dev \
+                      php8.5-cli \
+                      php8.5-curl \
+                      php8.5-dev \
+                      php8.5-mbstring \
+                      php8.5-sqlite3 \
+                      php8.5-xml \
+                      php8.5-zip \
+                      rsync
+                  sudo update-alternatives --set php /usr/bin/php8.5
+                  sudo update-alternatives --set php-config /usr/bin/php-config8.5
+                  php --version
+
+            - name: "Add the Android target of Rust"
+              run: "rustup target add aarch64-linux-android"
+
+            # The most recent NDK of the runner
+            - name: "Pick the NDK"
+              shell: bash
+              run: echo "NDK_HOME=${ANDROID_NDK_LATEST_HOME}" >> "${GITHUB_ENV}"
+
+            - name: "Cache the Rust, Gradle and PHP downloads and builds"
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      ~/.cargo/bin/cargo-tauri
+                      ~/.cargo/git
+                      ~/.cargo/registry
+                      ~/.gradle/caches
+                      ~/.gradle/wrapper
+                      mobile/php/dist
+                      target
+                  key: android-${{ hashFiles('Cargo.lock', 'mobile/php/fetch.sh') }}
+                  restore-keys: android-
+
+            - name: "Install the Tauri command"
+              shell: bash
+              run: command -v cargo-tauri || cargo install tauri-cli --version '^2' --locked
+
+            # ANDROID_HOME comes with the runner, JAVA_HOME with setup-java
+            - name: "Build the APK"
+              run: "castor mobile:android symfony"
+
+            - name: "Upload the APK"
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: nativella-demo-symfony-android-arm64-debug
+                  path: crates/nativella/gen/android/app/build/outputs/apk/**/*.apk
+                  if-no-files-found: error
+
+            # For the iOS job: a bundle is the same on every platform, and the
+            # nativella command of the macOS runner would need a libphp
+            - name: "Upload the bundle of the demo"
+              if: github.event_name == 'workflow_dispatch'
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: nativella-demo-symfony-bundle
+                  path: target/nativella/app.bundle
+                  if-no-files-found: error
+
+    ios:
+        name: iOS simulator app of the Symfony demo (experimental)
+        # Never built yet: on demand only, and it may fail
+        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' }}
+        needs: android
+        continue-on-error: true
+        runs-on: macos-latest
+        timeout-minutes: 60
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false
+
+            - name: "Download the bundle of the demo"
+              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+              with:
+                  name: nativella-demo-symfony-bundle
+                  path: target/nativella/
+
+            # PHP runs mobile/php/fetch.sh and reads the identity of the demo
+            - name: "Set up PHP"
+              uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+              with:
+                  php-version: "8.5"
+                  tools: none
+
+            # cargo tauri ios init generates the Xcode project with XcodeGen
+            - name: "Install XcodeGen"
+              run: "brew install xcodegen"
+
+            - name: "Add the iOS simulator target of Rust"
+              run: "rustup target add aarch64-apple-ios-sim"
+
+            - name: "Cache the Rust downloads and builds"
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      ~/.cargo/bin/cargo-tauri
+                      ~/.cargo/git
+                      ~/.cargo/registry
+                      mobile/php/dist
+                      target
+                  key: ios-${{ hashFiles('Cargo.lock', 'mobile/php/fetch.sh') }}
+                  restore-keys: ios-
+
+            - name: "Install the Tauri command"
+              shell: bash
+              run: command -v cargo-tauri || cargo install tauri-cli --version '^2' --locked
+
+            # Sets NATIVELLA_PHP_DIR, NATIVELLA_PHP_LIB_DIR
+            # (Libraries/iphonesimulator), PHP and PHP_CONFIG (the stand-ins)
+            - name: "Build the simulator app"
+              shell: bash
+              run: mobile/ios/build.sh demos/symfony
+              env:
+                  NATIVELLA_BUNDLE: ${{ github.workspace }}/target/nativella/app.bundle
+
+            - name: "Upload the simulator app"
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: nativella-demo-symfony-ios-simulator-debug
+                  path: crates/nativella/gen/apple/build/**/*.app
+                  if-no-files-found: error

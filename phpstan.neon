@@ -1,0 +1,12 @@
+# The Castor tasks. The projects (packages/*, demos/*, website) are analysed
+# one by one, from their own directory: see the qa:phpstan task and
+# tools/phpstan/project.neon.
+parameters:
+    level: 8
+    paths:
+        - castor.php
+        - .castor/
+    scanFiles:
+        - .castor.stub.php
+    tmpDir: tools/phpstan/var/castor
+    inferPrivatePropertyTypeFromConstructor: true

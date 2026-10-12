@@ -1,0 +1,44 @@
+name: Push docker image to registry
+
+# The builder image is heavy (PHP, WebKitGTK, Rust): every workflow builds it
+# from the cache that this one pushes from main.
+
+"on":
+    push:
+        # Only run this job when pushing to the main branch
+        branches: ["main"]
+        paths:
+            - ".github/workflows/cache.yml"
+            - "infrastructure/docker/**"
+    workflow_dispatch:
+
+permissions:
+    contents: read
+    packages: write
+
+env:
+    REGISTRY: "ghcr.io/lyrixx/nativella"
+
+jobs:
+    push-images:
+        name: Push image to registry
+        runs-on: ubuntu-latest
+        steps:
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+            - name: Log in to registry
+              shell: bash
+              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: setup-castor
+              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false
+
+            - name: "Push the build cache of the images"
+              run: "castor docker:push"
