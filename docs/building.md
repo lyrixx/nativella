@@ -81,14 +81,15 @@ plus the PHP extensions your application uses, and `libayatana-appindicator3-1` 
 
 Built with a static PHP, the `nativella` command makes executables that carry their own PHP: the machine only needs the webview (`libwebkit2gtk-4.1-0`) and a glibc as recent as the one of the build machine.
 
+The macOS executables of the [releases](https://github.com/lyrixx/nativella/releases) are built this way. From the repository, with [its Docker stack](development.md):
+
 ```bash
-static-php/build.sh                      # PHP and its libraries, with static-php-cli
-source static-php/env.sh
-cargo build --release -p nativella --target-dir target/static
-target/static/release/nativella build path/to/project -o dist/my-app
+castor static-php:build              # PHP and its libraries, with static-php-cli
+castor nativella:build --static      # dist/nativella, and the demos, linked against it
+dist/nativella build path/to/project -o dist/my-app
 ```
 
-The Symfony demo makes a 66 MB executable this way. That PHP has the extensions a Symfony, Laravel or Doctrine application needs (bcmath, ctype, curl, dom, fileinfo, filter, iconv, mbstring, opcache, openssl, pdo_sqlite, phar, session, simplexml, sodium, sqlite3, tokenizer, xml, xmlreader, xmlwriter, zip, zlib), but not intl, and no `php.ini`: PHP runs with its defaults, plus the settings Nativella sets (sessions in the cache directory of the application, the time zone of the system). See [static-php/README.md](../static-php/README.md).
+The Symfony demo makes a 66 MB executable this way. That PHP has the extensions a Symfony, Laravel or Doctrine application needs (bcmath, ctype, curl, dom, fileinfo, filter, iconv, mbstring, opcache, openssl, pdo_sqlite, phar, session, simplexml, sodium, sqlite3, tokenizer, xml, xmlreader, xmlwriter, zip, zlib), but not intl, and no `php.ini`: PHP runs with its defaults, plus the settings Nativella sets (sessions in the cache directory of the application, the time zone of the system). See [Developing Nativella](development.md#static-php).
 
 > [!NOTE]
 > Installers (`.deb`, `.dmg`, `.msi`), code signing and updates are not there yet. See [Limitations and roadmap](limitations.md#distribution).

@@ -31,7 +31,7 @@ $apis = [
     ['database', 'Database', 'SQLite in the data directory, migrated when the app starts.', 'NATIVELLA_DATA_DIR'],
     ['configuration', 'Deep links', 'notes://42 in a browser or a mail opens the app, and PHP gets the URL.', 'AppUrlsOpened $event'],
     ['building', 'Standalone build', 'One executable that carries your whole project, and its PHP.', 'nativella build notes'],
-    ['mobile', 'Android', 'The same project in an APK, experimentally.', 'mobile/android/build.sh'],
+    ['mobile', 'Android', 'The same project in an APK, experimentally.', 'castor mobile:android symfony'],
     ['phone-apis', 'Phone APIs', 'Vibrations, the location of the phone, fingerprint and face authentication.', "\$biometrics->authenticate('Unlock')"],
 ];
 ?>
@@ -407,7 +407,7 @@ $apis = [
             <div class="split-text">
                 <p class="kicker">Android · experimental</p>
                 <h2 id="phone-title">The same Notes, on a phone.</h2>
-                <p>The Symfony demo, unchanged, built into an APK with <code>mobile/android/build.sh demos/symfony</code> and running on an Android 16 emulator: Doctrine migrations at boot, forms and sessions, Markdown, the clipboard of the phone, and a native dialog opened by PHP. A note takes the location of the phone in one method call; the other demos vibrate, and ask for a fingerprint.</p>
+                <p>The Symfony demo, unchanged, built into an APK with <code>castor mobile:android symfony</code> and running on an Android 16 emulator: Doctrine migrations at boot, forms and sessions, Markdown, the clipboard of the phone, and a native dialog opened by PHP. A note takes the location of the phone in one method call; the other demos vibrate, and ask for a fingerprint.</p>
                 <p class="phone-note">Early days: arm64 builds only, no iOS yet, and the static PHP inside comes from NativePHP’s builds until Nativella makes its own.</p>
                 <p><a class="link-arrow" href="<?= $this->url('docs/mobile/') ?>">Mobile, in the docs</a></p>
             </div>

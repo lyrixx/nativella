@@ -24,6 +24,8 @@ function create_default_context(): Context
         'docker_compose_run_environment' => [],
         // Service in which `docker_compose_run()` executes commands (composer, cargo...)
         'docker_compose_run_service' => 'builder',
+        // The host context runs those commands on the host instead
+        'run_on_host' => false,
         'macos' => false,
         'power_shell' => false,
         // check if posix_geteuid is available, if not, use getmyuid (windows)
@@ -76,4 +78,15 @@ function create_ci_context(): Context
             'COMPOSE_ANSI' => 'never',
         ])
     ;
+}
+
+/**
+ * Runs on the host what the other contexts run in the builder: Composer, PHP,
+ * cargo, with the tools of the host. For the machines without Docker, like the
+ * macOS runners of GitHub Actions.
+ */
+#[AsContext(name: 'host')]
+function create_host_context(): Context
+{
+    return create_default_context()->withData(['run_on_host' => true]);
 }

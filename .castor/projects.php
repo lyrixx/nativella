@@ -129,7 +129,7 @@ function complete_project_paths(CompletionInput $input): array
  */
 function run_or_fail(Project $project, array $command): void
 {
-    if (0 !== docker_exit_code($command, workDir: $project->containerDirectory())) {
+    if (0 !== docker_exit_code($command, workDir: $project->builderDirectory())) {
         throw new \RuntimeException(\sprintf('"%s" failed in %s.', implode(' ', $command), $project->path));
     }
 }

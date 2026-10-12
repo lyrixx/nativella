@@ -95,7 +95,7 @@ function open_project(): void
 
 #[AsTask(description: 'Builds the infrastructure', aliases: ['build'])]
 function build(
-    #[AsOption(description: 'The service to build (default: all services)', autocomplete: 'docker\complete_service_names')]
+    #[AsOption(description: 'The service to build (default: all services but android)', autocomplete: 'docker\complete_service_names')]
     ?string $service = null,
     ?string $profile = null,
 ): void {
@@ -103,13 +103,14 @@ function build(
 
     io()->title('Building infrastructure');
 
-    $command = [];
-
-    $command[] = '--profile';
     if ($profile) {
-        $command[] = $profile;
+        $command = ['--profile', $profile];
+    } elseif ($service) {
+        $command = ['--profile', '*'];
     } else {
-        $command[] = '*';
+        // Not the android service, which weighs several gigabytes: the
+        // Android build builds it
+        $command = ['--profile', 'default', '--profile', 'builder'];
     }
 
     $command = [
@@ -325,7 +326,15 @@ function generate_certificates(
         return;
     }
 
-    run(['infrastructure/docker/services/router/generate-ssl.sh'], context: context()->withQuiet());
+    // Self-signed, for ten years
+    fs()->mkdir($sslDir);
+    run([
+        'openssl', 'req', '-x509', '-sha256', '-newkey', 'rsa:4096',
+        '-keyout', "{$sslDir}/key.pem",
+        '-out', "{$sslDir}/cert.pem",
+        '-days', '3650', '-nodes',
+        '-config', variable('root_dir').'/infrastructure/docker/services/router/openssl.cnf',
+    ], context: context()->withQuiet());
 
     io()->success('Successfully generated self-signed SSL certificates in infrastructure/docker/services/router/certs/*.pem.');
     io()->comment('Consider installing mkcert to generate locally trusted SSL certificates and run "castor docker:generate-certificates --force".');
@@ -406,6 +415,11 @@ function docker_compose_run(
     bool $portMapping = false,
 ): Process {
     $c ??= context();
+
+    if ($c['run_on_host']) {
+        return run_on_host($params, $c, $workDir);
+    }
+
     $service ??= $c['docker_compose_run_service'];
 
     $command = [
@@ -446,6 +460,71 @@ function docker_compose_run(
     $command[] = implode(' ', $params);
 
     return docker_compose($command, c: $c, profiles: ['*']);
+}
+
+/**
+ * Where $path, from the root of the repository, is for the commands of
+ * docker_compose_run(): in the builder, or on the host in the host context.
+ */
+function builder_path(string $path = ''): string
+{
+    $root = context()['run_on_host'] ? variable('root_dir') : '/var/www';
+
+    return rtrim("{$root}/{$path}", '/');
+}
+
+/**
+ * The platform of the commands of docker_compose_run(), as static-php-cli
+ * names its downloads and the releases name their files: the builder runs
+ * Linux on the architecture of the host.
+ */
+function builder_platform(): string
+{
+    $os = context()['run_on_host'] ? strtolower(\PHP_OS_FAMILY) : 'linux';
+    $arch = match (php_uname('m')) {
+        'aarch64', 'arm64' => 'aarch64',
+        'amd64', 'x86_64' => 'x86_64',
+        default => throw new \RuntimeException(\sprintf('Unsupported architecture: %s.', php_uname('m'))),
+    };
+
+    return ('darwin' === $os ? 'macos' : $os).'-'.$arch;
+}
+
+/**
+ * What docker_compose_run() runs in the builder, run on the host instead:
+ * $workDir comes from builder_path().
+ *
+ * @param list<string> $params
+ */
+function run_on_host(array $params, Context $c, ?string $workDir): Process
+{
+    if ([] === $params) {
+        throw new \RuntimeException('The host context has no builder to open a shell in: run the command on the host.');
+    }
+
+    $c = $c
+        ->withWorkingDirectory($workDir ?? $c['root_dir'])
+        ->withEnvironment($c['docker_compose_run_environment'])
+        ->withAllowFailure()
+    ;
+
+    return run($params, context: $c);
+}
+
+/**
+ * Runs a command with docker_compose_run(), and throws when it fails.
+ *
+ * @param list<string>          $params
+ * @param array<string, string> $environment
+ */
+function run_in_builder(array $params, ?string $workDir = null, array $environment = [], ?string $service = null): void
+{
+    $c = context();
+    $c = $c->withData(['docker_compose_run_environment' => [...$c['docker_compose_run_environment'], ...$environment]], recursive: false);
+
+    if (0 !== docker_exit_code($params, $c, $service, workDir: $workDir ?? builder_path())) {
+        throw new \RuntimeException(\sprintf('"%s" failed.', implode(' ', $params)));
+    }
 }
 
 /**

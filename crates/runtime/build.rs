@@ -1,7 +1,8 @@
 //! Links PHP statically when `NATIVELLA_PHP_LIB_DIR` points to a directory
 //! holding `libphp.a` and the static libraries it needs: always on mobile,
 //! where there is no system PHP, and on the desktop for applications that
-//! must run without PHP installed (see static-php/README.md).
+//! must run without PHP installed (castor static-php:build, see
+//! docs/development.md).
 //!
 //! ext-php-rs already asks for `-lphp`: without that variable, desktop builds
 //! link the libphp of the system.

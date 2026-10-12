@@ -152,6 +152,18 @@ RUN sed /tmp/completion.bash \
         -e "s/{{ VERSION }}/1/g"  \
         > /etc/bash_completion.d/console
 
+# What static-php-cli needs to build PHP and its libraries (castor
+# static-php:build): its doctor would install them with sudo
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        autopoint \
+        bison \
+        cmake \
+        flex \
+        re2c \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
+
 # Python, for MkDocs, which builds the documentation: `castor install` puts it
 # in a virtual environment, tools/mkdocs/.venv
 RUN apt-get update \
@@ -176,3 +188,45 @@ PS1='\[\e[01;33m\]builder \[\e[00;32m\]\w\[\e[0m\] '
 EOF
 
 WORKDIR /var/www
+
+# The builder, plus what an Android build needs (castor mobile:android): a JDK,
+# the Android SDK with an NDK, the Android targets of Rust and the Tauri
+# command. Linux x86_64 only: Google ships no NDK for Linux on ARM.
+FROM builder AS android
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        default-jdk-headless \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
+
+ENV JAVA_HOME=/usr/lib/jvm/default-java
+
+# The versions the Android project of Tauri asks for (crates/nativella/gen/android):
+# Gradle installs what is missing, so the SDK is writable by the user of the
+# container, the host's raw UID
+ARG ANDROID_CMDLINE_TOOLS=16111833
+ARG ANDROID_NDK=29.0.14206865
+ENV ANDROID_HOME=/opt/android-sdk
+ENV NDK_HOME=/opt/android-sdk/ndk/${ANDROID_NDK}
+RUN curl -sSfL -o /tmp/cmdline-tools.zip "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS}_latest.zip" \
+    && mkdir -p "${ANDROID_HOME}/cmdline-tools" \
+    && unzip -q /tmp/cmdline-tools.zip -d "${ANDROID_HOME}/cmdline-tools" \
+    && mv "${ANDROID_HOME}/cmdline-tools/cmdline-tools" "${ANDROID_HOME}/cmdline-tools/latest" \
+    && "${ANDROID_HOME}/cmdline-tools/latest/bin/android" --no-metrics --sdk="${ANDROID_HOME}" sdk install \
+        "build-tools;36.0.0" \
+        "ndk;${ANDROID_NDK}" \
+        "platform-tools" \
+        "platforms;android-37.0" \
+    && chmod -R a+rwX "${ANDROID_HOME}" \
+    && rm -rf /tmp/*
+
+# The four Android targets of Rust: `cargo tauri android init` adds them all,
+# and rustup is not writable in the container
+ARG TAURI_CLI=2.12.2
+RUN rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android \
+    && curl -sSfL "https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v${TAURI_CLI}/cargo-tauri-x86_64-unknown-linux-gnu.tgz" \
+        | tar xz -C /usr/local/bin cargo-tauri \
+    && cargo tauri --version

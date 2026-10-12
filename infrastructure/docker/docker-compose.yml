@@ -42,3 +42,25 @@ services:
             - "../../.home:/home/app:cached"
         profiles:
             - builder
+
+    # The builder, with the Android SDK: castor mobile:android. In a profile of
+    # its own, as it weighs several gigabytes: `castor docker:build` leaves it
+    # out, the Android build builds it.
+    android:
+        build:
+            context: services/php
+            target: android
+            cache_from:
+                - "type=registry,ref=${REGISTRY:-}/android:cache"
+        # The SDK and the NDK exist for Linux x86_64 only
+        platform: linux/amd64
+        init: true
+        user: "${USER_ID}:${USER_ID}"
+        environment:
+            - CI
+            - GITHUB_ACTIONS
+        volumes:
+            - "../..:/var/www:cached"
+            - "../../.home:/home/app:cached"
+        profiles:
+            - android

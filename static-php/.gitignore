@@ -1,8 +1,4 @@
-/buildroot/
-/downloads/
-/source/
-/pkgroot/
-/log/
-/spc
-/spc-*.tar.gz
-/craft.log
+# Everything static-php-cli downloads, builds and writes
+/*
+!/.gitignore
+!/README.md

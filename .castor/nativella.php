@@ -6,14 +6,20 @@ use Castor\Attribute\AsArgument;
 use Castor\Attribute\AsOption;
 use Castor\Attribute\AsTask;
 use project\Project;
+use Symfony\Component\Finder\Finder;
 
 use function Castor\context;
+use function Castor\finder;
 use function Castor\fs;
 use function Castor\io;
 use function Castor\run;
 use function Castor\variable;
+use function Castor\with;
+use function docker\builder_path;
+use function docker\builder_platform;
 use function docker\docker_compose_run;
 use function docker\docker_exit_code;
+use function docker\run_in_builder;
 use function project\demo;
 use function project\demo_names;
 
@@ -29,6 +35,8 @@ function run_demo(
     string $demo,
     #[AsOption(description: 'Run it in the builder, on the display of the host')]
     bool $docker = false,
+    #[AsOption(description: 'Link the static PHP of "castor static-php:build", as on macOS')]
+    bool $static = false,
 ): int {
     $project = installed_demo($demo);
 
@@ -37,7 +45,13 @@ function run_demo(
     $command = ['cargo', 'run', '-p', 'nativella', '--', 'run', $project->path];
 
     if (!$docker) {
-        return (int) run($command, context: context()->withAllowFailure()->withWorkingDirectory(variable('root_dir')))->getExitCode();
+        // As in the host context: the paths of the static PHP are those of the host
+        return with(
+            static fn (): int => (int) run($command, context: context()->withEnvironment($static ? \static_php\environment() : []))->getExitCode(),
+            workingDirectory: variable('root_dir'),
+            allowFailure: true,
+            context: context()->withData(['run_on_host' => true]),
+        );
     }
 
     if (!getenv('XDG_RUNTIME_DIR') || (!getenv('WAYLAND_DISPLAY') && !getenv('DISPLAY'))) {
@@ -45,18 +59,21 @@ function run_demo(
     }
 
     $c = context()->withData(
-        ['docker_compose_files' => [...context()['docker_compose_files'], 'docker-compose.desktop.yml']],
+        [
+            'docker_compose_files' => [...context()['docker_compose_files'], 'docker-compose.desktop.yml'],
+            'docker_compose_run_environment' => $static ? \static_php\environment() : [],
+        ],
         recursive: false,
     );
 
-    return docker_exit_code($command, $c, workDir: '/var/www');
+    return docker_exit_code($command, $c, workDir: builder_path());
 }
 
 /**
  * In the builder, as the release does: the executables link the libphp and
- * the WebKitGTK of the image (Debian), dynamically. Each demo ships staged
- * for production (mobile/stage.sh): without its dev dependencies, in the
- * production environment.
+ * the WebKitGTK of the image (Debian), dynamically, or the static PHP of
+ * "castor static-php:build" with --static. Each demo ships staged for
+ * production: without its dev dependencies, in the production environment.
  *
  * @param list<string> $demos
  */
@@ -64,22 +81,49 @@ function run_demo(
 function build_demos(
     #[AsArgument(description: 'The demos to build (default: all)', autocomplete: 'project\complete_demo_names')]
     array $demos = [],
+    #[AsOption(description: 'Link the static PHP of "castor static-php:build": the executables need no PHP on the machine')]
+    bool $static = false,
 ): void {
     // Staging installs their dependencies: they need not be installed here
     $projects = array_map(demo(...), $demos ?: demo_names());
+    $environment = $static ? \static_php\environment() : [];
 
     io()->title('Building the nativella command');
 
-    cargo(['build', '-p', 'nativella', '--release']);
-    run_in_builder(['bash', '-c', 'mkdir -p dist && cp "$CARGO_TARGET_DIR/release/nativella" dist/nativella']);
+    run_in_builder(['cargo', 'build', '-p', 'nativella', '--release'], environment: $environment);
+    fs()->copy(target_dir($environment).'/release/nativella', variable('root_dir').'/dist/nativella', overwriteNewerFiles: true);
 
     foreach ($projects as $project) {
         io()->section("Building {$project->path} into dist/{$project->name()}");
 
-        cargo(['run', '-q', '-p', 'nativella', '--release', '--', 'build', stage($project), '-o', "dist/{$project->name()}"]);
+        run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--release', '--', 'build', stage($project), '-o', "dist/{$project->name()}"], environment: $environment);
     }
 
     io()->success('The executables are in dist/.');
+}
+
+/**
+ * What a GitHub release publishes: nativella-<platform> and
+ * nativella-demo-<demo>-<platform>, with SHA256SUMS-<platform>.
+ */
+#[AsTask(description: 'Copies the executables of dist/ into release/, named after the platform, with their checksums')]
+function package(): void
+{
+    $root = variable('root_dir');
+    $platform = builder_platform();
+
+    fs()->remove("{$root}/release");
+
+    $checksums = '';
+    foreach (finder()->in("{$root}/dist")->files()->depth(0)->sortByName() as $file) {
+        $name = 'nativella' === $file->getFilename() ? "nativella-{$platform}" : "nativella-demo-{$file->getFilename()}-{$platform}";
+        fs()->copy($file->getPathname(), "{$root}/release/{$name}");
+        $checksums .= hash_file('sha256', $file->getPathname())."  {$name}\n";
+    }
+
+    fs()->dumpFile("{$root}/release/SHA256SUMS-{$platform}", $checksums);
+
+    io()->success("The release files of {$platform} are in release/.");
 }
 
 /**
@@ -93,24 +137,29 @@ function build_demos(
 function smoke(
     #[AsArgument(description: 'The demos to check (default: all)', autocomplete: 'project\complete_demo_names')]
     array $demos = [],
+    #[AsOption(description: 'Link the static PHP of "castor static-php:build", as on macOS')]
+    bool $static = false,
 ): int {
     $projects = installed_demos($demos);
+    $environment = $static ? \static_php\environment() : [];
 
     io()->title('Smoke testing the demos');
 
     // Once, with the output: the first build takes a while
-    cargo(['build', '-p', 'nativella-runtime', '--example', 'request']);
+    run_in_builder(['cargo', 'build', '-p', 'nativella-runtime', '--example', 'request'], environment: $environment);
+
+    $c = context()->withQuiet()->withData(['docker_compose_run_environment' => $environment], recursive: false);
 
     $exitCode = 0;
     foreach ($projects as $project) {
         io()->section("Smoke testing {$project->path}");
 
-        $dataDir = ".local/share/nativella-smoke/{$project->name()}";
-        fs()->remove(variable('root_dir')."/.home/{$dataDir}");
-        fs()->mkdir(variable('root_dir')."/.home/{$dataDir}");
+        $dataDir = ".home/.local/share/nativella-smoke/{$project->name()}";
+        fs()->remove(variable('root_dir')."/{$dataDir}");
+        fs()->mkdir(variable('root_dir')."/{$dataDir}");
 
         $request = ['cargo', 'run', '-q', '-p', 'nativella-runtime', '--example', 'request', '--', $project->path];
-        $server = ['--server', "NATIVELLA_DATA_DIR=/home/app/{$dataDir}"];
+        $server = ['--server', 'NATIVELLA_DATA_DIR='.builder_path($dataDir)];
 
         $requests = [
             'The "app.booted" event' => [...$request, 'POST', '/_nativella/event', '--internal', '--data', '{"name":"app.booted","payload":{}}', ...$server],
@@ -118,7 +167,7 @@ function smoke(
         ];
 
         foreach ($requests as $label => $command) {
-            $process = docker_compose_run($command, context()->withQuiet(), workDir: '/var/www');
+            $process = docker_compose_run($command, $c, workDir: builder_path());
             $statusLine = strtok($process->getOutput(), "\n") ?: '';
 
             if (0 === $process->getExitCode() && preg_match('{^HTTP/\S+ [23]\d\d\b}', $statusLine)) {
@@ -138,20 +187,87 @@ function smoke(
 
 /**
  * Copies a project to target/nativella/stage/ and prepares it for production
- * there, with mobile/stage.sh.
+ * there: the dependencies without the dev ones, copied rather than linked
+ * from the path repositories of the demos, and the production environment.
  *
- * @return string the staged directory, in the builder
+ * @return string the staged directory, for the commands of the builder
  */
 function stage(Project $project): string
 {
-    $process = docker_compose_run(['mobile/stage.sh', $project->path], workDir: '/var/www');
-    $lines = explode("\n", trim($process->getOutput()));
+    $root = variable('root_dir');
+    $stage = "target/nativella/stage/{$project->path}";
 
-    if (0 !== $process->getExitCode() || !str_starts_with(end($lines), '/var/www/')) {
-        throw new \RuntimeException(\sprintf('%s cannot be staged.', $project->path));
+    // The packages, for the path repositories of the demos
+    mirror(
+        finder()->in("{$root}/packages")->ignoreDotFiles(false)->exclude('vendor')->notName('composer.lock'),
+        "{$root}/packages",
+        "{$root}/target/nativella/stage/packages",
+    );
+    // Not bootstrap/cache/*.php either: Laravel's package discovery of the
+    // dev install, which lists dev packages
+    mirror(
+        finder()->in($project->directory())->ignoreDotFiles(false)
+            ->exclude(['node_modules', 'tests', 'var', 'vendor'])
+            ->notPath(['#^bootstrap/cache/[^/]+\.php$#', '#^storage/logs/.#'])
+            ->notName(['.env.local', '.env.*.local']),
+        $project->directory(),
+        "{$root}/{$stage}",
+    );
+
+    $builderStage = builder_path($stage);
+    run_in_builder(['composer', 'install', '--no-dev', '--optimize-autoloader', '--no-interaction', '--no-progress', '--no-scripts', '--quiet'], $builderStage, ['COMPOSER_MIRROR_PATH_REPOS' => '1']);
+
+    if ($project->isSymfony()) {
+        // The compiled .env of production. The cache is built on the
+        // machine of the user: it holds absolute paths.
+        run_in_builder(['composer', 'dump-env', 'prod', '--quiet'], $builderStage);
+    } elseif ($project->isLaravel()) {
+        // A fresh clone has no .env yet
+        if (!is_file("{$root}/{$stage}/.env")) {
+            fs()->copy("{$root}/{$stage}/.env.example", "{$root}/{$stage}/.env");
+        }
+
+        run_in_builder(['php', 'artisan', 'package:discover', '--quiet'], $builderStage);
+
+        $env = (string) file_get_contents("{$root}/{$stage}/.env");
+        fs()->dumpFile("{$root}/{$stage}/.env", (string) preg_replace(['/^APP_ENV=.*$/m', '/^APP_DEBUG=.*$/m'], ['APP_ENV=production', 'APP_DEBUG=false'], $env));
     }
 
-    return end($lines);
+    return $builderStage;
+}
+
+/**
+ * Bundles a project for a phone (`nativella bundle`), staged for production,
+ * into target/nativella/app.bundle: the build compiles it into the
+ * application.
+ *
+ * @return string the bundle, from the root of the repository
+ */
+function bundle(Project $project): string
+{
+    $bundle = 'target/nativella/app.bundle';
+
+    run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--', 'bundle', stage($project), '-o', builder_path($bundle)]);
+
+    return $bundle;
+}
+
+/**
+ * Where cargo builds, on the host, for the environment of a cargo command of
+ * the builder.
+ *
+ * @param array<string, string> $environment
+ */
+function target_dir(array $environment): string
+{
+    $root = variable('root_dir');
+
+    if (isset($environment['CARGO_TARGET_DIR'])) {
+        return $root.substr($environment['CARGO_TARGET_DIR'], \strlen(builder_path()));
+    }
+
+    // The builder sets CARGO_TARGET_DIR to target/docker
+    return context()['run_on_host'] ? "{$root}/target" : "{$root}/target/docker";
 }
 
 function installed_demo(string $name): Project
@@ -178,21 +294,10 @@ function installed_demos(array $names): array
 }
 
 /**
- * @param list<string> $arguments
+ * Makes $to a copy of the files $files finds in $from, and of them only.
  */
-function cargo(array $arguments): void
+function mirror(Finder $files, string $from, string $to): void
 {
-    run_in_builder(['cargo', ...$arguments]);
-}
-
-/**
- * Runs a command in the builder, from the root of the repository.
- *
- * @param list<string> $command
- */
-function run_in_builder(array $command): void
-{
-    if (0 !== docker_exit_code($command, workDir: '/var/www')) {
-        throw new \RuntimeException(\sprintf('"%s" failed.', implode(' ', $command)));
-    }
+    fs()->remove($to);
+    fs()->mirror($from, $to, $files);
 }

@@ -1,12 +1,8 @@
 # Mobile builds
 
-Scripts to build Android applications of the projects of this repository. How it works and how to use them: [docs/mobile.md](../docs/mobile.md).
+What the mobile builds need besides their Castor tasks, `castor mobile:android` and `castor mobile:ios` (`.castor/mobile.php`). How they work and how to use them: [docs/mobile.md](../docs/mobile.md).
 
 | Path | What |
 |---|---|
-| `stage.sh` | Copies a project to `target/nativella/stage/` and prepares it for production. |
-| `android/build.sh` | Builds an APK of a project. |
-| `android/env.sh` | The environment of an Android build, to source. |
-| `ios/build.sh` | Builds an iOS simulator app of a project, on macOS. Experimental: it has never run. |
-| `php/fetch.sh` | Downloads a static PHP for Android or iOS into `php/dist/`. |
-| `php/php`, `php/php-config` | Describe that PHP to ext-php-rs, in place of the PHP of the computer. |
+| `php/php`, `php/php-config` | Describe a PHP build without a `php` binary to ext-php-rs, which runs them in place of the PHP of the computer: the PHP of a phone, or the static PHP of `castor static-php:build`. |
+| `php/dist/` | The PHP builds for phones that the tasks download (ignored by Git). |

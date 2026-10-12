@@ -2,6 +2,8 @@
 
 namespace project;
 
+use function docker\builder_path;
+
 /**
  * A Composer project of the monorepo: a package, a demo or the website.
  */
@@ -24,10 +26,10 @@ final readonly class Project
         return root_dir().'/'.$this->path;
     }
 
-    /** Where the builder mounts it */
-    public function containerDirectory(): string
+    /** Where the commands of the builder see it: see builder_path() */
+    public function builderDirectory(): string
     {
-        return '/var/www/'.$this->path;
+        return builder_path($this->path);
     }
 
     public function isDemo(): bool

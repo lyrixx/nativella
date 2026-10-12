@@ -35,19 +35,26 @@ castor builder                                                # a shell, in /var
 ```
 
 The builder also holds the Rust toolchain, libphp and WebKitGTK: the crates build and are tested
-there (`castor qa:rust`), in their own target directory (`target/docker/`).
+there (`castor qa:rust`), in their own target directory (`target/docker/`). The Android builds run
+in the `android` service: the builder, plus the Android SDK.
 
-**The exceptions are the desktop application and the mobile builds**:
+**The exceptions are the desktop application and iOS**:
 
 - a window needs the display, so `castor nativella:run <demo>` runs cargo on the host (it needs
   the system packages of [docs/installation.md](docs/installation.md)). `--docker` runs it in the
   builder instead, on the Wayland/X11 display of the host;
-- the builder has no Android SDK, so `castor mobile:android <demo>` runs
-  `mobile/android/build.sh` on the host, with its PHP, Composer, SDK and JDK (see
-  [docs/mobile.md](docs/mobile.md)): the task lists what is missing.
+- `castor mobile:ios <demo>` needs Xcode, on a Mac.
 
 Host prerequisites: Docker, Castor (and, for `nativella:run` on the host, Rust and the Ubuntu
 packages).
+
+The `host` context (`castor --context=host …`) runs on the host what the builder runs, for the
+machines without Docker: the macOS runners of the CI. In a task, never write `/var/www`: take the
+paths of the commands from `builder_path()` (`.castor/docker.php`).
+
+No shell scripts: everything is a Castor task. The only executables left are the stand-ins of
+`mobile/php/`, which ext-php-rs runs as `php` and `php-config`, and the runit services of the
+image.
 
 ## Essential commands
 
@@ -60,7 +67,8 @@ castor website:build             # website/dist/, and the documentation in websi
 castor nativella:run symfony     # the Symfony demo, as a desktop application (host)
 castor nativella:smoke           # each demo answers through the runtime, without a window
 castor nativella:build [demo]    # dist/nativella and the standalone executables of the demos (staged for production)
-castor mobile:android symfony    # an Android APK of the demo (host)
+castor static-php:build          # PHP as a static library, for --static (nativella:build, qa:rust…)
+castor mobile:android symfony    # an Android APK of the demo (android service)
 castor logs [--service=service]  # logs (frontend, router)
 ```
 
@@ -77,6 +85,7 @@ castor qa:phpstan [--project=demos/symfony]   # PHPStan level 8, project by proj
 castor qa:phpunit [--project=demos/symfony]   # PHPUnit, or `php artisan test` for Laravel
 castor qa:rust                   # cargo fmt --check, clippy -D warnings, cargo test
 castor qa:security-audit         # composer audit
+castor qa:frontend               # the website and the demos through the router (castor start first)
 ```
 
 After a PHP or Twig change: `castor qa:cs --dry-run`, `castor qa:phpstan`, then
@@ -91,6 +100,7 @@ baseline) adds a `phpstan.dist.neon` that includes it.
 
 ```bash
 castor --context=ci ...          # what the GitHub Actions workflows use
+castor --context=host ...        # the commands of the builder, on the host (macOS runners)
 ```
 
 There is no `test` context: each test suite sets its own environment (`phpunit.xml`).
@@ -107,5 +117,5 @@ There is no `test` context: each test suite sets its own environment (`phpunit.x
    not a shell script.
 5. Tool dependencies live in `tools/<tool>/` (`composer.json`, or `requirements.txt` for MkDocs),
    not in the projects.
-6. The CI (`.github/workflows/`) runs Castor tasks only, with `CASTOR_CONTEXT=ci`: what passes
-   locally passes there.
+6. The CI (`.github/workflows/`) runs Castor tasks only, with `CASTOR_CONTEXT=ci` (`host` on
+   macOS): what passes locally passes there.

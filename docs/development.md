@@ -2,7 +2,7 @@
 
 The repository comes with a Docker stack, driven by [Castor](https://castor.jolicode.com) and based on [jolicode/docker-starter](https://github.com/jolicode/docker-starter). It builds and tests everything without installing PHP, Composer or Rust on your machine, and serves the website and the demos in a browser. The CI runs the same tasks.
 
-Only the desktop application itself runs on your machine by default: a window needs your display.
+Only the desktop application itself runs on your machine by default: a window needs your display. Without Docker, the [host context](#contexts) runs the tasks with the tools of your machine, as the macOS runners of the CI do. None of this is needed to use Nativella: the `nativella` command [builds a project](building.md) on its own.
 
 ## Prerequisites
 
@@ -22,6 +22,7 @@ castor completion | sudo tee /etc/bash_completion.d/castor
 | Service | What |
 |---|---|
 | `builder` | PHP 8.5 and Composer, the Rust toolchain (stable, with Clippy and rustfmt), `libphp8.5-embed` and its headers, clang, WebKitGTK 4.1 and the other libraries of Tauri. Every command runs there. |
+| `android` | The builder, plus a JDK, the Android SDK with an NDK, the Android target of Rust and the Tauri command, for `castor mobile:android`. A few gigabytes, x86_64 only: `castor docker:build` leaves it out, the Android build builds it. |
 | `frontend` | nginx and PHP-FPM: the website, and each demo in a browser. |
 | `router` | Traefik, for the domains and HTTPS. |
 
@@ -131,20 +132,32 @@ Serves requests to each demo through the runtime, without any window (`cargo run
 ### Standalone executables
 
 ```bash
-castor nativella:build [symfony]
+castor nativella:build [symfony] [--static]
+castor nativella:package
 ```
 
-Builds `dist/nativella`, then the standalone executable of each demo (`dist/symfony`…), in release mode, in the builder. Each demo ships as `mobile/stage.sh` prepares it in `target/nativella/stage/`: without its dev dependencies, in the production environment. The executables link the libphp and the WebKitGTK of the image (Debian 13), dynamically.
+`nativella:build` builds `dist/nativella`, then the standalone executable of each demo (`dist/symfony`…), in release mode, in the builder. Each demo ships staged for production in `target/nativella/stage/`: without its dev dependencies, in the production environment. The executables link the libphp and the WebKitGTK of the image (Debian 13), dynamically, or the static PHP below with `--static`. `nativella:package` copies them to `release/`, named after the platform, with their checksums, as the releases publish them.
 
-### Android
+### Static PHP
 
 ```bash
-ANDROID_HOME=~/Android/Sdk JAVA_HOME=/usr/lib/jvm/java-21 castor mobile:android symfony [--release]
+castor static-php:build
 ```
 
-Runs `mobile/android/build.sh demos/<demo>` on your machine, as the builder has no Android SDK: the APK lands in `crates/nativella/gen/android/app/build/outputs/apk/`. It needs what [Mobile](mobile.md#building-an-apk) lists: the desktop packages, PHP, Composer and rsync, the SDK with an NDK, a JDK 17 or later, `rustup target add aarch64-linux-android` and `cargo install tauri-cli --version '^2' --locked`. The task says what is missing before it starts.
+Builds PHP as a static library with [static-php-cli](https://github.com/crazywhalecc/static-php-cli), with the embed SAPI and the extensions of `.castor/static-php.php`, into `static-php/buildroot/` (ignored by Git): about 5 minutes, then nothing until the version of PHP, its extensions or static-php-cli change. On Linux, it builds against the glibc of the builder, with zig, as WebKitGTK is linked.
 
-iOS has a script too, `mobile/ios/build.sh`, for the simulator: it needs macOS and Xcode, and has never run.
+`--static` on `nativella:run`, `nativella:build`, `nativella:smoke` and `qa:rust` links it, in a target directory of its own (`target/docker-static/`, `target/static/` on the host): the executables then need no PHP on the machine. That is how macOS gets a PHP, which Homebrew does not ship as a library. There is no `php.ini`: PHP runs with its defaults, plus the settings Nativella sets.
+
+An embed-only PHP has no `php` binary for ext-php-rs to ask `php -i`: the stand-in `mobile/php/php` describes it from its headers, as it does for the PHP of phones.
+
+### Android and iOS
+
+```bash
+castor mobile:android symfony [--release]
+castor mobile:ios symfony [--bundle=<file>]      # on a Mac
+```
+
+`mobile:android` builds the `android` image, then the APK in it: it lands in `crates/nativella/gen/android/app/build/outputs/apk/`. `mobile:ios` runs on the Mac itself, which needs Xcode and XcodeGen. See [Mobile](mobile.md#building-an-apk).
 
 ## Contexts
 
@@ -153,6 +166,16 @@ The tasks run in the `default` context. The workflows use `--context=ci` (throug
 ```bash
 castor --context=ci qa --dry-run
 ```
+
+The `host` context runs on your machine what the others run in the builder: Composer, PHP, cargo, static-php-cli, with the tools of your machine. The macOS runners of the CI, which have no Docker, use it; so can you, without Docker:
+
+```bash
+castor --context=host install
+castor --context=host static-php:build
+castor --context=host qa:rust --static
+```
+
+The paths the commands see are then those of the repository on your machine, not `/var/www`: tasks get them from `builder_path()` (`.castor/docker.php`).
 
 There is no `test` context: each test suite sets its own environment (`phpunit.xml`).
 
@@ -166,8 +189,8 @@ The workflows of `.github/workflows/` run Castor tasks in the same stack:
 
 | Workflow | When | What |
 |---|---|---|
-| `ci.yml` | Pull requests, `main`, weekly | `castor start`, the PHP checks and tests, the frontend over HTTPS; in parallel, `castor qa:rust` and `castor nativella:smoke`; hadolint on the Dockerfile. |
+| `ci.yml` | Pull requests, `main`, weekly | `castor start`, the PHP checks and tests, the frontend over HTTPS (`castor qa:frontend`); in parallel, `castor qa:rust` and `castor nativella:smoke`, in the builder and on macOS (arm64, the host context, with the static PHP); hadolint on the Dockerfile. |
 | `website.yml` | Changes to `website/`, `docs/` or `tools/mkdocs/` | `castor website:build`, which fails on a broken link; on `main`, deploys `website/dist/` to GitHub Pages: the landing page, and the documentation under `docs/`. Pages must be set to "GitHub Actions" in the settings of the repository. |
-| `mobile.yml` | Changes to `crates/`, `mobile/`, `packages/` or `demos/symfony/`, manually | `castor mobile:android symfony` on the runner, which ships the Android SDK: the APK as an artifact. Manually, an experimental job also tries `mobile/ios/build.sh` on macOS. |
-| `release.yml` | `v*` tags, manually | `castor nativella:build`: the Linux x86_64 executables, as an artifact and, for a tag, on the GitHub release. |
+| `mobile.yml` | Changes to `crates/`, `mobile/`, `packages/`, `demos/symfony/` or the Docker stack, manually | `castor mobile:android symfony`: the APK as an artifact. Then, experimentally, `castor mobile:ios symfony` on macOS, with the bundle of the Android job: the simulator app as an artifact. |
+| `release.yml` | `v*` tags, manually | `castor nativella:build` and `castor nativella:package`: the Linux x86_64 executables, in the builder, and the macOS arm64 ones, with the static PHP; as artifacts and, for a tag, on the GitHub release. |
 | `cache.yml` | Changes to `infrastructure/docker/` on `main` | `castor docker:push`: pushes the build cache of the images to `ghcr.io/lyrixx/nativella`, which the other workflows build from. |

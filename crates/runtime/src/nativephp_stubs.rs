@@ -1,7 +1,7 @@
-//! The mobile PHP builds of mobile/php/fetch.sh come from NativePHP and carry
-//! its `nativephp` extension, which calls back into the host through these
-//! functions. Nativella has its own bridge: they answer that nothing is
-//! available, should PHP code call `nativephp_*()` functions.
+//! The PHP builds for phones (fetch_php() in .castor/mobile.php) come from
+//! NativePHP and carry its `nativephp` extension, which calls back into the
+//! host through these functions. Nativella has its own bridge: they answer
+//! that nothing is available, should PHP code call `nativephp_*()` functions.
 //!
 //! Signatures from NativePHP's BridgeRouter.swift (MIT).
 

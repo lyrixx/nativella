@@ -1,12 +1,14 @@
 /target/
 /crates/nativella/gen/
-# Written by mobile/ios/build.sh.
+# Written by castor mobile:ios
 /crates/nativella/Info.ios.plist
 /.claude/tmp/
 
 # Docker / Castor
 /.castor.stub.php
 /dist/
+# castor nativella:package
+/release/
 /infrastructure/docker/docker-compose.override.yml
 /infrastructure/docker/services/router/certs/*.pem
 

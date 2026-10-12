@@ -2,7 +2,7 @@
 # Stands in for the php-config of a mobile target in ext-php-rs's build
 # script, see ./php.
 set -eu
-dir=${NATIVELLA_PHP_DIR:?Set NATIVELLA_PHP_DIR to a PHP build extracted by mobile/php/fetch.sh.}
+dir=${NATIVELLA_PHP_DIR:?Set NATIVELLA_PHP_DIR to a PHP build: see the castor tasks mobile:android and static-php:build.}
 # Android builds have include/, iOS ones Include/.
 include="$dir/include/php"
 [ -d "$include" ] || include="$dir/Include/php"

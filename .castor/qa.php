@@ -6,12 +6,18 @@ use Castor\Attribute\AsOption;
 use Castor\Attribute\AsTask;
 use project\Project;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Contracts\HttpClient\Exception\ExceptionInterface as HttpExceptionInterface;
 
 use function Castor\context;
+use function Castor\http_request;
 use function Castor\io;
 use function Castor\variable;
+use function docker\builder_path;
 use function docker\docker_exit_code;
+use function project\demo_names;
 use function project\select;
+use function worktree\get_worktree_name;
+use function worktree\get_worktree_ports;
 
 const TOOLS = ['php-cs-fixer', 'phpstan', 'twig-cs-fixer'];
 
@@ -35,7 +41,7 @@ function install(): void
     io()->title('Installing tooling');
 
     foreach (TOOLS as $tool) {
-        if (0 !== docker_exit_code(['composer', 'install', '-o'], workDir: "/var/www/tools/{$tool}")) {
+        if (0 !== docker_exit_code(['composer', 'install', '-o'], workDir: builder_path("tools/{$tool}"))) {
             throw new \RuntimeException(\sprintf('"composer install" failed in tools/%s.', $tool));
         }
     }
@@ -56,7 +62,7 @@ function install_mkdocs(): void
     ];
 
     foreach ($commands as $command) {
-        if (0 !== docker_exit_code($command, workDir: '/var/www/tools/mkdocs')) {
+        if (0 !== docker_exit_code($command, workDir: builder_path('tools/mkdocs'))) {
             throw new \RuntimeException(\sprintf('"%s" failed in tools/mkdocs.', implode(' ', $command)));
         }
     }
@@ -68,7 +74,7 @@ function update(): void
     io()->title('Updating QA tooling');
 
     foreach (TOOLS as $tool) {
-        if (0 !== docker_exit_code(['composer', 'update', '-o'], workDir: "/var/www/tools/{$tool}")) {
+        if (0 !== docker_exit_code(['composer', 'update', '-o'], workDir: builder_path("tools/{$tool}"))) {
             throw new \RuntimeException(\sprintf('"composer update" failed in tools/%s.', $tool));
         }
     }
@@ -96,7 +102,7 @@ function phpunit(
 
         $command = $p->isLaravel() ? ['php', 'artisan', 'test'] : ['vendor/bin/phpunit'];
 
-        $exitCode = max($exitCode, docker_exit_code($command, workDir: $p->containerDirectory()));
+        $exitCode = max($exitCode, docker_exit_code($command, workDir: $p->builderDirectory()));
     }
 
     return $exitCode;
@@ -123,7 +129,7 @@ function phpstan(
     if (!$project) {
         io()->section('Running PHPStan on the Castor tasks...');
 
-        $exitCode = docker_exit_code($command, workDir: '/var/www');
+        $exitCode = docker_exit_code($command, workDir: builder_path());
     }
 
     foreach (installed_projects(select($project)) as $p) {
@@ -138,15 +144,15 @@ function phpstan(
                 continue;
             }
 
-            $projectCommand = [...$command, '-c', '/var/www/tools/phpstan/project.neon', ...$directories];
+            $projectCommand = [...$command, '-c', builder_path('tools/phpstan/project.neon'), ...$directories];
         }
 
         // One cache per project: they share no class
         $c = context()->withData(['docker_compose_run_environment' => [
-            'PHPSTAN_TMP_DIR' => '/var/www/tools/phpstan/var/'.str_replace('/', '-', $p->path),
+            'PHPSTAN_TMP_DIR' => builder_path('tools/phpstan/var/'.str_replace('/', '-', $p->path)),
         ]]);
 
-        $exitCode = max($exitCode, docker_exit_code($projectCommand, $c, workDir: $p->containerDirectory()));
+        $exitCode = max($exitCode, docker_exit_code($projectCommand, $c, workDir: $p->builderDirectory()));
     }
 
     return $exitCode;
@@ -160,7 +166,7 @@ function securityAudit(): int
     foreach (installed_projects(select([])) as $p) {
         io()->section("Auditing the dependencies of {$p->path}...");
 
-        $exitCode = max($exitCode, docker_exit_code(['composer', 'audit'], workDir: $p->containerDirectory()));
+        $exitCode = max($exitCode, docker_exit_code(['composer', 'audit'], workDir: $p->builderDirectory()));
     }
 
     return $exitCode;
@@ -174,10 +180,10 @@ function cs(bool $dryRun = false): int
     io()->section('Running PHP CS Fixer...');
 
     if ($dryRun) {
-        return docker_exit_code(['php-cs-fixer', 'fix', '--dry-run', '--diff'], workDir: '/var/www');
+        return docker_exit_code(['php-cs-fixer', 'fix', '--dry-run', '--diff'], workDir: builder_path());
     }
 
-    return docker_exit_code(['php-cs-fixer', 'fix', '-v'], workDir: '/var/www');
+    return docker_exit_code(['php-cs-fixer', 'fix', '-v'], workDir: builder_path());
 }
 
 #[AsTask(description: 'Fixes Twig Coding Style', aliases: ['twig-cs'])]
@@ -188,29 +194,82 @@ function twigCs(bool $dryRun = false): int
     io()->section('Running Twig CS Fixer...');
 
     if ($dryRun) {
-        return docker_exit_code(['twig-cs-fixer'], workDir: '/var/www');
+        return docker_exit_code(['twig-cs-fixer'], workDir: builder_path());
     }
 
-    return docker_exit_code(['twig-cs-fixer', '--fix'], workDir: '/var/www');
+    return docker_exit_code(['twig-cs-fixer', '--fix'], workDir: builder_path());
 }
 
 /**
  * The crates of the workspace, built in the builder: its own target
- * directory, its own libphp.
+ * directory, its own libphp; or the static PHP of "castor static-php:build"
+ * with --static, as on macOS.
  */
 #[AsTask(description: 'Checks the Rust crates: format, Clippy and tests')]
-function rust(): int
-{
+function rust(
+    #[AsOption(description: 'Link the static PHP of "castor static-php:build"')]
+    bool $static = false,
+): int {
+    $c = context()->withData(['docker_compose_run_environment' => $static ? \static_php\environment() : []], recursive: false);
+
     io()->section('Checking the format of the Rust code...');
-    $fmt = docker_exit_code(['cargo', 'fmt', '--all', '--check'], workDir: '/var/www');
+    $fmt = docker_exit_code(['cargo', 'fmt', '--all', '--check'], $c, workDir: builder_path());
 
     io()->section('Running Clippy...');
-    $clippy = docker_exit_code(['cargo', 'clippy', '--workspace', '--all-targets', '--', '-D', 'warnings'], workDir: '/var/www');
+    $clippy = docker_exit_code(['cargo', 'clippy', '--workspace', '--all-targets', '--', '-D', 'warnings'], $c, workDir: builder_path());
 
     io()->section('Running the Rust tests...');
-    $test = docker_exit_code(['cargo', 'test', '--workspace'], workDir: '/var/www');
+    $test = docker_exit_code(['cargo', 'test', '--workspace'], $c, workDir: builder_path());
 
     return max($fmt, $clippy, $test);
+}
+
+/**
+ * Through the router, as a browser: the website on the root domain and www,
+ * each demo on its own subdomain, without the native features. The requests
+ * go to 127.0.0.1: the domains need not resolve.
+ */
+#[AsTask(description: 'Checks that the frontend serves the website and the demos (castor start first)')]
+function frontend(): int
+{
+    $rootDomain = variable('root_domain');
+    $port = get_worktree_ports(get_worktree_name())['https'];
+
+    // The text a page must hold, if any
+    $pages = [$rootDomain => 'Nativella', "www.{$rootDomain}" => 'Nativella'];
+    foreach (demo_names() as $demo) {
+        $pages["{$demo}.{$rootDomain}"] = null;
+    }
+
+    $exitCode = 0;
+    foreach ($pages as $host => $text) {
+        $url = 443 === $port ? "https://{$host}/" : "https://{$host}:{$port}/";
+
+        try {
+            $content = http_request('GET', $url, [
+                'resolve' => [$host => '127.0.0.1'],
+                // Self-signed, or signed by the local CA of mkcert
+                'verify_host' => false,
+                'verify_peer' => false,
+            ])->getContent();
+        } catch (HttpExceptionInterface $e) {
+            io()->writeln("<error>✘</error> {$url}: {$e->getMessage()}");
+            $exitCode = 1;
+
+            continue;
+        }
+
+        if (null !== $text && !str_contains($content, $text)) {
+            io()->writeln("<error>✘</error> {$url}: the page does not say \"{$text}\".");
+            $exitCode = 1;
+
+            continue;
+        }
+
+        io()->writeln("<info>✔</info> {$url}");
+    }
+
+    return $exitCode;
 }
 
 function install_if_missing(string $tool): void
