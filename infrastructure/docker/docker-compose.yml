@@ -67,3 +67,26 @@ services:
             - "../../.home:/home/app:cached"
         profiles:
             - android
+
+    # Builds what Nativella distributes for Linux, on Ubuntu 22.04 for its old
+    # glibc: castor static-php:build, and --static on the tasks that build the
+    # crates. In a profile of its own, like android: those tasks build it.
+    static:
+        build:
+            context: services/php
+            target: static
+            cache_from:
+                - "type=registry,ref=${REGISTRY:-}/static:cache"
+        init: true
+        user: "${USER_ID}:${USER_ID}"
+        environment:
+            # static-php-cli asks the GitHub API for its downloads: a token
+            # raises its rate limit
+            - GITHUB_TOKEN
+            - CI
+            - GITHUB_ACTIONS
+        volumes:
+            - "../..:/var/www:cached"
+            - "../../.home:/home/app:cached"
+        profiles:
+            - static

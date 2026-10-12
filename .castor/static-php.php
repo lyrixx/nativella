@@ -10,6 +10,7 @@ use function Castor\fs;
 use function Castor\http_download;
 use function Castor\io;
 use function Castor\variable;
+use function docker\build as build_image;
 use function docker\builder_path;
 use function docker\builder_platform;
 use function docker\run_in_builder;
@@ -26,11 +27,25 @@ const EXTENSIONS = 'bcmath,ctype,curl,dom,fileinfo,filter,iconv,mbstring,opcache
 const PHP_BRANCH = '8.5';
 
 /**
+ * The service that builds the static PHP and links it: Ubuntu 22.04, for an
+ * old glibc.
+ */
+const SERVICE = 'static';
+
+/**
+ * The glibc of the static service: the Linux executables run on the
+ * distributions with this one or a newer one. Keep in sync with the static
+ * stage of infrastructure/docker/services/php/Dockerfile.
+ */
+const GLIBC_VERSION = '2.35';
+
+/**
  * PHP as a static library (embed SAPI), into static-php/buildroot/: lib/
  * with libphp.a and its dependencies, include/php/, bin/php-config. Linked
  * against it (--static on the tasks that build the Rust crates), the
  * nativella command and the executables it builds need no PHP on the
- * machine. In the builder, or on the host in the host context, as on macOS.
+ * machine. In the static service, or on the host in the host context, as on
+ * macOS.
  *
  * About 5 minutes, then nothing until the version or the extensions change.
  */
@@ -42,12 +57,19 @@ function build(
     io()->title('Building PHP '.PHP_BRANCH.' as a static library');
 
     // In the build, not in the cache of Castor: the CI caches the build
-    $stamp = variable('root_dir').'/static-php/buildroot/.nativella-build';
+    $buildroot = variable('root_dir').'/static-php/buildroot';
+    $stamp = "{$buildroot}/.nativella-build";
     $build = SPC_VERSION.' '.PHP_BRANCH.' '.builder_platform().' '.EXTENSIONS;
+    if (!context()['run_on_host']) {
+        $build .= ' glibc '.GLIBC_VERSION;
+    }
 
     if (!$force && is_file($stamp) && file_get_contents($stamp) === $build) {
         io()->comment('Static PHP is up to date: --force builds it again.');
     } else {
+        // static-php-cli keeps the libraries it finds built: they may have
+        // been built for another glibc
+        fs()->remove([$buildroot, variable('root_dir').'/static-php/source']);
         build_php();
         fs()->dumpFile($stamp, $build);
     }
@@ -57,7 +79,7 @@ function build(
 
 /**
  * The environment of a cargo command that links the static PHP, for the
- * commands of the builder.
+ * commands of the static service (SERVICE).
  *
  * @return array<string, string>
  */
@@ -71,7 +93,8 @@ function environment(): array
 
     return [
         // Apart from the builds linking the PHP of the system: cargo would
-        // reuse the bindings generated for one with the other
+        // reuse the bindings generated for one with the other, and the
+        // objects compiled against the glibc of the builder
         'CARGO_TARGET_DIR' => builder_path(context()['run_on_host'] ? 'target/static' : 'target/docker-static'),
         // ext-php-rs reads `php -i` and php-config. An embed-only build has
         // no php binary: the stand-in of mobile/php describes it from its
@@ -89,9 +112,13 @@ function build_php(): void
     $dir = variable('root_dir').'/static-php';
     $workDir = builder_path('static-php');
 
+    if (!context()['run_on_host']) {
+        build_image(service: SERVICE);
+    }
+
     if (!is_file("{$dir}/spc")) {
         http_download(\sprintf('https://github.com/crazywhalecc/static-php-cli/releases/download/%s/spc-%s.tar.gz', SPC_VERSION, builder_platform()), "{$dir}/spc.tar.gz");
-        run_in_builder(['tar', 'xzf', 'spc.tar.gz'], $workDir);
+        run_in_builder(['tar', 'xzf', 'spc.tar.gz'], $workDir, service: SERVICE);
         fs()->remove("{$dir}/spc.tar.gz");
     }
 
@@ -99,7 +126,7 @@ function build_php(): void
     // application (WebKitGTK) is: static-php-cli builds with zig for that
     $environment = str_starts_with(builder_platform(), 'linux-') ? ['SPC_TARGET' => 'native-native-gnu'] : [];
 
-    run_in_builder(['./spc', 'doctor', '--auto-fix'], $workDir, $environment);
-    run_in_builder(['./spc', 'download', '--for-extensions='.EXTENSIONS, '--with-php='.PHP_BRANCH, '--prefer-pre-built'], $workDir, $environment);
-    run_in_builder(['./spc', 'build', EXTENSIONS, '--build-embed'], $workDir, $environment);
+    run_in_builder(['./spc', 'doctor', '--auto-fix'], $workDir, $environment, SERVICE);
+    run_in_builder(['./spc', 'download', '--for-extensions='.EXTENSIONS, '--with-php='.PHP_BRANCH, '--prefer-pre-built'], $workDir, $environment, SERVICE);
+    run_in_builder(['./spc', 'build', EXTENSIONS, '--build-embed'], $workDir, $environment, SERVICE);
 }

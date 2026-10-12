@@ -75,16 +75,16 @@ By default, the executable carries your project, not PHP: it uses the PHP and th
 sudo apt install libphp8.5-embed php8.5-sqlite3 libwebkit2gtk-4.1-0
 ```
 
-plus the PHP extensions your application uses, and `libayatana-appindicator3-1` for a [tray](tray.md) icon (Ubuntu desktops have it). The embedded PHP reads the `php.ini` of the system, `/etc/php/8.5/embed/php.ini`.
+plus the PHP extensions your application uses, and `libayatana-appindicator3-1` for a [tray](tray.md) icon, which Ubuntu desktops have: without it, the application stops when it shows the icon. The embedded PHP reads the `php.ini` of the system, `/etc/php/8.5/embed/php.ini`.
 
 ## Without PHP on the machine
 
-Built with a static PHP, the `nativella` command makes executables that carry their own PHP: the machine only needs the webview (`libwebkit2gtk-4.1-0`) and a glibc as recent as the one of the build machine.
+Built with a static PHP, the `nativella` command makes executables that carry their own PHP: the machine only needs the webview (`libwebkit2gtk-4.1-0` on Linux) and a glibc as recent as the one of the build machine.
 
-The macOS executables of the [releases](https://github.com/lyrixx/nativella/releases) are built this way. From the repository, with [its Docker stack](development.md):
+The `nativella` of the [releases](https://github.com/lyrixx/nativella/releases) is built this way, so the executables it makes are too. On Linux, it is built on Ubuntu 22.04, for its glibc, 2.35: they run on Ubuntu 22.04 and later, Debian 12 and later. From the repository, with [its Docker stack](development.md):
 
 ```bash
-castor static-php:build              # PHP and its libraries, with static-php-cli
+castor static-php:build              # PHP and its libraries, with static-php-cli, on Ubuntu 22.04
 castor nativella:build --static      # dist/nativella, and the demos, linked against it
 dist/nativella build path/to/project -o dist/my-app
 ```

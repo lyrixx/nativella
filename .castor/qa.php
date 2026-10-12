@@ -203,7 +203,7 @@ function twigCs(bool $dryRun = false): int
 /**
  * The crates of the workspace, built in the builder: its own target
  * directory, its own libphp; or the static PHP of "castor static-php:build"
- * with --static, as on macOS.
+ * with --static, as on macOS, in the static service.
  */
 #[AsTask(description: 'Checks the Rust crates: format, Clippy and tests')]
 function rust(
@@ -211,15 +211,16 @@ function rust(
     bool $static = false,
 ): int {
     $c = context()->withData(['docker_compose_run_environment' => $static ? \static_php\environment() : []], recursive: false);
+    $service = $static ? \static_php\SERVICE : null;
 
     io()->section('Checking the format of the Rust code...');
-    $fmt = docker_exit_code(['cargo', 'fmt', '--all', '--check'], $c, workDir: builder_path());
+    $fmt = docker_exit_code(['cargo', 'fmt', '--all', '--check'], $c, $service, workDir: builder_path());
 
     io()->section('Running Clippy...');
-    $clippy = docker_exit_code(['cargo', 'clippy', '--workspace', '--all-targets', '--', '-D', 'warnings'], $c, workDir: builder_path());
+    $clippy = docker_exit_code(['cargo', 'clippy', '--workspace', '--all-targets', '--', '-D', 'warnings'], $c, $service, workDir: builder_path());
 
     io()->section('Running the Rust tests...');
-    $test = docker_exit_code(['cargo', 'test', '--workspace'], $c, workDir: builder_path());
+    $test = docker_exit_code(['cargo', 'test', '--workspace'], $c, $service, workDir: builder_path());
 
     return max($fmt, $clippy, $test);
 }

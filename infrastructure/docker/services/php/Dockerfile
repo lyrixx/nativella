@@ -230,3 +230,65 @@ RUN rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-a
     && curl -sSfL "https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v${TAURI_CLI}/cargo-tauri-x86_64-unknown-linux-gnu.tgz" \
         | tar xz -C /usr/local/bin cargo-tauri \
     && cargo tauri --version
+
+# Builds what Nativella distributes for Linux: PHP as a static library (castor
+# static-php:build) and the executables linked against it (--static on the
+# tasks that build the crates). On Ubuntu 22.04, for its glibc, 2.35: an
+# executable runs on the glibc it was built with, or a newer one. Built on
+# Debian 13, it would need glibc 2.41, which not even Ubuntu 24.04 has. No
+# PHP here: the projects are staged in the builder.
+FROM ubuntu:22.04 AS static
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# What the Rust crates build with: clang for the PHP bindings (bindgen,
+# through ext-php-rs), the libraries of Tauri on Linux, OpenSSL. Then what
+# static-php-cli needs to build PHP and its libraries: its doctor would
+# install them with sudo.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        autoconf \
+        automake \
+        autopoint \
+        bison \
+        build-essential \
+        bzip2 \
+        ca-certificates \
+        clang \
+        cmake \
+        curl \
+        flex \
+        git \
+        libayatana-appindicator3-dev \
+        libclang-dev \
+        librsvg2-dev \
+        libssl-dev \
+        libtool \
+        libwebkit2gtk-4.1-dev \
+        libxdo-dev \
+        patch \
+        pkg-config \
+        re2c \
+        unzip \
+        xz-utils \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
+
+# Rust, for every user: the container runs as the host's raw UID
+ARG RUST_VERSION=stable
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV PATH="/usr/local/cargo/bin:$PATH"
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | CARGO_HOME=/usr/local/cargo sh -s -- -y --no-modify-path --profile minimal \
+        --default-toolchain "${RUST_VERSION}" --component clippy,rustfmt \
+    && rustc --version
+
+# As in the builder: the cargo registry in the mounted home (.home/), the
+# build in a target directory of its own
+ENV HOME=/home/app
+ENV CARGO_HOME=/home/app/.cargo
+ENV CARGO_TARGET_DIR=/var/www/target/docker-static
+
+WORKDIR /var/www

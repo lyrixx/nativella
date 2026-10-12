@@ -27,7 +27,8 @@ use function project\demo_names;
  * A desktop application needs the display of the host: it runs on the host by
  * default, with its cargo, its libphp and its WebKitGTK (the packages of
  * docs/installation.md). --docker runs it in the builder instead, which
- * reaches the Wayland (or X11) and D-Bus sockets of the session.
+ * reaches the Wayland (or X11) and D-Bus sockets of the session, or in the
+ * static service with --static.
  */
 #[AsTask(name: 'run', description: 'Runs a demo as a desktop application (on the host, or in the builder with --docker)')]
 function run_demo(
@@ -66,14 +67,15 @@ function run_demo(
         recursive: false,
     );
 
-    return docker_exit_code($command, $c, workDir: builder_path());
+    return docker_exit_code($command, $c, $static ? \static_php\SERVICE : null, workDir: builder_path());
 }
 
 /**
- * In the builder, as the release does: the executables link the libphp and
- * the WebKitGTK of the image (Debian), dynamically, or the static PHP of
- * "castor static-php:build" with --static. Each demo ships staged for
- * production: without its dev dependencies, in the production environment.
+ * In the builder, the executables link the libphp and the WebKitGTK of the
+ * image (Debian), dynamically. With --static, as the release does, they link
+ * the static PHP of "castor static-php:build", in the static service (Ubuntu
+ * 22.04, for its old glibc). Each demo ships staged for production: without
+ * its dev dependencies, in the production environment.
  *
  * @param list<string> $demos
  */
@@ -87,16 +89,19 @@ function build_demos(
     // Staging installs their dependencies: they need not be installed here
     $projects = array_map(demo(...), $demos ?: demo_names());
     $environment = $static ? \static_php\environment() : [];
+    $service = $static ? \static_php\SERVICE : null;
 
     io()->title('Building the nativella command');
 
-    run_in_builder(['cargo', 'build', '-p', 'nativella', '--release'], environment: $environment);
+    run_in_builder(['cargo', 'build', '-p', 'nativella', '--release'], environment: $environment, service: $service);
     fs()->copy(target_dir($environment).'/release/nativella', variable('root_dir').'/dist/nativella', overwriteNewerFiles: true);
 
     foreach ($projects as $project) {
         io()->section("Building {$project->path} into dist/{$project->name()}");
 
-        run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--release', '--', 'build', stage($project), '-o', "dist/{$project->name()}"], environment: $environment);
+        // Staged in the builder, which has PHP and Composer
+        $stage = stage($project);
+        run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--release', '--', 'build', $stage, '-o', "dist/{$project->name()}"], environment: $environment, service: $service);
     }
 
     io()->success('The executables are in dist/.');
@@ -104,7 +109,9 @@ function build_demos(
 
 /**
  * What a GitHub release publishes: nativella-<platform> and
- * nativella-demo-<demo>-<platform>, with SHA256SUMS-<platform>.
+ * nativella-demo-<demo>-<platform>, with SHA256SUMS-<platform>. On Linux,
+ * only executables that run on the glibc of the static service, built with
+ * --static.
  */
 #[AsTask(description: 'Copies the executables of dist/ into release/, named after the platform, with their checksums')]
 function package(): void
@@ -116,6 +123,10 @@ function package(): void
 
     $checksums = '';
     foreach (finder()->in("{$root}/dist")->files()->depth(0)->sortByName() as $file) {
+        if (str_starts_with($platform, 'linux-')) {
+            check_glibc("dist/{$file->getFilename()}");
+        }
+
         $name = 'nativella' === $file->getFilename() ? "nativella-{$platform}" : "nativella-demo-{$file->getFilename()}-{$platform}";
         fs()->copy($file->getPathname(), "{$root}/release/{$name}");
         $checksums .= hash_file('sha256', $file->getPathname())."  {$name}\n";
@@ -124,6 +135,32 @@ function package(): void
     fs()->dumpFile("{$root}/release/SHA256SUMS-{$platform}", $checksums);
 
     io()->success("The release files of {$platform} are in release/.");
+}
+
+/**
+ * Fails if the executable needs a glibc newer than the one of the static
+ * service: the distributions that have an older one could not run it.
+ */
+function check_glibc(string $executable): void
+{
+    $symbols = docker_compose_run(['objdump', '-T', $executable], context()->withQuiet(), \static_php\SERVICE, workDir: builder_path());
+    if (!$symbols->isSuccessful()) {
+        throw new \RuntimeException(\sprintf('Cannot read the symbols of %s (%s).', $executable, trim($symbols->getErrorOutput())));
+    }
+
+    preg_match_all('/\bGLIBC_(\d+(?:\.\d+)+)\b/', $symbols->getOutput(), $matches);
+    $versions = $matches[1];
+    usort($versions, static fn (string $a, string $b): int => version_compare($a, $b));
+    $required = end($versions);
+    if (false === $required) {
+        throw new \RuntimeException(\sprintf('%s does not link the glibc: is it an executable for Linux?', $executable));
+    }
+
+    if (version_compare($required, \static_php\GLIBC_VERSION, '>')) {
+        throw new \RuntimeException(\sprintf('%s needs glibc %s, newer than the %s of the static service: build it with "castor nativella:build --static".', $executable, $required, \static_php\GLIBC_VERSION));
+    }
+
+    io()->writeln(\sprintf('<info>✔</info> %s runs on glibc %s.', $executable, $required));
 }
 
 /**
@@ -142,11 +179,12 @@ function smoke(
 ): int {
     $projects = installed_demos($demos);
     $environment = $static ? \static_php\environment() : [];
+    $service = $static ? \static_php\SERVICE : null;
 
     io()->title('Smoke testing the demos');
 
     // Once, with the output: the first build takes a while
-    run_in_builder(['cargo', 'build', '-p', 'nativella-runtime', '--example', 'request'], environment: $environment);
+    run_in_builder(['cargo', 'build', '-p', 'nativella-runtime', '--example', 'request'], environment: $environment, service: $service);
 
     $c = context()->withQuiet()->withData(['docker_compose_run_environment' => $environment], recursive: false);
 
@@ -167,7 +205,7 @@ function smoke(
         ];
 
         foreach ($requests as $label => $command) {
-            $process = docker_compose_run($command, $c, workDir: builder_path());
+            $process = docker_compose_run($command, $c, $service, workDir: builder_path());
             $statusLine = strtok($process->getOutput(), "\n") ?: '';
 
             if (0 === $process->getExitCode() && preg_match('{^HTTP/\S+ [23]\d\d\b}', $statusLine)) {

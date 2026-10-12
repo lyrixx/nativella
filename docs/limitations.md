@@ -6,8 +6,8 @@ Nativella is experimental. This page lists what does not work, what is untested 
 
 | Platform | Status |
 |---|---|
-| Linux | Developed and tested on Ubuntu 26.04, with WebKitGTK 2.52. |
-| macOS | Untested. The code is written for it, nobody has built it there yet. |
+| Linux | Developed and tested on Ubuntu 26.04, with WebKitGTK 2.52. The executables of the releases run on Ubuntu 22.04 and 24.04, Debian 12 and 13 too. |
+| macOS | Built and tested by the CI (arm64), without a window: nobody has opened one there yet. |
 | Windows | Untested. Pages would be served from `http://php.localhost/`, as Tauri does for custom schemes there. |
 | Android | Experimental: the three demos run on an Android 16 emulator (arm64 builds). See [Mobile](mobile.md). |
 | iOS | Not built yet: it needs macOS and Xcode. |

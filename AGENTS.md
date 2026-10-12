@@ -36,7 +36,9 @@ castor builder                                                # a shell, in /var
 
 The builder also holds the Rust toolchain, libphp and WebKitGTK: the crates build and are tested
 there (`castor qa:rust`), in their own target directory (`target/docker/`). The Android builds run
-in the `android` service: the builder, plus the Android SDK.
+in the `android` service: the builder, plus the Android SDK. The static PHP
+(`castor static-php:build`) and what links it (`--static`) build in the `static` service: Ubuntu
+22.04, for its old glibc, without PHP, so the projects are staged in the builder.
 
 **The exceptions are the desktop application and iOS**:
 
@@ -67,7 +69,7 @@ castor website:build             # website/dist/, and the documentation in websi
 castor nativella:run symfony     # the Symfony demo, as a desktop application (host)
 castor nativella:smoke           # each demo answers through the runtime, without a window
 castor nativella:build [demo]    # dist/nativella and the standalone executables of the demos (staged for production)
-castor static-php:build          # PHP as a static library, for --static (nativella:build, qa:rust…)
+castor static-php:build          # PHP as a static library, for --static (nativella:build, qa:rust…), in the static service
 castor mobile:android symfony    # an Android APK of the demo (android service)
 castor logs [--service=service]  # logs (frontend, router)
 ```

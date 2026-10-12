@@ -95,7 +95,7 @@ function open_project(): void
 
 #[AsTask(description: 'Builds the infrastructure', aliases: ['build'])]
 function build(
-    #[AsOption(description: 'The service to build (default: all services but android)', autocomplete: 'docker\complete_service_names')]
+    #[AsOption(description: 'The service to build (default: all services but android and static)', autocomplete: 'docker\complete_service_names')]
     ?string $service = null,
     ?string $profile = null,
 ): void {
@@ -108,8 +108,8 @@ function build(
     } elseif ($service) {
         $command = ['--profile', '*'];
     } else {
-        // Not the android service, which weighs several gigabytes: the
-        // Android build builds it
+        // Not the android service, which weighs several gigabytes, nor the
+        // static one: the Android build and the static PHP build them
         $command = ['--profile', 'default', '--profile', 'builder'];
     }
 

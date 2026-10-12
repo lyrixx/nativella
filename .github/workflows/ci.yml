@@ -129,6 +129,76 @@ jobs:
             - name: "Smoke test the demos through the runtime"
               run: "castor nativella:smoke"
 
+    # What the release publishes for Linux: built on Ubuntu 22.04, in the
+    # static image, against a static PHP, for the glibc of Ubuntu 22.04
+    linux-static:
+        name: Linux, static PHP
+        runs-on: ubuntu-latest
+        timeout-minutes: 90
+        steps:
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+            - name: Log in to registry
+              shell: bash
+              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: setup-castor
+              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false
+
+            # Built once, then as long as the version of PHP, its extensions,
+            # static-php-cli and the glibc stay the same
+            - name: "Cache static PHP"
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: static-php/buildroot
+                  key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
+
+            # The cargo registry and the target directory of the static image
+            # (see its CARGO_HOME and CARGO_TARGET_DIR)
+            - name: "Cache the Rust build"
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      .home/.cargo/git
+                      .home/.cargo/registry
+                      target/docker-static
+                  key: cargo-static-${{ hashFiles('Cargo.lock', 'infrastructure/docker/services/php/Dockerfile') }}
+                  restore-keys: cargo-static-
+
+            # The builder installs and stages the projects
+            - name: "Build the builder"
+              run: "castor docker:build --service=builder"
+
+            # Builds the static image first. static-php-cli asks the GitHub API
+            # for its downloads: without a token, the runners share its rate
+            # limit
+            - name: "Build PHP as a static library"
+              run: "castor static-php:build"
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            # The smoke tests serve the demos, with their vendor/
+            - name: "Install the projects"
+              run: "castor install"
+
+            - name: "Smoke test the demos through the runtime"
+              run: "castor nativella:smoke --static"
+
+            - name: "Build the executables"
+              run: "castor nativella:build --static"
+
+            # Fails if an executable needs a glibc newer than the one of
+            # Ubuntu 22.04
+            - name: "Check the executables as the release does"
+              run: "castor nativella:package"
+
     macos:
         name: macOS
         runs-on: macos-latest

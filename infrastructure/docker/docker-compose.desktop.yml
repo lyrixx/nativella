@@ -1,20 +1,23 @@
-# Lets the builder open windows on the desktop of the host, for
-# `castor nativella:run <demo> --docker` only: that task loads this file, as it
-# needs the variables of a desktop session.
+# Lets the builder, or the static service, open windows on the desktop of the
+# host, for `castor nativella:run <demo> --docker [--static]` only: that task
+# loads this file, as it needs the variables of a desktop session.
+x-desktop: &desktop
+    environment:
+        - DBUS_SESSION_BUS_ADDRESS
+        - DISPLAY
+        - WAYLAND_DISPLAY
+        - XAUTHORITY
+        - XDG_RUNTIME_DIR
+    # The session bus of the host refuses the AppArmor profile of Docker
+    # containers: no notification nor tray without this
+    security_opt:
+        - apparmor=unconfined
+    volumes:
+        # The Wayland and D-Bus sockets (notifications, tray), and the
+        # Xwayland cookie: all in the runtime directory of the session
+        - "${XDG_RUNTIME_DIR}:${XDG_RUNTIME_DIR}"
+        - "/tmp/.X11-unix:/tmp/.X11-unix:ro"
+
 services:
-    builder:
-        environment:
-            - DBUS_SESSION_BUS_ADDRESS
-            - DISPLAY
-            - WAYLAND_DISPLAY
-            - XAUTHORITY
-            - XDG_RUNTIME_DIR
-        # The session bus of the host refuses the AppArmor profile of Docker
-        # containers: no notification nor tray without this
-        security_opt:
-            - apparmor=unconfined
-        volumes:
-            # The Wayland and D-Bus sockets (notifications, tray), and the
-            # Xwayland cookie: all in the runtime directory of the session
-            - "${XDG_RUNTIME_DIR}:${XDG_RUNTIME_DIR}"
-            - "/tmp/.X11-unix:/tmp/.X11-unix:ro"
+    builder: *desktop
+    static: *desktop

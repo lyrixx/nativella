@@ -1,8 +1,9 @@
 name: Release
 
-# Builds the nativella command and the standalone executables of the demos for
-# Linux x86_64, in the builder image, and for macOS arm64, linked against a
-# static PHP; attaches them to the GitHub release of a v* tag.
+# Builds the nativella command and the standalone executables of the demos,
+# linked against a static PHP, for Linux x86_64, in the static image (Ubuntu
+# 22.04, for its glibc), and for macOS arm64; attaches them to the GitHub
+# release of a v* tag.
 
 "on":
     push:
@@ -46,20 +47,35 @@ jobs:
               with:
                 persist-credentials: false
 
-            # The cargo registry and the target directory of the builder (see
-            # its CARGO_HOME and CARGO_TARGET_DIR)
+            - name: "Cache static PHP"
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: static-php/buildroot
+                  key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
+
+            # The cargo registry and the target directory of the static image
+            # (see its CARGO_HOME and CARGO_TARGET_DIR)
             - name: "Cache the Rust build"
               uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: |
                       .home/.cargo/git
                       .home/.cargo/registry
-                      target/docker
-                  key: cargo-release-${{ hashFiles('Cargo.lock', 'infrastructure/docker/services/php/Dockerfile') }}
-                  restore-keys: cargo-release-
+                      target/docker-static
+                  key: cargo-static-${{ hashFiles('Cargo.lock', 'infrastructure/docker/services/php/Dockerfile') }}
+                  restore-keys: cargo-static-
 
+            # The builder installs and stages the projects
             - name: "Build the builder"
               run: "castor docker:build --service=builder"
+
+            # Builds the static image first. static-php-cli asks the GitHub API
+            # for its downloads: without a token, the runners share its rate
+            # limit
+            - name: "Build PHP as a static library"
+              run: "castor static-php:build"
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             # Staging copies the .env of a Laravel demo, which castor install
             # creates (with its key)
@@ -67,8 +83,9 @@ jobs:
               run: "castor install"
 
             - name: "Build the executables"
-              run: "castor nativella:build"
+              run: "castor nativella:build --static"
 
+            # And checks that they run on the glibc of Ubuntu 22.04
             - name: "Name the executables after the platform"
               run: "castor nativella:package"
 
@@ -156,16 +173,16 @@ jobs:
                   `nativella-demo-*-<platform>` are the demos, as standalone applications.
                   `SHA256SUMS-<platform>` holds their checksums.
 
-                  macOS arm64: linked against a static PHP, they need nothing installed.
-                  They are not signed: remove the quarantine of the download first, with
-                  `xattr -d com.apple.quarantine <file>`.
+                  They are linked against a static PHP 8.5: they need no PHP on the machine.
 
-                  Linux x86_64: built on Debian 13, they link dynamically against the PHP
-                  library (libphp 8.5, embed SAPI), WebKitGTK 4.1 and the libraries Tauri
-                  uses on Linux, which must be installed on the system (on Ubuntu:
-                  `libphp8.5-embed`, `libwebkit2gtk-4.1-0`, `libxdo3`, `librsvg2-2`,
-                  `libayatana-appindicator3-1` for the tray, with the PHP extensions the
-                  application needs, e.g. `php8.5-sqlite3`).
+                  Linux x86_64: Ubuntu 22.04 or later, Debian 12 or later (glibc 2.35).
+                  They need the webview of the system, WebKitGTK 4.1:
+                  `sudo apt install libwebkit2gtk-4.1-0`. An application with a tray icon
+                  needs `libayatana-appindicator3-1` too, which Ubuntu desktops have.
+
+                  macOS arm64: they need nothing installed. They are not signed: downloaded
+                  with a browser, remove the quarantine first, with
+                  `xattr -d com.apple.quarantine <file>`.
                   EOF
 
                   if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then

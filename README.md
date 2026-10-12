@@ -37,7 +37,15 @@ Nativella is young and experimental, developed on Linux: read
 
 ## Try it
 
-On Ubuntu 26.04 ([other systems](docs/installation.md)):
+[Download `nativella`](docs/installation.md#download), for Linux x86_64 or macOS arm64, then,
+from a clone of the repository:
+
+```bash
+(cd demos/symfony && composer install)
+nativella run demos/symfony
+```
+
+Or build it from source, on Ubuntu 26.04 ([other systems](docs/installation.md#build-from-source)):
 
 ```bash
 sudo apt install libphp8.5-embed php8.5-dev php8.5-cli php8.5-sqlite3 \

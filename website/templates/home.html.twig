@@ -327,15 +327,13 @@
             <ol class="start-steps">
                 <li>
                     <div class="start-text">
-                        <h3>Build the runtime</h3>
-                        <p>Once. Nativella is built from source for now, against the PHP of the system. Ubuntu 26.04 is where it is tested.</p>
+                        <h3>Download the runtime</h3>
+                        <p>Once. One executable, with PHP inside: on Linux, it runs on Ubuntu 22.04 or Debian 12 and later, and only needs the webview of the system. For macOS, take <code>nativella-macos-aarch64</code>, or <a href="docs/installation/#build-from-source">build it from source</a>.</p>
                     </div>
                     {% apply highlight('bash') %}
-                        sudo apt install libphp8.5-embed php8.5-dev \
-                            libclang-dev libwebkit2gtk-4.1-dev \
-                            libxdo-dev librsvg2-dev
-                        git clone https://github.com/lyrixx/nativella.git
-                        cargo install --locked --path nativella/crates/nativella
+                        sudo apt install libwebkit2gtk-4.1-0
+                        curl -fLo nativella https://github.com/lyrixx/nativella/releases/latest/download/nativella-linux-x86_64
+                        chmod +x nativella && sudo mv nativella /usr/local/bin/
                     {% endapply %}
                 </li>
                 <li>

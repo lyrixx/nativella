@@ -23,6 +23,7 @@ castor completion | sudo tee /etc/bash_completion.d/castor
 |---|---|
 | `builder` | PHP 8.5 and Composer, the Rust toolchain (stable, with Clippy and rustfmt), `libphp8.5-embed` and its headers, clang, WebKitGTK 4.1 and the other libraries of Tauri. Every command runs there. |
 | `android` | The builder, plus a JDK, the Android SDK with an NDK, the Android target of Rust and the Tauri command, for `castor mobile:android`. A few gigabytes, x86_64 only: `castor docker:build` leaves it out, the Android build builds it. |
+| `static` | Ubuntu 22.04, with Rust and the libraries of Tauri, but no PHP: the [static PHP](#static-php) and the executables linked against it, for an old glibc. `castor docker:build` leaves it out, `castor static-php:build` builds it. |
 | `frontend` | nginx and PHP-FPM: the website, and each demo in a browser. |
 | `router` | Traefik, for the domains and HTTPS. |
 
@@ -136,7 +137,7 @@ castor nativella:build [symfony] [--static]
 castor nativella:package
 ```
 
-`nativella:build` builds `dist/nativella`, then the standalone executable of each demo (`dist/symfony`…), in release mode, in the builder. Each demo ships staged for production in `target/nativella/stage/`: without its dev dependencies, in the production environment. The executables link the libphp and the WebKitGTK of the image (Debian 13), dynamically, or the static PHP below with `--static`. `nativella:package` copies them to `release/`, named after the platform, with their checksums, as the releases publish them.
+`nativella:build` builds `dist/nativella`, then the standalone executable of each demo (`dist/symfony`…), in release mode, in the builder. Each demo ships staged for production in `target/nativella/stage/`: without its dev dependencies, in the production environment. The executables link the libphp and the WebKitGTK of the image (Debian 13), dynamically, or the static PHP below with `--static`, in the `static` image. `nativella:package` copies them to `release/`, named after the platform, with their checksums, as the releases publish them. On Linux, it refuses an executable that needs a glibc newer than the one of Ubuntu 22.04: one built without `--static`.
 
 ### Static PHP
 
@@ -144,9 +145,11 @@ castor nativella:package
 castor static-php:build
 ```
 
-Builds PHP as a static library with [static-php-cli](https://github.com/crazywhalecc/static-php-cli), with the embed SAPI and the extensions of `.castor/static-php.php`, into `static-php/buildroot/` (ignored by Git): about 5 minutes, then nothing until the version of PHP, its extensions or static-php-cli change. On Linux, it builds against the glibc of the builder, with zig, as WebKitGTK is linked.
+Builds PHP as a static library with [static-php-cli](https://github.com/crazywhalecc/static-php-cli), with the embed SAPI and the extensions of `.castor/static-php.php`, into `static-php/buildroot/` (ignored by Git): about 5 minutes, then nothing until the version of PHP, its extensions, static-php-cli or the glibc change.
 
-`--static` on `nativella:run`, `nativella:build`, `nativella:smoke` and `qa:rust` links it, in a target directory of its own (`target/docker-static/`, `target/static/` on the host): the executables then need no PHP on the machine. That is how macOS gets a PHP, which Homebrew does not ship as a library. There is no `php.ini`: PHP runs with its defaults, plus the settings Nativella sets.
+On Linux, it builds in the `static` image, which the task builds first: Ubuntu 22.04, with Rust and the libraries of Tauri, but no PHP. An executable needs the glibc it was built with, or a newer one: built on Debian 13, like the builder, it would need glibc 2.41, which not even Ubuntu 24.04 has. Built there, it runs on Ubuntu 22.04 and later, Debian 12 and later. static-php-cli builds PHP against that glibc, with zig, as WebKitGTK is linked against it too.
+
+`--static` on `nativella:run`, `nativella:build`, `nativella:smoke` and `qa:rust` links it, in the `static` image too, in a target directory of its own (`target/docker-static/`, `target/static/` on the host): the executables then need no PHP on the machine. That is how macOS gets a PHP, which Homebrew does not ship as a library. There is no `php.ini`: PHP runs with its defaults, plus the settings Nativella sets.
 
 An embed-only PHP has no `php` binary for ext-php-rs to ask `php -i`: the stand-in `mobile/php/php` describes it from its headers, as it does for the PHP of phones.
 
@@ -189,8 +192,8 @@ The workflows of `.github/workflows/` run Castor tasks in the same stack:
 
 | Workflow | When | What |
 |---|---|---|
-| `ci.yml` | Pull requests, `main`, weekly | `castor start`, the PHP checks and tests, the frontend over HTTPS (`castor qa:frontend`); in parallel, `castor qa:rust` and `castor nativella:smoke`, in the builder and on macOS (arm64, the host context, with the static PHP); hadolint on the Dockerfile. |
+| `ci.yml` | Pull requests, `main`, weekly | `castor start`, the PHP checks and tests, the frontend over HTTPS (`castor qa:frontend`); in parallel, `castor qa:rust` and `castor nativella:smoke`, in the builder and on macOS (arm64, the host context, with the static PHP); the static PHP on Linux, in the `static` image: `castor nativella:smoke --static`, then `castor nativella:build --static` and `castor nativella:package`, as the release does; hadolint on the Dockerfile. |
 | `website.yml` | Changes to `website/`, `docs/` or `tools/mkdocs/` | `castor website:build`, which fails on a broken link; on `main`, deploys `website/dist/` to GitHub Pages: the landing page, and the documentation under `docs/`. Pages must be set to "GitHub Actions" in the settings of the repository. |
 | `mobile.yml` | Changes to `crates/`, `mobile/`, `packages/`, `demos/symfony/` or the Docker stack, manually | `castor mobile:android symfony`: the APK as an artifact. Then, experimentally, `castor mobile:ios symfony` on macOS, with the bundle of the Android job: the simulator app as an artifact. |
-| `release.yml` | `v*` tags, manually | `castor nativella:build` and `castor nativella:package`: the Linux x86_64 executables, in the builder, and the macOS arm64 ones, with the static PHP; as artifacts and, for a tag, on the GitHub release. |
+| `release.yml` | `v*` tags, manually | `castor nativella:build --static` and `castor nativella:package`: the Linux x86_64 executables, in the `static` image, and the macOS arm64 ones; as artifacts and, for a tag, on the GitHub release. |
 | `cache.yml` | Changes to `infrastructure/docker/` on `main` | `castor docker:push`: pushes the build cache of the images to `ghcr.io/lyrixx/nativella`, which the other workflows build from. |
