@@ -132,9 +132,11 @@ jobs:
                   name: nativella-demo-symfony-bundle
                   path: target/nativella/
 
-            # cargo tauri ios init generates the Xcode project with XcodeGen
-            - name: "Install XcodeGen"
-              run: "brew install xcodegen"
+            # cargo tauri ios init installs them otherwise, with a `brew
+            # reinstall` that waits for a yes at the prompt: XcodeGen generates
+            # the Xcode project
+            - name: "Install XcodeGen, libimobiledevice and CocoaPods"
+              run: "brew install cocoapods libimobiledevice xcodegen"
 
             - name: "Add the iOS simulator target of Rust"
               run: "rustup target add aarch64-apple-ios-sim"
