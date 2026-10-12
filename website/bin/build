@@ -1,0 +1,29 @@
+#!/usr/bin/env php
+<?php
+
+/*
+ * Builds the landing page into dist/. MkDocs builds the documentation into
+ * dist/docs/ afterwards: see mkdocs.yml.
+ *
+ *     bin/build
+ *
+ * NATIVELLA_SITE_URL is where the site is published, for the few URLs that
+ * must be absolute (Open Graph, canonical). Every other link is relative.
+ */
+
+use Nativella\Website\Site;
+
+require dirname(__DIR__).'/vendor/autoload.php';
+
+$started = hrtime(true);
+
+$site = new Site(
+    projectDir: dirname(__DIR__, 2),
+    websiteDir: dirname(__DIR__),
+    outputDir: dirname(__DIR__).'/dist',
+    siteUrl: rtrim(getenv('NATIVELLA_SITE_URL') ?: 'https://lyrixx.github.io/nativella', '/').'/',
+);
+
+$site->build();
+
+printf("Built the landing page into website/dist/ in %d ms.\n", (hrtime(true) - $started) / 1_000_000);

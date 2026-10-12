@@ -14,3 +14,19 @@ updates:
                   - '*'
       cooldown:
           default-days: 7
+
+    # MkDocs and its theme, pinned in tools/mkdocs/requirements.txt
+    - package-ecosystem: 'pip'
+      directory: '/tools/mkdocs'
+      schedule:
+          interval: 'monthly'
+      groups:
+          mkdocs:
+              patterns:
+                  - '*'
+      ignore:
+          # Material for MkDocs is built for MkDocs 1
+          - dependency-name: 'mkdocs'
+            update-types: ['version-update:semver-major']
+      cooldown:
+          default-days: 7

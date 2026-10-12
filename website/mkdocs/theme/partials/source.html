@@ -1,0 +1,14 @@
+{#-
+  The link to the repository, without data-md-component="source": Material
+  would fetch its stars and forks from api.github.com, and the site loads
+  nothing from another domain.
+-#}
+<a href="{{ config.repo_url }}" title="{{ lang.t('source') }}" class="md-source">
+  <div class="md-source__icon md-icon">
+    {% set icon = config.theme.icon.repo or "fontawesome/brands/git-alt" %}
+    {% include ".icons/" ~ icon ~ ".svg" %}
+  </div>
+  <div class="md-source__repository">
+    {{ config.repo_name }}
+  </div>
+</a>

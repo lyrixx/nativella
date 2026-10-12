@@ -32,11 +32,32 @@ function all(
 #[AsTask(description: 'Installs tooling')]
 function install(): void
 {
-    io()->title('Installing QA tooling');
+    io()->title('Installing tooling');
 
     foreach (TOOLS as $tool) {
         if (0 !== docker_exit_code(['composer', 'install', '-o'], workDir: "/var/www/tools/{$tool}")) {
             throw new \RuntimeException(\sprintf('"composer install" failed in tools/%s.', $tool));
+        }
+    }
+
+    install_mkdocs();
+}
+
+/**
+ * MkDocs, which builds the documentation, in a virtual environment of its
+ * own: tools/mkdocs/.venv, with the versions of tools/mkdocs/requirements.txt.
+ * Cheap when installed already.
+ */
+function install_mkdocs(): void
+{
+    $commands = [
+        ['python3', '-m', 'venv', '.venv'],
+        ['.venv/bin/pip', 'install', '--quiet', '--disable-pip-version-check', '-r', 'requirements.txt'],
+    ];
+
+    foreach ($commands as $command) {
+        if (0 !== docker_exit_code($command, workDir: '/var/www/tools/mkdocs')) {
+            throw new \RuntimeException(\sprintf('"%s" failed in tools/mkdocs.', implode(' ', $command)));
         }
     }
 }

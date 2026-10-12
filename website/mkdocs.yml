@@ -1,0 +1,104 @@
+# The documentation: docs/*.md, built by MkDocs into dist/docs/, under the
+# landing page (castor website:build). See README.md.
+#
+# The navigation is not here: mkdocs/hooks.py reads it from docs/README.md.
+
+site_name: Nativella
+site_description: Run a PHP web application as a desktop application, with PHP embedded and no web server.
+# mkdocs/hooks.py replaces it with NATIVELLA_SITE_URL + "docs/" when set
+site_url: https://lyrixx.github.io/nativella/docs/
+repo_url: https://github.com/lyrixx/nativella
+repo_name: lyrixx/nativella
+edit_uri: edit/main/docs/
+copyright: Nativella is open source, under the MIT license.
+
+docs_dir: ../docs
+site_dir: dist/docs
+
+# A broken link, a missing section or a document left out of the navigation
+# fails the build
+strict: true
+validation:
+    nav:
+        omitted_files: warn
+    links:
+        anchors: warn
+        unrecognized_links: warn
+
+hooks:
+    - mkdocs/hooks.py
+
+theme:
+    name: material
+    custom_dir: mkdocs/theme
+    # The site loads nothing from another domain: no Google Fonts
+    font: false
+    language: en
+    # Relative to the documentation, which is published under the landing page
+    favicon: ../assets/favicon.svg
+    logo: ../assets/favicon.svg
+    features:
+        - content.action.edit
+        - content.code.copy
+        - navigation.footer
+        - navigation.sections
+        - navigation.top
+        - search.highlight
+        - search.suggest
+        - toc.follow
+    palette:
+        - media: "(prefers-color-scheme)"
+          toggle:
+              icon: material/brightness-auto
+              name: Light mode
+        - media: "(prefers-color-scheme: light)"
+          scheme: default
+          primary: custom
+          accent: custom
+          toggle:
+              icon: material/brightness-7
+              name: Dark mode
+        - media: "(prefers-color-scheme: dark)"
+          scheme: slate
+          primary: custom
+          accent: custom
+          toggle:
+              icon: material/brightness-4
+              name: System preference
+
+extra:
+    # The logo leads to the landing page
+    homepage: ../
+    generator: false
+
+extra_css:
+    - stylesheets/nativella.css
+
+markdown_extensions:
+    - admonition
+    - attr_list
+    # GitHub alerts: > [!NOTE]
+    - github-callouts
+    - md_in_html
+    - pymdownx.details
+    - pymdownx.highlight:
+          # Most PHP samples have no "<?php", which Pygments waits for
+          extend_pygments_lang:
+              - name: php
+                lang: php
+                options:
+                    startinline: true
+          pygments_lang_class: true
+    - pymdownx.inlinehilite
+    - pymdownx.magiclink
+    - pymdownx.superfences
+    - tables
+    - toc:
+          permalink: true
+          # The anchors of GitHub, which the documents link to
+          slugify: !!python/object/apply:pymdownx.slugs.slugify
+              kwds:
+                  case: lower
+
+plugins:
+    - search

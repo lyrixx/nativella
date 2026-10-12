@@ -1,0 +1,106 @@
+name: Website
+
+# Builds website/ (the landing page, and docs/*.md with MkDocs) on every
+# change, and deploys it to GitHub Pages from main: the landing page at the
+# root, the documentation under docs/. Pages must be set to "GitHub Actions"
+# in the settings of the repository.
+
+"on":
+    push:
+        branches: ["main"]
+        paths:
+            - ".castor/**"
+            - ".github/workflows/website.yml"
+            - "castor.php"
+            - "docs/**"
+            - "infrastructure/docker/services/php/**"
+            - "tools/mkdocs/**"
+            - "website/**"
+    pull_request:
+        branches: ["main"]
+        paths:
+            - ".castor/**"
+            - ".github/workflows/website.yml"
+            - "castor.php"
+            - "docs/**"
+            - "infrastructure/docker/services/php/**"
+            - "tools/mkdocs/**"
+            - "website/**"
+    workflow_dispatch:
+
+concurrency:
+    group: website-${{ github.ref }}
+    # Never cancel a deployment halfway
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+env:
+    # Fix for symfony/color detection. We know GitHub Actions can handle it
+    ANSICON: 1
+    CASTOR_CONTEXT: ci
+    # The images build from the cache that .github/workflows/cache.yml pushes
+    REGISTRY: "ghcr.io/lyrixx/nativella"
+
+jobs:
+    build:
+        name: Build the website
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: read
+        steps:
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+            - name: Log in to registry
+              shell: bash
+              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: setup-castor
+              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false
+
+            # Gives the URL of the site, for its absolute URLs (Open Graph, canonical)
+            - name: "Configure GitHub Pages"
+              id: pages
+              if: github.event_name != 'pull_request'
+              uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+            - name: "Build the builder"
+              run: "castor docker:build --service=builder"
+
+            # Fails on a broken link of the documentation
+            - name: "Build the website"
+              run: "castor website:build"
+              env:
+                  # Empty on pull requests: the website builds with its default URL
+                  NATIVELLA_SITE_URL: ${{ steps.pages.outputs.base_url }}
+
+            - name: "Upload the website"
+              if: github.event_name != 'pull_request'
+              uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+              with:
+                  path: website/dist
+
+    deploy:
+        name: Deploy to GitHub Pages
+        if: github.event_name != 'pull_request'
+        needs: build
+        runs-on: ubuntu-latest
+        permissions:
+            id-token: write
+            pages: write
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - name: "Deploy to GitHub Pages"
+              id: deployment
+              uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

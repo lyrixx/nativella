@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Keep in sync with website/templates/partials/logo.php -->
+  <rect width="64" height="64" rx="16" fill="#c4461f"/>
+  <rect x="12" y="12" width="40" height="5" rx="2.5" fill="#fff6ea" opacity=".55"/>
+  <path d="M20 50V36a12 12 0 0 1 24 0v14" fill="none" stroke="#fff6ea" stroke-width="8" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,4 @@
+/dist/
+# Python compiles mkdocs/hooks.py there
+/mkdocs/__pycache__/
+/vendor/

@@ -1,0 +1,199 @@
+/*
+ * The documentation in the colours and the type of the landing page: warm
+ * paper, ink, terracotta, and Fraunces for the titles.
+ *
+ * Keep in sync with the tokens of website/assets/site.css.
+ */
+
+/* Served from website/dist/docs/stylesheets/: the font of the landing page */
+@font-face {
+    font-family: "Fraunces";
+    font-style: normal;
+    font-weight: 400 800;
+    font-display: swap;
+    src: url("../../assets/fonts/fraunces.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+    --md-text-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Ubuntu, Cantarell, "Noto Sans", sans-serif;
+    --md-code-font: ui-monospace, "SFMono-Regular", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    --nativella-display: "Fraunces", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+}
+
+[data-md-color-scheme="default"] {
+    --md-default-bg-color: #f6f0e5;
+    --md-default-bg-color--light: rgb(246 240 229 / 70%);
+    --md-default-bg-color--lighter: rgb(246 240 229 / 30%);
+    --md-default-bg-color--lightest: rgb(246 240 229 / 12%);
+    --md-default-fg-color: #1d1a16;
+    --md-default-fg-color--light: #685f52;
+    --md-default-fg-color--lighter: rgb(29 26 22 / 32%);
+    --md-default-fg-color--lightest: rgb(29 26 22 / 8%);
+
+    /* The header: paper and ink, like the one of the landing page */
+    --md-primary-fg-color: #f6f0e5;
+    --md-primary-fg-color--light: #fbf7ef;
+    --md-primary-fg-color--dark: #efe7d8;
+    --md-primary-bg-color: #1d1a16;
+    --md-primary-bg-color--light: #685f52;
+
+    --md-accent-fg-color: #973315;
+    --md-accent-fg-color--transparent: rgb(176 61 28 / 10%);
+    --md-typeset-a-color: #b03d1c;
+
+    --md-code-bg-color: #efe7d8;
+    --md-code-fg-color: #1d1a16;
+
+    --md-admonition-bg-color: #fbf7ef;
+    --md-footer-bg-color: #efe7d8;
+    --md-footer-bg-color--dark: #e0d6c4;
+    --md-footer-fg-color: #1d1a16;
+    --md-footer-fg-color--light: #4a443b;
+    --md-footer-fg-color--lighter: #685f52;
+
+    --nativella-line: #e0d6c4;
+    --nativella-search: #efe7d8;
+}
+
+[data-md-color-scheme="slate"] {
+    --md-default-bg-color: #15120e;
+    --md-default-bg-color--light: rgb(21 18 14 / 70%);
+    --md-default-bg-color--lighter: rgb(21 18 14 / 30%);
+    --md-default-bg-color--lightest: rgb(21 18 14 / 12%);
+    --md-default-fg-color: #f2eadc;
+    --md-default-fg-color--light: #a59a8b;
+    --md-default-fg-color--lighter: rgb(242 234 220 / 32%);
+    --md-default-fg-color--lightest: rgb(242 234 220 / 8%);
+
+    --md-primary-fg-color: #15120e;
+    --md-primary-fg-color--light: #211d18;
+    --md-primary-fg-color--dark: #1b1814;
+    --md-primary-bg-color: #f2eadc;
+    --md-primary-bg-color--light: #a59a8b;
+
+    --md-accent-fg-color: #ff9a74;
+    --md-accent-fg-color--transparent: rgb(240 118 78 / 12%);
+    --md-typeset-a-color: #f0764e;
+
+    --md-code-bg-color: #1d1914;
+    --md-code-fg-color: #ede4d3;
+
+    --md-admonition-bg-color: #211d18;
+    --md-footer-bg-color: #1b1814;
+    --md-footer-bg-color--dark: #15120e;
+    --md-footer-fg-color: #f2eadc;
+    --md-footer-fg-color--light: #d2c7b5;
+    --md-footer-fg-color--lighter: #a59a8b;
+
+    --md-hue: 35;
+
+    --nativella-line: #322c25;
+    --nativella-search: #211d18;
+}
+
+/* Code: the dark blocks of the landing page, in both schemes */
+[data-md-color-scheme] .md-typeset pre {
+    --md-code-bg-color: #1f1b16;
+    --md-code-bg-color--light: rgb(237 228 211 / 10%);
+    --md-code-bg-color--lighter: rgb(237 228 211 / 5%);
+    --md-code-fg-color: #ede4d3;
+    /* The copy button */
+    --md-default-fg-color: #ede4d3;
+    --md-default-fg-color--light: #9c917f;
+    --md-default-fg-color--lightest: #6f6658;
+    --md-code-hl-color: rgb(240 118 78 / 18%);
+    --md-code-hl-color--light: rgb(240 118 78 / 10%);
+    --md-code-hl-comment-color: #998e7c;
+    --md-code-hl-constant-color: #f0b98a;
+    --md-code-hl-function-color: #e9c784;
+    --md-code-hl-generic-color: #8fd0c6;
+    --md-code-hl-keyword-color: #f2906b;
+    --md-code-hl-name-color: #ede4d3;
+    --md-code-hl-number-color: #f0b98a;
+    --md-code-hl-operator-color: #cdbfa8;
+    --md-code-hl-punctuation-color: #cdbfa8;
+    --md-code-hl-special-color: #d8a8c6;
+    --md-code-hl-string-color: #bcd38e;
+    --md-code-hl-variable-color: #ede4d3;
+}
+
+.md-typeset pre > code {
+    border-radius: 10px;
+}
+
+.md-typeset .highlight span.filename {
+    background-color: #29241e;
+    border-bottom-color: #3a332b;
+    border-radius: 10px 10px 0 0;
+    color: #ede4d3;
+    font-family: var(--md-code-font-family);
+    font-weight: 500;
+}
+
+.md-typeset .highlight span.filename + pre > code {
+    border-radius: 0 0 10px 10px;
+}
+
+/* Titles */
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3 {
+    color: var(--md-default-fg-color);
+    font-family: var(--nativella-display);
+    letter-spacing: -.015em;
+}
+
+.md-typeset h1 {
+    font-weight: 650;
+}
+
+.md-typeset h2 {
+    font-weight: 620;
+}
+
+.md-typeset h3 {
+    font-weight: 600;
+}
+
+/* The header: the wordmark of the landing page */
+.md-header {
+    border-bottom: 1px solid var(--nativella-line);
+    box-shadow: none;
+}
+
+.md-header--shadow {
+    box-shadow: none;
+}
+
+.md-header__topic:first-child {
+    font-family: var(--nativella-display);
+    font-size: 1.15rem;
+    font-weight: 640;
+    letter-spacing: -.02em;
+    text-transform: lowercase;
+}
+
+.md-search__input {
+    background-color: var(--nativella-search);
+}
+
+.md-search__input:hover {
+    background-color: var(--md-default-fg-color--lightest);
+}
+
+/* Tables and alerts: cards on the paper */
+.md-typeset table:not([class]) {
+    border-color: var(--nativella-line);
+    border-radius: 10px;
+}
+
+.md-typeset table:not([class]) th {
+    background-color: var(--md-code-bg-color);
+}
+
+.md-typeset .admonition,
+.md-typeset details {
+    border-radius: 10px;
+    box-shadow: none;
+}

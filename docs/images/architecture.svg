@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" width="960" height="520" role="img" aria-labelledby="arch-title arch-desc" class="arch">
+  <title id="arch-title">How a request travels in Nativella</title>
+  <desc id="arch-desc">One process. The webview hands a php://localhost request to the Rust scheme handler, which serves public files from disk and queues the rest to the PHP thread. The runtime keeps cookies and follows redirects, the custom SAPI runs public/index.php. PHP calls native APIs with nativella_call(). Native events go back to PHP as internal requests to /_nativella/event, and to the page as nativella:* DOM events.</desc>
+  <style>
+    .arch { --a-bg: #efe7d8; --a-card: #fbf7ef; --a-chrome: #e6dccb; --a-ink: #1d1a16; --a-muted: #6b6255; --a-line: #3b352d; --a-accent: #b8411f; --a-on-accent: #fff8ee; --a-event: #1e6b66; --a-frame: #a39784; }
+    @media (prefers-color-scheme: dark) {
+      .arch { --a-bg: #1b1814; --a-card: #24201b; --a-chrome: #2e2923; --a-ink: #f2eadc; --a-muted: #b3a894; --a-line: #d9cfbf; --a-accent: #f0764e; --a-on-accent: #1a1410; --a-event: #5dbbb2; --a-frame: #6f6556; }
+    }
+    .arch-bg { fill: var(--a-bg); }
+    .arch-frame { fill: none; stroke: var(--a-frame); stroke-width: 1.5; stroke-dasharray: 6 6; }
+    .arch-box { fill: var(--a-card); stroke: var(--a-line); stroke-width: 1.5; }
+    .arch-chrome { fill: var(--a-chrome); }
+    .arch-accent { fill: var(--a-accent); }
+    .arch-skeleton { fill: var(--a-muted); opacity: .35; }
+    .arch text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Ubuntu, Cantarell, sans-serif; fill: var(--a-ink); }
+    .arch .arch-mono { font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace; }
+    .arch .arch-title { font-size: 15px; font-weight: 650; }
+    .arch .arch-sub { font-size: 11.5px; fill: var(--a-muted); }
+    .arch .arch-head { font-size: 10.5px; font-weight: 700; letter-spacing: .14em; fill: var(--a-muted); }
+    .arch .arch-label { font-size: 10.5px; fill: var(--a-ink); }
+    .arch .arch-on-accent { fill: var(--a-on-accent); }
+    .arch .arch-event-text { fill: var(--a-event); }
+    .arch-line { fill: none; stroke: var(--a-line); stroke-width: 1.6; }
+    .arch-event { fill: none; stroke: var(--a-event); stroke-width: 1.6; }
+    .arch-head-fill { fill: var(--a-line); }
+    .arch-event-fill { fill: var(--a-event); }
+    .arch .arch-dot-text { font-size: 10px; font-weight: 700; fill: var(--a-card); }
+  </style>
+  <defs>
+    <marker id="arch-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 10 5 0 10z" class="arch-head-fill"/>
+    </marker>
+    <marker id="arch-arrow-event" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 10 5 0 10z" class="arch-event-fill"/>
+    </marker>
+  </defs>
+
+  <rect class="arch-bg" width="960" height="520" rx="20"/>
+  <text x="24" y="34" class="arch-label arch-mono">nativella · one process</text>
+  <text x="936" y="34" class="arch-label arch-mono" text-anchor="end">no HTTP server · no TCP port</text>
+  <rect class="arch-frame" x="24" y="52" width="912" height="444" rx="16"/>
+
+  <text x="48" y="88" class="arch-head">WEBVIEW</text>
+  <text x="372" y="88" class="arch-head">RUST · MAIN THREAD</text>
+  <text x="696" y="88" class="arch-head">PHP THREAD</text>
+
+  <!-- The page -->
+  <rect class="arch-box" x="48" y="104" width="216" height="176" rx="10"/>
+  <path class="arch-chrome" d="M58.75 104.75h194.5a10 10 0 0 1 10 10v16.25h-214.5v-16.25a10 10 0 0 1 10-10z"/>
+  <text x="62" y="122" class="arch-sub">Notes</text>
+  <text x="62" y="154" class="arch-sub arch-mono">php://localhost/notes</text>
+  <rect class="arch-skeleton" x="62" y="172" width="168" height="7" rx="3.5"/>
+  <rect class="arch-skeleton" x="62" y="188" width="132" height="7" rx="3.5"/>
+  <rect class="arch-skeleton" x="62" y="204" width="152" height="7" rx="3.5"/>
+  <text x="62" y="246" class="arch-sub">WebKitGTK · WKWebView</text>
+  <text x="62" y="264" class="arch-sub">WebView2</text>
+
+  <rect class="arch-box" x="48" y="400" width="216" height="72" rx="10"/>
+  <text x="62" y="428" class="arch-title">page JavaScript</text>
+  <text x="62" y="452" class="arch-sub arch-mono">nativella:menu.itemClicked</text>
+
+  <!-- Rust -->
+  <rect class="arch-box" x="372" y="104" width="216" height="72" rx="10"/>
+  <text x="386" y="134" class="arch-title"><tspan class="arch-mono">php://</tspan> scheme handler</text>
+  <text x="386" y="156" class="arch-sub">Tauri 2, asynchronous</text>
+
+  <rect class="arch-box" x="372" y="200" width="216" height="60" rx="10"/>
+  <text x="386" y="226" class="arch-title">static files</text>
+  <text x="386" y="246" class="arch-sub arch-mono">public/*, read from disk</text>
+
+  <rect class="arch-box" x="372" y="296" width="216" height="72" rx="10"/>
+  <text x="386" y="326" class="arch-title">native APIs</text>
+  <text x="386" y="348" class="arch-sub">windows · menus · dialogs · tray…</text>
+
+  <rect class="arch-box" x="372" y="400" width="216" height="72" rx="10"/>
+  <text x="386" y="430" class="arch-title">native events</text>
+  <text x="386" y="452" class="arch-sub">clicks · focus · shortcuts · drops</text>
+
+  <!-- PHP -->
+  <rect class="arch-box" x="696" y="104" width="216" height="72" rx="10"/>
+  <text x="710" y="134" class="arch-title">runtime</text>
+  <text x="710" y="156" class="arch-sub">queue · cookie jar · redirects</text>
+
+  <rect class="arch-box" x="696" y="200" width="216" height="60" rx="10"/>
+  <text x="710" y="226" class="arch-title">custom SAPI</text>
+  <text x="710" y="246" class="arch-sub">ext-php-rs · libphp (embed)</text>
+
+  <rect class="arch-accent" x="696" y="284" width="216" height="96" rx="10"/>
+  <text x="710" y="318" class="arch-title arch-mono arch-on-accent">public/index.php</text>
+  <text x="710" y="342" class="arch-sub arch-on-accent">your application, untouched:</text>
+  <text x="710" y="360" class="arch-sub arch-on-accent">Symfony, Laravel, plain PHP</text>
+
+  <!-- 1: request and response -->
+  <path class="arch-line" d="M264 128H370" marker-end="url(#arch-arrow)"/>
+  <path class="arch-line" d="M372 154H266" marker-end="url(#arch-arrow)"/>
+  <text x="318" y="119" class="arch-label arch-mono" text-anchor="middle">request</text>
+  <text x="318" y="172" class="arch-label arch-mono" text-anchor="middle">response</text>
+  <circle cx="318" cy="128" r="8" class="arch-head-fill"/>
+  <text x="318" y="131.5" class="arch-dot-text" text-anchor="middle">1</text>
+
+  <!-- public file? -->
+  <path class="arch-line" d="M480 176V198" marker-end="url(#arch-arrow)"/>
+  <text x="490" y="192" class="arch-label arch-mono">a file?</text>
+
+  <!-- 2: queued to PHP -->
+  <path class="arch-line" d="M588 140H694" marker-end="url(#arch-arrow)"/>
+  <text x="642" y="126" class="arch-label arch-mono" text-anchor="middle">queued</text>
+  <circle cx="642" cy="140" r="8" class="arch-head-fill"/>
+  <text x="642" y="143.5" class="arch-dot-text" text-anchor="middle">2</text>
+  <path class="arch-line" d="M804 176V198" marker-end="url(#arch-arrow)"/>
+  <path class="arch-line" d="M804 260V282" marker-end="url(#arch-arrow)"/>
+
+  <!-- 3: PHP calls native code -->
+  <path class="arch-line" d="M696 332H590" marker-end="url(#arch-arrow)"/>
+  <text x="642" y="318" class="arch-label arch-mono" text-anchor="middle">nativella_call()</text>
+  <circle cx="642" cy="332" r="8" class="arch-head-fill"/>
+  <text x="642" y="335.5" class="arch-dot-text" text-anchor="middle">3</text>
+
+  <!-- 4: native events reach PHP -->
+  <path class="arch-event" d="M588 436H804V382" marker-end="url(#arch-arrow-event)"/>
+  <text x="692" y="424" class="arch-label arch-mono arch-event-text" text-anchor="middle">POST /_nativella/event</text>
+  <circle cx="692" cy="436" r="8" class="arch-event-fill"/>
+  <text x="692" y="439.5" class="arch-dot-text" text-anchor="middle">4</text>
+
+  <!-- 5: and the page -->
+  <path class="arch-event" d="M372 436H266" marker-end="url(#arch-arrow-event)"/>
+  <text x="318" y="424" class="arch-label arch-mono arch-event-text" text-anchor="middle">DOM event</text>
+  <circle cx="318" cy="436" r="8" class="arch-event-fill"/>
+  <text x="318" y="439.5" class="arch-dot-text" text-anchor="middle">5</text>
+</svg>
