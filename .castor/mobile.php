@@ -129,7 +129,7 @@ function ios(
         // PHP for iOS: libphp.a and the libraries it needs for the simulator,
         // its headers, and the stand-ins describing it to ext-php-rs
         'NATIVELLA_PHP_DIR' => "{$root}/{$php}",
-        'NATIVELLA_PHP_LIB_DIR' => "{$root}/{$php}/Libraries/iphonesimulator",
+        'NATIVELLA_PHP_LIB_DIR' => $root.'/'.simulator_libraries($php),
         'PHP' => "{$root}/mobile/php/php",
         'PHP_CONFIG' => "{$root}/mobile/php/php-config",
         // bindgen parses PHP's headers for the simulator, with its SDK, and
@@ -199,6 +199,39 @@ function fetch_php(string $platform): string
         http_download($url, "{$root}/{$dir}.zip");
         run_in_builder(['unzip', '-q', "{$dir}.zip", '-d', $dir]);
         fs()->remove("{$root}/{$dir}.zip");
+    }
+
+    return $dir;
+}
+
+/**
+ * The libraries of the PHP build for the simulator, for arm64 only: NativePHP
+ * builds them for x86_64 and arm64 in universal archives, which rustc cannot
+ * read. Extracted once, with lipo.
+ *
+ * @return string the directory, from the root of the repository
+ */
+function simulator_libraries(string $php): string
+{
+    $root = variable('root_dir');
+    $dir = "{$php}/Libraries/iphonesimulator-arm64";
+
+    if (!is_dir("{$root}/{$dir}")) {
+        // Complete or absent: an interrupted extraction starts again
+        $partial = "{$root}/{$dir}.partial";
+        fs()->remove($partial);
+        fs()->mkdir($partial);
+
+        foreach (finder()->in("{$root}/{$php}/Libraries/iphonesimulator")->files()->name('*.a') as $library) {
+            $thin = "{$partial}/{$library->getFilename()}";
+            if ('arm64' === trim(capture(['lipo', '-archs', $library->getPathname()]))) {
+                fs()->copy($library->getPathname(), $thin);
+            } else {
+                run(['lipo', $library->getPathname(), '-thin', 'arm64', '-output', $thin]);
+            }
+        }
+
+        fs()->rename($partial, "{$root}/{$dir}");
     }
 
     return $dir;
