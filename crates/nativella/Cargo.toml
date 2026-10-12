@@ -1,14 +1,78 @@
 [package]
-name = "desktop"
-version = "0.1.0"
-edition = "2024"
+name = "nativella"
+description = "Runs a PHP application as a desktop or mobile application, without a web server."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+# Mobile platforms load the library: Android a cdylib, iOS a staticlib. The
+# suffix keeps it apart from the binary (their debug files collide on Windows).
+[lib]
+name = "nativella_lib"
+crate-type = ["cdylib", "rlib", "staticlib"]
 
 [dependencies]
-php-runtime = { path = "../php-runtime" }
+base64 = "0.22"
+flate2 = "1"
+getrandom = "0.3"
+iana-time-zone = "0.1"
+nativella-runtime = { path = "../runtime" }
+png = "0.18"
+serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.151"
-tauri = "2"
+tar = "0.4"
+tauri = { version = "2", features = ["image-png", "tray-icon"] }
+tauri-plugin-clipboard-manager = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-os = "2"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+starship-battery = "0.12"
+tauri-plugin-autostart = "2"
+tauri-plugin-deep-link = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+tauri-plugin-window-state = "2"
+trash = "5"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(all(unix, not(any(target_os = "android", target_os = "ios"))))'.dependencies]
+signal-hook = "0.3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = ["crypto-rust", "sync-secret-service"] }
+# What tauri-plugin-notification uses, for the clicks it does not report.
+notify-rust = "4"
+zbus = "5"
+# What wry uses, to print to PDF.
+gtk = "0.18"
+webkit2gtk = "2.0"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
+[features]
+# The APIs of phones: each one brings its plugin and the permissions it
+# declares to the Android manifest. An application asks for them with the
+# "permissions" of its composer.json, which mobile builds turn into features.
+biometrics = ["dep:tauri-plugin-biometric"]
+geolocation = ["dep:tauri-plugin-geolocation"]
+haptics = ["dep:tauri-plugin-haptics"]
 
 [build-dependencies]
-tauri-build = "2"
+tauri-build = { version = "2", features = [] }
+
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+percent-encoding = "2"
+tauri-plugin-biometric = { version = "2", optional = true }
+tauri-plugin-fs = "2"
+tauri-plugin-geolocation = { version = "2", optional = true }
+tauri-plugin-haptics = { version = "2", optional = true }

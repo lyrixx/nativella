@@ -1,15 +1,31 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "native-php",
+  "productName": "Nativella",
   "version": "0.1.0",
-  "identifier": "dev.native-php.spike",
+  "identifier": "dev.nativella.app",
   "app": {
     "security": {
-      "csp": null
+      "csp": null,
+      "capabilities": [
+        {
+          "identifier": "pages",
+          "description": "What the pages of the PHP application may call: the notification plugin checks its permission when a page loads, and frameless windows move and maximize through data-tauri-drag-region.",
+          "windows": [
+            "*"
+          ],
+          "permissions": [
+            "core:window:allow-internal-toggle-maximize",
+            "core:window:allow-start-dragging",
+            "notification:default"
+          ]
+        }
+      ]
     }
   },
   "bundle": {
     "active": false,
-    "icon": ["icons/icon.png"]
+    "icon": [
+      "icons/icon.png"
+    ]
   }
 }
