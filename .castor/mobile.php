@@ -150,6 +150,7 @@ function ios(
     if (generated('apple') !== $config['identifier']) {
         fs()->remove("{$root}/crates/nativella/gen/apple");
         run(['cargo', 'tauri', 'ios', 'init', '--ci', '--config', json_encode($config, \JSON_THROW_ON_ERROR)], context: $c);
+        link_resolver("{$root}/crates/nativella/gen/apple");
         fs()->dumpFile("{$root}/crates/nativella/gen/apple/.nativella-generation", $config['identifier']);
     }
 
@@ -202,6 +203,26 @@ function fetch_php(string $platform): string
     }
 
     return $dir;
+}
+
+/**
+ * Adds libresolv to the Xcode project Tauri generated, and generates it
+ * again: PHP calls the resolver of the system (dns_get_record()…), and
+ * Xcode, which links the app, has no other way to know it, as Tauri has no
+ * setting for libraries.
+ */
+function link_resolver(string $project): void
+{
+    $spec = "{$project}/project.yml";
+    $yaml = (string) file_get_contents($spec);
+    $dependency = "      - sdk: WebKit.framework\n";
+
+    if (!str_contains($yaml, $dependency)) {
+        throw new \RuntimeException(\sprintf('%s has no "sdk: WebKit.framework" dependency any more: the template of Tauri changed.', $spec));
+    }
+
+    fs()->dumpFile($spec, str_replace($dependency, $dependency."      - sdk: libresolv.tbd\n", $yaml));
+    run(['xcodegen', 'generate', '--spec', $spec]);
 }
 
 /**
