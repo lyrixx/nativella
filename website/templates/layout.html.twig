@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }}</title>
+    <meta name="description" content="{{ description }}">
+    <link rel="canonical" href="{{ site.url }}">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Nativella">
+    <meta property="og:title" content="{{ title }}">
+    <meta property="og:description" content="{{ description }}">
+    <meta property="og:url" content="{{ site.url }}">
+    <meta property="og:image" content="{{ site.url }}assets/og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Nativella: your PHP app, in a window of its own.">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#f6f0e5" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#15120e" media="(prefers-color-scheme: dark)">
+    <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
+    <link rel="preload" href="assets/fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="{{ asset('site.css') }}">
+    <script>document.documentElement.classList.add('js');</script>
+    <script src="{{ asset('site.js') }}" defer></script>
+</head>
+<body class="{{ body_class }}">
+    <a class="skip-link" href="#content">Skip to content</a>
+    {{ include('partials/header.html.twig') }}
+    {% block content %}{% endblock %}
+    {{ include('partials/footer.html.twig') }}
+</body>
+</html>

@@ -3,10 +3,12 @@
 namespace Nativella\Website;
 
 use Tempest\Highlight\Highlighter;
+use Twig\Environment;
+use Twig\Loader\FilesystemLoader;
 
 /**
- * Builds the landing page. MkDocs builds the documentation under it, into
- * docs/: see mkdocs.yml.
+ * Builds the landing page, from the Twig templates of templates/. MkDocs
+ * builds the documentation under it, into docs/: see mkdocs.yml.
  */
 final readonly class Site
 {
@@ -23,7 +25,11 @@ final readonly class Site
 
     public function build(): void
     {
-        $renderer = new Renderer($this->websiteDir.'/templates', $this->websiteDir.'/assets', new Highlighter(), new SiteInfo(
+        $twig = new Environment(new FilesystemLoader($this->websiteDir.'/templates'), [
+            'strict_variables' => true,
+        ]);
+        $twig->addExtension(new TwigExtension($this->websiteDir.'/assets', new Highlighter()));
+        $twig->addGlobal('site', new SiteInfo(
             repository: self::REPOSITORY,
             url: $this->siteUrl,
             version: $this->version(),
@@ -33,7 +39,7 @@ final readonly class Site
         Filesystem::copy($this->websiteDir.'/assets', $this->outputDir.'/assets');
         // GitHub Pages: serve the files as they are.
         Filesystem::write($this->outputDir.'/.nojekyll', '');
-        Filesystem::write($this->outputDir.'/index.html', $renderer->render('home', 'index.html', [
+        Filesystem::write($this->outputDir.'/index.html', $twig->render('home.html.twig', [
             'architecture' => $this->architectureDiagram(),
         ]));
     }

@@ -2,7 +2,7 @@
 
 The landing page and the documentation of Nativella, as a static site, published on GitHub Pages:
 
-- the landing page, built by a PHP script, naturally: it renders the templates of `templates/` into `dist/`;
+- the landing page, built by a PHP script, naturally: it renders the [Twig](https://twig.symfony.com) templates of `templates/` into `dist/`;
 - the documentation, the documents of [`../docs`](../docs), built by [MkDocs](https://www.mkdocs.org) with the [Material](https://squidfunk.github.io/mkdocs-material/) theme into `dist/docs/`.
 
 ## Build
@@ -32,8 +32,8 @@ NATIVELLA_SITE_URL=https://nativella.dev/ castor website:build
 | Path | What |
 |---|---|
 | `bin/build` | The entry point. |
-| `src/` | The build: `Site` writes the page, `CodeBlock` highlights code with [tempest/highlight](https://github.com/tempestphp/highlight). |
-| `templates/` | Plain PHP templates. `$this` is a `View`: `$this->e()` escapes, `$this->url()` makes a relative URL, `$this->code()` highlights. |
+| `src/` | The build: `Site` renders the page with Twig, `TwigExtension` adds `asset()` and the `highlight` filter, `CodeBlock` highlights code with [tempest/highlight](https://github.com/tempestphp/highlight). |
+| `templates/` | The Twig templates. `asset('site.css')` is the URL of an asset, with the hash of its content; `{% apply highlight('php', 'src/Kernel.php') %}…{% endapply %}` highlights the code in between, without the indentation of the template; `site` holds the repository, the URL and the version. |
 | `assets/` | Copied as is to `dist/assets/`: the stylesheet, a few lines of JavaScript, the font, the icons. |
 | `resources/og.html` | The source of `assets/og.png`, the Open Graph image. |
 
