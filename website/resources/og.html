@@ -9,9 +9,9 @@
 <title>Nativella</title>
 <style>
     @font-face {
-        font-family: "Fraunces";
-        font-weight: 400 800;
-        src: url("../assets/fonts/fraunces.woff2") format("woff2");
+        font-family: "Bricolage Grotesque";
+        font-weight: 200 800;
+        src: url("../assets/fonts/bricolage-grotesque.woff2") format("woff2");
     }
 
     html, body {
@@ -26,10 +26,10 @@
         box-sizing: border-box;
         padding: 64px 72px;
         background:
-            radial-gradient(700px 420px at 100% 0%, rgb(196 70 31 / 16%), transparent 70%),
-            radial-gradient(600px 360px at 0% 100%, rgb(30 107 102 / 14%), transparent 70%),
-            #f6f0e5;
-        color: #1d1a16;
+            radial-gradient(700px 420px at 100% 0%, rgb(91 63 240 / 16%), transparent 70%),
+            radial-gradient(600px 360px at 0% 100%, rgb(8 112 89 / 12%), transparent 70%),
+            #f4f6fb;
+        color: #0d1330;
         font-family: ui-sans-serif, system-ui, "Segoe UI", Ubuntu, sans-serif;
     }
 
@@ -37,16 +37,16 @@
         display: flex;
         align-items: center;
         gap: 16px;
-        font: 640 40px/1 "Fraunces", Georgia, serif;
+        font: 660 40px/1 "Bricolage Grotesque", ui-sans-serif, sans-serif;
         letter-spacing: -.02em;
     }
 
     .tag {
         margin-left: 8px;
         padding: 6px 14px;
-        border: 1.5px solid #c8bba5;
+        border: 1.5px solid #bcc5da;
         border-radius: 999px;
-        color: #685f52;
+        color: #5b6488;
         font: 500 18px/1.2 ui-monospace, "DejaVu Sans Mono", monospace;
         letter-spacing: 0;
     }
@@ -54,8 +54,8 @@
     h1 {
         margin: 60px 0 0;
         max-width: 900px;
-        font: 640 92px/.98 "Fraunces", Georgia, serif;
-        letter-spacing: -.035em;
+        font: 660 92px/1 "Bricolage Grotesque", ui-sans-serif, sans-serif;
+        letter-spacing: -.028em;
     }
 
     .line {
@@ -66,28 +66,28 @@
         display: flex;
         gap: 28px;
         padding-top: 22px;
-        border-top: 2px solid #1d1a16;
-        color: #4a443b;
+        border-top: 2px solid #0d1330;
+        color: #3a4366;
         font: 500 22px/1.3 ui-monospace, "DejaVu Sans Mono", monospace;
     }
 
     .line s {
-        text-decoration-color: #c4461f;
+        text-decoration-color: #5b3ff0;
         text-decoration-thickness: 3px;
     }
 
     .line b {
         margin-left: auto;
-        color: #b8411f;
+        color: #5135d8;
     }
 </style>
 </head>
 <body>
     <div class="brand">
         <svg viewBox="0 0 64 64" width="56" height="56">
-            <rect width="64" height="64" rx="16" fill="#c4461f"/>
-            <rect x="12" y="12" width="40" height="5" rx="2.5" fill="#fff8ee" opacity=".55"/>
-            <path d="M20 50V36a12 12 0 0 1 24 0v14" fill="none" stroke="#fff8ee" stroke-width="8" stroke-linecap="round"/>
+            <rect width="64" height="64" rx="16" fill="#5b3ff0"/>
+            <rect x="12" y="12" width="40" height="5" rx="2.5" fill="#ffffff" opacity=".55"/>
+            <path d="M20 50V36a12 12 0 0 1 24 0v14" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
         </svg>
         nativella
         <span class="tag">open source · experimental</span>

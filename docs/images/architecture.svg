@@ -3,9 +3,9 @@
   <title id="arch-title">How a request travels in Nativella</title>
   <desc id="arch-desc">One process. The webview hands a php://localhost request to the Rust scheme handler, which serves public files from disk and queues the rest to the PHP thread. The runtime keeps cookies and follows redirects, the custom SAPI runs public/index.php. PHP calls native APIs with nativella_call(). Native events go back to PHP as internal requests to /_nativella/event, and to the page as nativella:* DOM events.</desc>
   <style>
-    .arch { --a-bg: #efe7d8; --a-card: #fbf7ef; --a-chrome: #e6dccb; --a-ink: #1d1a16; --a-muted: #6b6255; --a-line: #3b352d; --a-accent: #b8411f; --a-on-accent: #fff8ee; --a-event: #1e6b66; --a-frame: #a39784; }
+    .arch { --a-bg: #eaeef7; --a-card: #ffffff; --a-chrome: #dde3f0; --a-ink: #0d1330; --a-muted: #5b6488; --a-line: #2f3757; --a-accent: #5135d8; --a-on-accent: #ffffff; --a-event: #087059; --a-frame: #9aa3c0; }
     @media (prefers-color-scheme: dark) {
-      .arch { --a-bg: #1b1814; --a-card: #24201b; --a-chrome: #2e2923; --a-ink: #f2eadc; --a-muted: #b3a894; --a-line: #d9cfbf; --a-accent: #f0764e; --a-on-accent: #1a1410; --a-event: #5dbbb2; --a-frame: #6f6556; }
+      .arch { --a-bg: #0f1324; --a-card: #141a2e; --a-chrome: #1d2440; --a-ink: #eceffa; --a-muted: #a3abc8; --a-line: #c9cfe4; --a-accent: #a594ff; --a-on-accent: #0a0d1a; --a-event: #4fd6b4; --a-frame: #4a5378; }
     }
     .arch-bg { fill: var(--a-bg); }
     .arch-frame { fill: none; stroke: var(--a-frame); stroke-width: 1.5; stroke-dasharray: 6 6; }

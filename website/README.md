@@ -39,7 +39,7 @@ NATIVELLA_SITE_URL=https://nativella.dev/ castor website:build
 
 The architecture diagram, `docs/images/architecture.svg`, is shown in the documentation as an image and inlined in the landing page; it carries its own light and dark colours.
 
-The font is [Fraunces](https://github.com/undercasetype/Fraunces) (SIL Open Font License, `assets/fonts/OFL.txt`), self-hosted: the site loads nothing from another domain, and tracks nobody.
+The font of the titles is [Bricolage Grotesque](https://github.com/ateliertriay/bricolage) (SIL Open Font License, `assets/fonts/OFL.txt`), self-hosted: the site loads nothing from another domain, and tracks nobody.
 
 To regenerate the Open Graph image after changing `resources/og.html`:
 

@@ -1,121 +1,121 @@
 /*
- * The documentation in the colours and the type of the landing page: warm
- * paper, ink, terracotta, and Fraunces for the titles.
+ * The documentation in the colours and the type of the landing page: cool
+ * paper, navy ink, violet, and Bricolage Grotesque for the titles.
  *
  * Keep in sync with the tokens of website/assets/site.css.
  */
 
 /* Served from website/dist/docs/stylesheets/: the font of the landing page */
 @font-face {
-    font-family: "Fraunces";
+    font-family: "Bricolage Grotesque";
     font-style: normal;
-    font-weight: 400 800;
+    font-weight: 200 800;
     font-display: swap;
-    src: url("../../assets/fonts/fraunces.woff2") format("woff2");
+    src: url("../../assets/fonts/bricolage-grotesque.woff2") format("woff2");
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 :root {
     --md-text-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Ubuntu, Cantarell, "Noto Sans", sans-serif;
     --md-code-font: ui-monospace, "SFMono-Regular", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, "DejaVu Sans Mono", monospace;
-    --nativella-display: "Fraunces", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --nativella-display: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 [data-md-color-scheme="default"] {
-    --md-default-bg-color: #f6f0e5;
-    --md-default-bg-color--light: rgb(246 240 229 / 70%);
-    --md-default-bg-color--lighter: rgb(246 240 229 / 30%);
-    --md-default-bg-color--lightest: rgb(246 240 229 / 12%);
-    --md-default-fg-color: #1d1a16;
-    --md-default-fg-color--light: #685f52;
-    --md-default-fg-color--lighter: rgb(29 26 22 / 32%);
-    --md-default-fg-color--lightest: rgb(29 26 22 / 8%);
+    --md-default-bg-color: #f4f6fb;
+    --md-default-bg-color--light: rgb(244 246 251 / 70%);
+    --md-default-bg-color--lighter: rgb(244 246 251 / 30%);
+    --md-default-bg-color--lightest: rgb(244 246 251 / 12%);
+    --md-default-fg-color: #0d1330;
+    --md-default-fg-color--light: #5b6488;
+    --md-default-fg-color--lighter: rgb(13 19 48 / 32%);
+    --md-default-fg-color--lightest: rgb(13 19 48 / 8%);
 
     /* The header: paper and ink, like the one of the landing page */
-    --md-primary-fg-color: #f6f0e5;
-    --md-primary-fg-color--light: #fbf7ef;
-    --md-primary-fg-color--dark: #efe7d8;
-    --md-primary-bg-color: #1d1a16;
-    --md-primary-bg-color--light: #685f52;
+    --md-primary-fg-color: #f4f6fb;
+    --md-primary-fg-color--light: #ffffff;
+    --md-primary-fg-color--dark: #eaeef7;
+    --md-primary-bg-color: #0d1330;
+    --md-primary-bg-color--light: #5b6488;
 
-    --md-accent-fg-color: #973315;
-    --md-accent-fg-color--transparent: rgb(176 61 28 / 10%);
-    --md-typeset-a-color: #b03d1c;
+    --md-accent-fg-color: #3f24bf;
+    --md-accent-fg-color--transparent: rgb(81 53 216 / 10%);
+    --md-typeset-a-color: #5135d8;
 
-    --md-code-bg-color: #efe7d8;
-    --md-code-fg-color: #1d1a16;
+    --md-code-bg-color: #eaeef7;
+    --md-code-fg-color: #0d1330;
 
-    --md-admonition-bg-color: #fbf7ef;
-    --md-footer-bg-color: #efe7d8;
-    --md-footer-bg-color--dark: #e0d6c4;
-    --md-footer-fg-color: #1d1a16;
-    --md-footer-fg-color--light: #4a443b;
-    --md-footer-fg-color--lighter: #685f52;
+    --md-admonition-bg-color: #ffffff;
+    --md-footer-bg-color: #eaeef7;
+    --md-footer-bg-color--dark: #dbe1ee;
+    --md-footer-fg-color: #0d1330;
+    --md-footer-fg-color--light: #3a4366;
+    --md-footer-fg-color--lighter: #5b6488;
 
-    --nativella-line: #e0d6c4;
-    --nativella-search: #efe7d8;
+    --nativella-line: #dbe1ee;
+    --nativella-search: #eaeef7;
 }
 
 [data-md-color-scheme="slate"] {
-    --md-default-bg-color: #15120e;
-    --md-default-bg-color--light: rgb(21 18 14 / 70%);
-    --md-default-bg-color--lighter: rgb(21 18 14 / 30%);
-    --md-default-bg-color--lightest: rgb(21 18 14 / 12%);
-    --md-default-fg-color: #f2eadc;
-    --md-default-fg-color--light: #a59a8b;
-    --md-default-fg-color--lighter: rgb(242 234 220 / 32%);
-    --md-default-fg-color--lightest: rgb(242 234 220 / 8%);
+    --md-default-bg-color: #0a0d1a;
+    --md-default-bg-color--light: rgb(10 13 26 / 70%);
+    --md-default-bg-color--lighter: rgb(10 13 26 / 30%);
+    --md-default-bg-color--lightest: rgb(10 13 26 / 12%);
+    --md-default-fg-color: #eceffa;
+    --md-default-fg-color--light: #8e97b6;
+    --md-default-fg-color--lighter: rgb(236 239 250 / 32%);
+    --md-default-fg-color--lightest: rgb(236 239 250 / 8%);
 
-    --md-primary-fg-color: #15120e;
-    --md-primary-fg-color--light: #211d18;
-    --md-primary-fg-color--dark: #1b1814;
-    --md-primary-bg-color: #f2eadc;
-    --md-primary-bg-color--light: #a59a8b;
+    --md-primary-fg-color: #0a0d1a;
+    --md-primary-fg-color--light: #141a2e;
+    --md-primary-fg-color--dark: #0f1324;
+    --md-primary-bg-color: #eceffa;
+    --md-primary-bg-color--light: #8e97b6;
 
-    --md-accent-fg-color: #ff9a74;
-    --md-accent-fg-color--transparent: rgb(240 118 78 / 12%);
-    --md-typeset-a-color: #f0764e;
+    --md-accent-fg-color: #c4b8ff;
+    --md-accent-fg-color--transparent: rgb(165 148 255 / 12%);
+    --md-typeset-a-color: #a594ff;
 
-    --md-code-bg-color: #1d1914;
-    --md-code-fg-color: #ede4d3;
+    --md-code-bg-color: #0d1120;
+    --md-code-fg-color: #e4e8f7;
 
-    --md-admonition-bg-color: #211d18;
-    --md-footer-bg-color: #1b1814;
-    --md-footer-bg-color--dark: #15120e;
-    --md-footer-fg-color: #f2eadc;
-    --md-footer-fg-color--light: #d2c7b5;
-    --md-footer-fg-color--lighter: #a59a8b;
+    --md-admonition-bg-color: #141a2e;
+    --md-footer-bg-color: #0f1324;
+    --md-footer-bg-color--dark: #0a0d1a;
+    --md-footer-fg-color: #eceffa;
+    --md-footer-fg-color--light: #bcc3dc;
+    --md-footer-fg-color--lighter: #8e97b6;
 
-    --md-hue: 35;
+    --md-hue: 230;
 
-    --nativella-line: #322c25;
-    --nativella-search: #211d18;
+    --nativella-line: #222944;
+    --nativella-search: #141a2e;
 }
 
 /* Code: the dark blocks of the landing page, in both schemes */
 [data-md-color-scheme] .md-typeset pre {
-    --md-code-bg-color: #1f1b16;
-    --md-code-bg-color--light: rgb(237 228 211 / 10%);
-    --md-code-bg-color--lighter: rgb(237 228 211 / 5%);
-    --md-code-fg-color: #ede4d3;
+    --md-code-bg-color: #0e1222;
+    --md-code-bg-color--light: rgb(228 232 247 / 10%);
+    --md-code-bg-color--lighter: rgb(228 232 247 / 5%);
+    --md-code-fg-color: #e4e8f7;
     /* The copy button */
-    --md-default-fg-color: #ede4d3;
-    --md-default-fg-color--light: #9c917f;
-    --md-default-fg-color--lightest: #6f6658;
-    --md-code-hl-color: rgb(240 118 78 / 18%);
-    --md-code-hl-color--light: rgb(240 118 78 / 10%);
-    --md-code-hl-comment-color: #998e7c;
-    --md-code-hl-constant-color: #f0b98a;
-    --md-code-hl-function-color: #e9c784;
-    --md-code-hl-generic-color: #8fd0c6;
-    --md-code-hl-keyword-color: #f2906b;
-    --md-code-hl-name-color: #ede4d3;
-    --md-code-hl-number-color: #f0b98a;
-    --md-code-hl-operator-color: #cdbfa8;
-    --md-code-hl-punctuation-color: #cdbfa8;
-    --md-code-hl-special-color: #d8a8c6;
-    --md-code-hl-string-color: #bcd38e;
-    --md-code-hl-variable-color: #ede4d3;
+    --md-default-fg-color: #e4e8f7;
+    --md-default-fg-color--light: #8790b3;
+    --md-default-fg-color--lightest: #5a6385;
+    --md-code-hl-color: rgb(165 148 255 / 18%);
+    --md-code-hl-color--light: rgb(165 148 255 / 10%);
+    --md-code-hl-comment-color: #7580a3;
+    --md-code-hl-constant-color: #f7a8d8;
+    --md-code-hl-function-color: #f3cf7a;
+    --md-code-hl-generic-color: #6fd8c0;
+    --md-code-hl-keyword-color: #c4a7ff;
+    --md-code-hl-name-color: #e4e8f7;
+    --md-code-hl-number-color: #f7a8d8;
+    --md-code-hl-operator-color: #a9b1cf;
+    --md-code-hl-punctuation-color: #a9b1cf;
+    --md-code-hl-special-color: #f7a8d8;
+    --md-code-hl-string-color: #9fd6ff;
+    --md-code-hl-variable-color: #e4e8f7;
 }
 
 .md-typeset pre > code {
@@ -123,10 +123,10 @@
 }
 
 .md-typeset .highlight span.filename {
-    background-color: #29241e;
-    border-bottom-color: #3a332b;
+    background-color: #151a2e;
+    border-bottom-color: #252b44;
     border-radius: 10px 10px 0 0;
-    color: #ede4d3;
+    color: #e4e8f7;
     font-family: var(--md-code-font-family);
     font-weight: 500;
 }
