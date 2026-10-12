@@ -10,7 +10,7 @@ Nativella is experimental. This page lists what does not work, what is untested 
 | macOS | Built and tested by the CI (arm64), without a window: nobody has opened one there yet. |
 | Windows | Untested. Pages would be served from `http://php.localhost/`, as Tauri does for custom schemes there. |
 | Android | Experimental: the three demos run on an Android 16 emulator (arm64 builds). See [Mobile](mobile.md). |
-| iOS | Not built yet: it needs macOS and Xcode. |
+| iOS | Experimental: the CI builds the Symfony demo for the simulator and opens it there. See [Mobile](mobile.md#limitations). |
 
 ### Linux
 

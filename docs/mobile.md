@@ -3,7 +3,7 @@
 Nativella builds Android applications from the same PHP project as the desktop one. The three demos — [Symfony](../demos/symfony), [Laravel](../demos/laravel) and [plain PHP](../demos/vanilla) — run on Android: forms, sessions and CSRF tokens, the SQLite database and its migrations, native dialogs, the file picker and the clipboard.
 
 > [!WARNING]
-> Mobile support is experimental. It is built and tested on Android only (arm64, API level 28 or later). iOS is not done yet.
+> Mobile support is experimental. It is built and tested on Android (arm64, API level 28 or later). On iOS, the Symfony demo opens in the simulator, no more.
 
 ## How it differs from the desktop
 
@@ -59,7 +59,7 @@ Without Docker, `castor --context=host mobile:android symfony` runs the same bui
 
 ### iOS
 
-`castor mobile:ios symfony` builds an app for the iOS simulator (arm64, unsigned), on a Mac with Xcode, [XcodeGen](https://github.com/yonaskolb/XcodeGen), `rustup target add aarch64-apple-ios-sim` and the Tauri command. It stages and bundles the demo in Docker; `--bundle` takes a bundle made beforehand instead, as the CI does on its macOS runners, which have no Docker. It is experimental: the [Mobile workflow](development.md#continuous-integration) runs it.
+`castor mobile:ios symfony` builds an app for the iOS simulator (arm64, unsigned), on a Mac with Xcode, [XcodeGen](https://github.com/yonaskolb/XcodeGen), `rustup target add aarch64-apple-ios-sim` and the Tauri command. It stages and bundles the demo in Docker; `--bundle` takes a bundle made beforehand instead, as the CI does on its macOS runners, which have no Docker. It is experimental: the [Mobile workflow](development.md#continuous-integration) runs it, then `castor mobile:ios-simulator symfony`, which opens the app in a simulator and takes a screenshot once it had 30 seconds to start.
 
 ## PHP for the phone
 
@@ -78,4 +78,4 @@ ext-php-rs reads `php -i` and `php-config` to generate its bindings, which the P
 - **25 seconds per page**: Android's webview, through wry, gives up on a page after 30 seconds and shows an error in its place. So when PHP takes longer, because the user left a dialog, the file picker or a fingerprint prompt open, Nativella answers first with a page that waits: it loads the same page again for a `GET`, the page of the form for a `POST`, once PHP is done. The response PHP gives at last is dropped, so a redirect after a form is lost, not the form's work. A `fetch()` or an XHR gets a 504 instead, even one that asks for HTML, as Turbo does.
 - **One identifier at a time**: the Android project in `crates/nativella/gen/android` is generated for one application; the build generates it again when the identifier changes.
 - **Few phone APIs**: [haptics, geolocation and biometrics](phone-apis.md). No camera, sharing or push notifications yet.
-- **iOS** is experimental: [`castor mobile:ios`](#ios) builds for the simulator only, and nobody has run the app yet.
+- **iOS** is experimental: [`castor mobile:ios`](#ios) builds for the simulator only. There, the Symfony demo shows its first page, but the webview leaves the bottom of the screen black, and what the app writes does not reach the output files of `castor mobile:ios-simulator`. No phone API, nor any device, has been tried.
