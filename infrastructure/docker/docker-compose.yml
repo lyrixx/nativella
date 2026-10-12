@@ -29,6 +29,9 @@ services:
         init: true
         user: "${USER_ID}:${USER_ID}"
         environment:
+            # static-php-cli asks the GitHub API for its downloads (castor
+            # static-php:build): a token raises its rate limit
+            - GITHUB_TOKEN
             # Where the website is published (castor website:build)
             - NATIVELLA_SITE_URL
             # The following list contains the common environment variables exposed by CI platforms

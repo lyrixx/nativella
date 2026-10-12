@@ -171,8 +171,12 @@ jobs:
                   key: cargo-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
                   restore-keys: cargo-${{ runner.os }}-${{ runner.arch }}-
 
+            # static-php-cli asks the GitHub API for its downloads: without a
+            # token, the runners share its rate limit
             - name: "Build PHP as a static library"
               run: "castor static-php:build"
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             # The smoke tests serve the demos, with their vendor/
             - name: "Install the projects"
