@@ -1,8 +1,8 @@
 name: Release
 
 # Builds the nativella command and the standalone executables of the demos for
-# Linux x86_64, in the builder image; attaches them to the GitHub release of a
-# v* tag.
+# Linux x86_64, in the builder image, and for macOS arm64, linked against a
+# static PHP; attaches them to the GitHub release of a v* tag.
 
 "on":
     push:
@@ -25,7 +25,7 @@ env:
     REGISTRY: "ghcr.io/lyrixx/nativella"
 
 jobs:
-    build:
+    linux:
         name: Build for Linux x86_64
         runs-on: ubuntu-latest
         timeout-minutes: 60
@@ -70,20 +70,7 @@ jobs:
               run: "castor nativella:build"
 
             - name: "Name the executables after the platform"
-              shell: bash
-              run: |
-                  set -e
-
-                  mkdir release
-                  cp dist/nativella release/nativella-linux-x86_64
-                  for file in dist/*; do
-                      name="$(basename "${file}")"
-                      if [ "${name}" != nativella ]; then
-                          cp "${file}" "release/nativella-demo-${name}-linux-x86_64"
-                      fi
-                  done
-                  (cd release && sha256sum -- * > SHA256SUMS)
-                  ls -l release
+              run: "castor nativella:package"
 
             - name: "Upload the executables"
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -92,10 +79,55 @@ jobs:
                   path: release/
                   if-no-files-found: error
 
+    macos:
+        name: Build for macOS arm64
+        runs-on: macos-latest
+        timeout-minutes: 90
+        env:
+            # No Docker on macOS runners: the tasks run on the runner itself
+            CASTOR_CONTEXT: host
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false
+
+            - name: setup-castor
+              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+
+            # Composer and PHP stage the demos for production
+            - name: "Set up PHP"
+              uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+              with:
+                  php-version: "8.5"
+                  extensions: intl, pdo_sqlite, sqlite3
+                  tools: composer
+
+            - name: "Cache static PHP"
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: static-php/buildroot
+                  key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
+
+            - name: "Build PHP as a static library"
+              run: "castor static-php:build"
+
+            - name: "Build the executables"
+              run: "castor nativella:build --static"
+
+            - name: "Name the executables after the platform"
+              run: "castor nativella:package"
+
+            - name: "Upload the executables"
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: nativella-macos-aarch64
+                  path: release/
+                  if-no-files-found: error
+
     publish:
         name: Publish the release
         if: github.ref_type == 'tag'
-        needs: build
+        needs: [linux, macos]
         runs-on: ubuntu-latest
         permissions:
             contents: write
@@ -103,7 +135,8 @@ jobs:
             - name: "Download the executables"
               uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
               with:
-                  name: nativella-linux-x86_64
+                  pattern: nativella-*
+                  merge-multiple: true
                   path: release/
 
             - name: "Create the release, or update its files"
@@ -114,19 +147,21 @@ jobs:
                   set -e
 
                   cat > "${RUNNER_TEMP}/notes.md" <<'EOF'
-                  Linux x86_64 executables: `nativella-linux-x86_64` runs a PHP project
-                  (`nativella run <project-dir>`) and builds standalone applications
-                  (`nativella build`); `nativella-demo-*-linux-x86_64` are the demos, as
-                  standalone applications.
+                  `nativella-<platform>` runs a PHP project (`nativella run <project-dir>`)
+                  and builds standalone applications (`nativella build`);
+                  `nativella-demo-*-<platform>` are the demos, as standalone applications.
+                  `SHA256SUMS-<platform>` holds their checksums.
 
-                  They are built on Debian 13 and link dynamically against the PHP
+                  macOS arm64: linked against a static PHP, they need nothing installed.
+                  They are not signed: remove the quarantine of the download first, with
+                  `xattr -d com.apple.quarantine <file>`.
+
+                  Linux x86_64: built on Debian 13, they link dynamically against the PHP
                   library (libphp 8.5, embed SAPI), WebKitGTK 4.1 and the libraries Tauri
                   uses on Linux, which must be installed on the system (on Ubuntu:
                   `libphp8.5-embed`, `libwebkit2gtk-4.1-0`, `libxdo3`, `librsvg2-2`,
-                  `libayatana-appindicator3-1` for the tray, with
-                  the PHP extensions the application needs, e.g. `php8.5-sqlite3`).
-                  Embedding a static PHP, for executables without system dependencies,
-                  is future work.
+                  `libayatana-appindicator3-1` for the tray, with the PHP extensions the
+                  application needs, e.g. `php8.5-sqlite3`).
                   EOF
 
                   if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
