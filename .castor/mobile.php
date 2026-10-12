@@ -132,8 +132,11 @@ function ios(
         'NATIVELLA_PHP_LIB_DIR' => "{$root}/{$php}/Libraries/iphonesimulator",
         'PHP' => "{$root}/mobile/php/php",
         'PHP_CONFIG' => "{$root}/mobile/php/php-config",
-        // bindgen parses PHP's headers for the simulator, with its SDK
-        'BINDGEN_EXTRA_CLANG_ARGS_aarch64_apple_ios_sim' => '--target=arm64-apple-ios-simulator -isysroot '.trim(capture(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'])),
+        // bindgen parses PHP's headers for the simulator, with its SDK, and
+        // for the iOS version Tauri targets by default
+        // (bundle.iOS.minimumSystemVersion): without one, clang takes an iOS
+        // without thread-local storage, which PHP uses
+        'BINDGEN_EXTRA_CLANG_ARGS_aarch64_apple_ios_sim' => '--target=arm64-apple-ios15.0-simulator -isysroot '.trim(capture(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'])),
     ];
 
     // iOS asks the user for a permission only with a reason, from
