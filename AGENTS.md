@@ -70,7 +70,7 @@ castor nativella:run symfony     # the Symfony demo, as a desktop application (h
 castor nativella:smoke           # each demo answers through the runtime, without a window
 castor nativella:build [demo]    # dist/nativella and the standalone executables of the demos, with the static PHP (staged for production)
 castor static-php:build          # PHP as a static library, for nativella:build and --static (qa:rust…), in the static service
-castor mobile:android symfony    # an Android APK of the demo (android service)
+castor mobile:android symfony    # an Android APK of the demo (android service), then mobile:android-emulator
 castor mobile:ios symfony        # an iOS simulator app of the demo (macOS), then mobile:ios-simulator
 castor logs [--service=service]  # logs (frontend, router)
 ```

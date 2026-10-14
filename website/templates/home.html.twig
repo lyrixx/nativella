@@ -27,16 +27,16 @@
     {slug: 'database', name: 'Database', description: 'SQLite in the data directory, migrated when the app starts.', example: 'NATIVELLA_DATA_DIR'},
     {slug: 'configuration', name: 'Deep links', description: 'notes://42 in a browser or a mail opens the app, and PHP gets the URL.', example: 'AppUrlsOpened $event'},
     {slug: 'building', name: 'Standalone build', description: 'One executable that carries your whole project, and its PHP.', example: 'nativella build notes'},
-    {slug: 'mobile', name: 'Android', description: 'The same project in an APK, experimentally.', example: 'castor mobile:android symfony'},
+    {slug: 'mobile', name: 'Android and iOS', description: 'The same project in an APK or an iOS app, experimentally.', example: 'castor mobile:android symfony'},
     {slug: 'phone-apis', name: 'Phone APIs', description: 'Vibrations, the location of the phone, fingerprint and face authentication.', example: "$biometrics->authenticate('Unlock')"},
 ] %}
 <main id="content">
     <section class="hero">
         <div class="wrap hero-grid">
             <div class="hero-text">
-                <a class="hero-eyebrow" href="#status"><span class="pulse" aria-hidden="true"></span> <span class="hero-eyebrow-wide">Open source · </span>v{{ site.version }} · desktop, and Android (experimental)</a>
+                <a class="hero-eyebrow" href="#status"><span class="pulse" aria-hidden="true"></span> <span class="hero-eyebrow-wide">Open source · </span>v{{ site.version }} · desktop, Android and iOS (experimental)</a>
                 <h1>Your PHP app, in a window of its&nbsp;own.</h1>
-                <p class="hero-lede">Nativella runs Symfony, Laravel or plain PHP as a desktop application, and on Android, experimentally. The window hands every request straight to PHP, inside the same process: no web server, no open port, no Electron, no Node.</p>
+                <p class="hero-lede">Nativella runs Symfony, Laravel or plain PHP as a desktop application, and on Android and iOS, experimentally. The window hands every request straight to PHP, inside the same process: no web server, no open port, no Electron, no Node.</p>
                 <div class="hero-actions">
                     <a class="button button-primary" href="docs/getting-started/">Get started <span aria-hidden="true">→</span></a>
                     <a class="button button-secondary" href="#how-it-works">How it works</a>
@@ -398,10 +398,10 @@
     <section class="section section-tinted section-phone" aria-labelledby="phone-title">
         <div class="wrap split split-phone">
             <div class="split-text">
-                <p class="kicker">Android · experimental</p>
+                <p class="kicker">Android and iOS · experimental</p>
                 <h2 id="phone-title">The same Notes, on a phone.</h2>
-                <p>The Symfony demo, unchanged, built into an APK with <code>castor mobile:android symfony</code> and running on an Android 16 emulator: Doctrine migrations at boot, forms and sessions, Markdown, the clipboard of the phone, and a native dialog opened by PHP. A note takes the location of the phone in one method call; the other demos vibrate, and ask for a fingerprint.</p>
-                <p class="phone-note">Early days: arm64 builds only, no iOS yet, and the static PHP inside comes from NativePHP’s builds until Nativella makes its own.</p>
+                <p>The Symfony demo, unchanged, built into an APK with <code>castor mobile:android symfony</code> and running on an Android 16 emulator: Doctrine migrations at boot, forms and sessions, Markdown, the clipboard of the phone, and a native dialog opened by PHP. A note takes the location of the phone in one method call; the other demos vibrate, and ask for a fingerprint. The CI opens it on every change, in an Android emulator, and in the iOS simulator.</p>
+                <p class="phone-note">Early days: arm64 builds only, iOS in the simulator only, and the static PHP inside comes from NativePHP’s builds until Nativella makes its own.</p>
                 <p><a class="link-arrow" href="docs/mobile/">Mobile, in the docs</a></p>
             </div>
             <div class="phones">
@@ -443,12 +443,13 @@
                         <li>SQLite in the data directory, migrated at boot</li>
                         <li>A single executable carrying the project and its own PHP</li>
                         <li>Android, experimentally: the three demos, in arm64 APKs</li>
+                        <li>iOS, experimentally: the Symfony demo, in the simulator</li>
                     </ul>
                 </div>
                 <div class="status-card status-no">
                     <h3>Not yet</h3>
                     <ul>
-                        <li>macOS and Windows: written for, never tested; iOS: not built</li>
+                        <li>macOS: no window opened yet; Windows: never built; iOS: no device</li>
                         <li>One PHP thread: a dialog holds back every other request</li>
                         <li>No worker mode: the framework boots on every request</li>
                         <li>Installers, code signing and updates</li>

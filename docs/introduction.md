@@ -51,7 +51,7 @@ A desktop application has no server to deploy to and no database server to conne
 
 ## On a phone, too
 
-The same project builds into an Android application, experimentally: PHP is linked into the application, the pages are served the same way, and the APIs that make sense on a phone work there. See [Mobile](mobile.md).
+The same project builds into an Android application, and into an iOS one for the simulator, experimentally: PHP is linked into the application, the pages are served the same way, and the APIs that make sense on a phone work there, with [phone APIs](phone-apis.md) of their own (haptics, geolocation, biometrics). The three demos run on an Android emulator; the CI builds the Symfony one for Android and iOS on every change, and opens it in an Android emulator and in the iOS simulator. See [Mobile](mobile.md).
 
 ## When it fits
 
@@ -64,7 +64,7 @@ Nativella is a good fit for:
 It is not a good fit, yet, for:
 
 - an application that must ship on macOS or Windows today: both are untested;
-- long requests or many busy windows: one PHP thread serves every request, one at a time;
+- an application for the stores of Android or iOS: phone builds are experimental, and iOS runs in the simulator only;
 - long requests or many busy windows: one PHP thread serves every request, one at a time.
 
 ## Status

@@ -2,7 +2,7 @@
 
 Nativella runs a PHP web application as a desktop application: a native window, PHP embedded in the application itself, and no web server in between. These pages go from the first window to the single-file build, and down to how the requests travel.
 
-Nativella is young and experimental. Linux is the platform it is built and tested on. Read [Limitations and roadmap](limitations.md) before you bet anything on it.
+Nativella is young and experimental. Linux is the platform it is built and tested on; Android and iOS builds are experimental. Read [Limitations and roadmap](limitations.md) before you bet anything on it.
 
 ## Start here
 
@@ -23,7 +23,7 @@ Nativella is young and experimental. Linux is the platform it is built and teste
 - [Database](database.md): SQLite in the data directory, migrated when the application starts.
 - [Testing](testing.md): the fake client, and running the application outside Nativella.
 - [Building a standalone app](building.md): `nativella build`, and what ships in the executable.
-- [Mobile](mobile.md): Android builds, what changes on a phone.
+- [Mobile](mobile.md): Android and iOS builds, what changes on a phone, what is tested.
 
 ## Native APIs
 

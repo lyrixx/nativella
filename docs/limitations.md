@@ -9,8 +9,8 @@ Nativella is experimental. This page lists what does not work, what is untested 
 | Linux | Developed and tested on Ubuntu 26.04, with WebKitGTK 2.52. The executables of the releases run on Ubuntu 22.04 and 24.04, Debian 12 and 13 too. |
 | macOS | Built and tested by the CI (arm64), without a window: nobody has opened one there yet. |
 | Windows | Untested. Pages would be served from `http://php.localhost/`, as Tauri does for custom schemes there. |
-| Android | Experimental: the three demos run on an Android 16 emulator (arm64 builds). See [Mobile](mobile.md). |
-| iOS | Experimental: the CI builds the Symfony demo for the simulator and opens it there. See [Mobile](mobile.md#limitations). |
+| Android | Experimental: the three demos run on an Android 16 emulator (arm64 builds). The CI opens the Symfony demo in an emulator. See [Mobile](mobile.md#what-is-tested). |
+| iOS | Experimental: the CI builds the Symfony demo for the simulator and opens it there. No device yet. See [Mobile](mobile.md#what-is-tested). |
 
 ### Linux
 

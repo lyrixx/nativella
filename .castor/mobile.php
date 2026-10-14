@@ -28,6 +28,9 @@ const NATIVEPHP_RELEASE = '4.0.0';
 
 const PHP_BRANCH = '8.5';
 
+/** What the runtime writes when PHP answers a page: "[php] GET <url> 200 <time> ms" */
+const PHP_ANSWERED = '/\[php\] GET \S+ 200 /';
+
 /**
  * In the android service, the builder with the Android SDK, which this task
  * builds first; or on the host, with its SDK, JDK and tools, in the host
@@ -95,6 +98,70 @@ function android(
     ], $workDir, $environment, $service);
 
     io()->success('The APK: '.built(variable('root_dir').'/crates/nativella/gen/android/app/build/outputs/apk', '*.apk', $bundle));
+}
+
+/**
+ * Installs the APK mobile:android built, afresh, on the emulator, or the
+ * phone, that adb sees, opens it, and waits for PHP to answer a page. What
+ * the app writes to logcat goes next to the screenshot. On the host, with the
+ * adb of ANDROID_HOME, or of PATH; ANDROID_SERIAL picks a device when adb
+ * sees several.
+ *
+ * .github/workflows/mobile.yml runs it in an emulator.
+ */
+#[AsTask(name: 'android-emulator', description: 'Opens the APK of a demo on an emulator, or a phone, waits for PHP to answer a page, and takes a screenshot')]
+function android_emulator(
+    #[AsArgument(description: 'The demo to open, e.g. symfony', autocomplete: 'project\complete_demo_names')]
+    string $demo,
+    #[AsOption(description: 'The screenshot, from the root of the repository')]
+    string $screenshot = 'target/nativella/android-emulator.png',
+    #[AsOption(description: 'The time PHP has to answer, in seconds')]
+    int $wait = 120,
+    #[AsOption(description: 'An APK of the demo built beforehand, from the root of the repository: by default, the last one "castor mobile:android" built')]
+    ?string $apk = null,
+): void {
+    $project = demo($demo);
+    $identifier = tauri_config($project)['identifier'];
+    $root = variable('root_dir');
+
+    $apk = null === $apk ? last_apk($project, $demo) : "{$root}/{$apk}";
+    if (!is_file($apk)) {
+        throw new \RuntimeException(\sprintf('There is no APK in %s.', $apk));
+    }
+
+    $adb = adb();
+    $device = run([$adb, 'get-serialno'], context: context()->withQuiet()->withAllowFailure());
+    if (!$device->isSuccessful()) {
+        throw new \RuntimeException(\sprintf("adb sees no device: start an emulator, or plug a phone in, or set ANDROID_SERIAL if it sees several (adb devices).\n%s", trim($device->getErrorOutput())));
+    }
+
+    io()->title(\sprintf('Opening %s on %s', $project->path, trim($device->getOutput())));
+
+    // Until the first unlock after a boot, the storage of the user stays
+    // encrypted, and Android starts no application
+    if ('true' !== capture([$adb, 'shell', 'getprop', 'sys.user.0.ce_available'])) {
+        throw new \RuntimeException('The device is locked: unlock it, then run the task again.');
+    }
+
+    // Afresh, as on a new phone: a previous install may be signed with another
+    // debug key, and its data would hide a first launch
+    run([$adb, 'uninstall', $identifier], context: context()->withQuiet()->withAllowFailure());
+    run([$adb, 'install', $apk]);
+    run([$adb, 'logcat', '-c']);
+    run([$adb, 'shell', 'am', 'start', '-W', '-n', "{$identifier}/.MainActivity"]);
+
+    $output = static fn (): string => capture([$adb, 'logcat', '-d', '-s', 'nativella']);
+    $running = static fn (): bool => '' !== trim(run([$adb, 'shell', 'pidof', $identifier], context: context()->withQuiet()->withAllowFailure())->getOutput());
+
+    io()->comment("Waiting up to {$wait} seconds for PHP to answer a page...");
+    $log = wait_for_a_page($wait, $output, $running);
+
+    // Even if the app is gone: the screenshot shows what is left
+    fs()->mkdir(\dirname("{$root}/{$screenshot}"));
+    run([$adb, 'shell', 'screencap', '-p', '/data/local/tmp/nativella-screenshot.png']);
+    run([$adb, 'pull', '/data/local/tmp/nativella-screenshot.png', "{$root}/{$screenshot}"], context: context()->withQuiet());
+
+    check_a_page_answered($screenshot, $log, $running(), $wait);
 }
 
 /**
@@ -176,20 +243,20 @@ function ios(
 
 /**
  * Opens the app mobile:ios built in a simulator, the newest iPhone of the
- * newest iOS: the output of the app goes next to the screenshot, which is
- * taken once the app had the time to start. Fails if the app does not run
- * any more by then.
+ * newest iOS, and waits for PHP to answer a page. Tauri sends what the app
+ * writes to the log of the system, in debug builds: it goes next to the
+ * screenshot.
  *
  * EXPERIMENTAL: .github/workflows/mobile.yml runs it on a macOS runner.
  */
-#[AsTask(name: 'ios-simulator', description: 'Opens the iOS app of a demo in a simulator and takes a screenshot, on macOS (experimental)')]
+#[AsTask(name: 'ios-simulator', description: 'Opens the iOS app of a demo in a simulator, waits for PHP to answer a page, and takes a screenshot, on macOS (experimental)')]
 function ios_simulator(
     #[AsArgument(description: 'The demo to open, e.g. symfony', autocomplete: 'project\complete_demo_names')]
     string $demo,
     #[AsOption(description: 'The screenshot, from the root of the repository')]
     string $screenshot = 'target/nativella/ios-simulator.png',
-    #[AsOption(description: 'The time the app has to start, in seconds')]
-    int $wait = 30,
+    #[AsOption(description: 'The time PHP has to answer, in seconds')]
+    int $wait = 120,
 ): void {
     if (!context()['macos']) {
         throw new \RuntimeException('An iOS simulator needs macOS, with Xcode.');
@@ -213,30 +280,93 @@ function ios_simulator(
     run(['xcrun', 'simctl', 'bootstatus', $device['udid'], '-b']);
     run(['xcrun', 'simctl', 'install', $device['udid'], $app->getPathname()]);
 
-    // Two files: simctl would truncate one twice
-    $output = preg_replace('/\.png$/', '', $screenshot);
-    $logs = ["{$output}.stdout.log", "{$output}.stderr.log"];
-    fs()->mkdir(\dirname("{$root}/{$screenshot}"));
-    run(['xcrun', 'simctl', 'launch', '--terminate-running-process', "--stdout={$root}/{$logs[0]}", "--stderr={$root}/{$logs[1]}", $device['udid'], $identifier]);
+    // "<identifier>: <pid>"
+    $launched = capture(['xcrun', 'simctl', 'launch', '--terminate-running-process', $device['udid'], $identifier]);
+    if (!preg_match('/:\s*(\d+)$/', $launched, $matches)) {
+        throw new \RuntimeException(\sprintf('simctl launched the app without saying its PID: "%s".', $launched));
+    }
+    $pid = $matches[1];
 
-    io()->comment("Waiting {$wait} seconds for the app to start...");
-    sleep($wait);
+    $output = static fn (): string => capture(['xcrun', 'simctl', 'spawn', $device['udid'], 'log', 'show', '--last', '5m', '--style', 'compact', '--predicate', "processID == {$pid}"]);
+    // PID, status and label of each service: a PID while the app runs
+    $running = static fn (): bool => 1 === preg_match('/^\d+\s+\S+\s+UIKitApplication:'.preg_quote($identifier, '/').'\[/m', capture(['xcrun', 'simctl', 'spawn', $device['udid'], 'launchctl', 'list']));
+
+    io()->comment("Waiting up to {$wait} seconds for PHP to answer a page...");
+    $log = wait_for_a_page($wait, $output, $running);
 
     // Even if the app is gone: the screenshot shows what is left
+    fs()->mkdir(\dirname("{$root}/{$screenshot}"));
     run(['xcrun', 'simctl', 'io', $device['udid'], 'screenshot', "{$root}/{$screenshot}"]);
 
-    // PID, status and label of each service: a PID while the app runs
-    $running = preg_match('/^\d+\s+\S+\s+UIKitApplication:'.preg_quote($identifier, '/').'\[/m', capture(['xcrun', 'simctl', 'spawn', $device['udid'], 'launchctl', 'list']));
-    if (1 !== $running) {
-        foreach ($logs as $log) {
-            io()->section($log);
-            io()->writeln((string) file_get_contents("{$root}/{$log}"));
-        }
+    check_a_page_answered($screenshot, $log, $running(), $wait);
+}
 
-        throw new \RuntimeException(\sprintf('The app stopped within %d seconds: its output is above.', $wait));
+/**
+ * The APK "castor mobile:android" built last, for the demo.
+ */
+function last_apk(Project $project, string $demo): string
+{
+    // "<identifier> <where the SDK is>"
+    if (!str_starts_with(generated('android') ?? '', tauri_config($project)['identifier'].' ')) {
+        throw new \RuntimeException(\sprintf('There is no APK of %s: run "castor mobile:android %s" first.', $project->path, $demo));
     }
 
-    io()->success(\sprintf('The app runs. The screenshot: %s, its output: %s.', $screenshot, implode(', ', $logs)));
+    $apks = iterator_to_array(finder()->in(variable('root_dir').'/crates/nativella/gen/android/app/build/outputs/apk')->files()->name('*.apk')->sortByModifiedTime(), false);
+    $apk = end($apks) ?: throw new \RuntimeException(\sprintf('There is no APK of %s: run "castor mobile:android %s" first.', $project->path, $demo));
+
+    return $apk->getPathname();
+}
+
+/**
+ * The adb of ANDROID_HOME, or of PATH.
+ */
+function adb(): string
+{
+    $adb = getenv('ANDROID_HOME').'/platform-tools/adb';
+    if (is_executable($adb)) {
+        return $adb;
+    }
+
+    return new ExecutableFinder()->find('adb') ?? throw new \RuntimeException('There is no adb: install the platform tools of the Android SDK, in ANDROID_HOME or in PATH.');
+}
+
+/**
+ * Reads the output of the app until PHP answered a page, the app stopped, or
+ * $wait seconds passed.
+ *
+ * @param \Closure(): string $output
+ * @param \Closure(): bool   $running
+ */
+function wait_for_a_page(int $wait, \Closure $output, \Closure $running): string
+{
+    $deadline = time() + $wait;
+
+    while (true) {
+        $log = $output();
+        if (preg_match(PHP_ANSWERED, $log) || !$running() || time() >= $deadline) {
+            return $log;
+        }
+
+        sleep(2);
+    }
+}
+
+/**
+ * Writes the output of the app next to the screenshot, and fails if PHP
+ * answered no page.
+ */
+function check_a_page_answered(string $screenshot, string $log, bool $running, int $wait): void
+{
+    $logFile = preg_replace('/\.png$/', '', $screenshot).'.log';
+    fs()->dumpFile(variable('root_dir')."/{$logFile}", $log);
+
+    if (!preg_match(PHP_ANSWERED, $log)) {
+        io()->writeln($log);
+
+        throw new \RuntimeException($running ? \sprintf('PHP answered no page within %d seconds: the output of the app is above.', $wait) : 'The app stopped before PHP answered a page: its output is above.');
+    }
+
+    io()->success(\sprintf('PHP answered a page. The screenshot: %s, the output of the app: %s.', $screenshot, $logFile));
 }
 
 /**
