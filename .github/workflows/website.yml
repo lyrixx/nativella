@@ -13,7 +13,6 @@ name: Website
             - ".github/workflows/website.yml"
             - "castor.php"
             - "docs/**"
-            - "infrastructure/docker/services/php/**"
             - "tools/zensical/**"
             - "website/**"
     pull_request:
@@ -23,7 +22,6 @@ name: Website
             - ".github/workflows/website.yml"
             - "castor.php"
             - "docs/**"
-            - "infrastructure/docker/services/php/**"
             - "tools/zensical/**"
             - "website/**"
     workflow_dispatch:
@@ -39,9 +37,8 @@ permissions:
 env:
     # Fix for symfony/color detection. We know GitHub Actions can handle it
     ANSICON: 1
-    CASTOR_CONTEXT: ci
-    # The images build from the cache that .github/workflows/cache.yml pushes
-    REGISTRY: "ghcr.io/lyrixx/nativella"
+    # PHP and Python are enough, on the runner itself: no image to build
+    CASTOR_CONTEXT: host
 
 jobs:
     build:
@@ -49,17 +46,7 @@ jobs:
         runs-on: ubuntu-latest
         permissions:
             contents: read
-            packages: read
         steps:
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-            - name: Log in to registry
-              shell: bash
-              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
             - name: setup-castor
               uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
 
@@ -73,8 +60,13 @@ jobs:
               if: github.event_name != 'pull_request'
               uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
-            - name: "Build the builder"
-              run: "castor docker:build --service=builder"
+            # Composer and the PHP of the landing page; Python, for Zensical,
+            # comes with the runner
+            - name: "Set up PHP"
+              uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+              with:
+                  php-version: "8.5"
+                  tools: composer
 
             # Fails on a broken link of the documentation
             - name: "Build the website"

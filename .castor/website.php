@@ -37,5 +37,6 @@ function build(): void
     // zensical.yml, which has the default
     $siteUrl = getenv('NATIVELLA_SITE_URL');
     $environment = $siteUrl ? ['NATIVELLA_DOCS_URL' => rtrim($siteUrl, '/').'/docs/'] : [];
-    run_in_builder(['zensical', 'build', '--config-file', 'zensical.yml'], builder_path('website'), $environment);
+    // By its path: on the host, tools/bin is not in PATH
+    run_in_builder([builder_path('tools/zensical/.venv/bin/zensical'), 'build', '--config-file', 'zensical.yml'], builder_path('website'), $environment);
 }

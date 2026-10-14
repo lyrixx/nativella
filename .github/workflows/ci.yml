@@ -1,10 +1,22 @@
 name: Continuous Integration
 
+# Not for the documentation alone: the Website workflow builds it, and fails
+# on a broken link.
 "on":
     push:
         branches: ["main"]
+        paths-ignore:
+            - "**.md"
+            - "tools/zensical/**"
+            - "website/docs-theme/**"
+            - "website/zensical.yml"
     pull_request:
         branches: ["main"]
+        paths-ignore:
+            - "**.md"
+            - "tools/zensical/**"
+            - "website/docs-theme/**"
+            - "website/zensical.yml"
     schedule:
         - cron: "0 0 * * MON"
 
@@ -159,6 +171,9 @@ jobs:
               with:
                   path: static-php/buildroot
                   key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
+                  # An older one too: static-php:build builds again only if the
+                  # versions or the extensions changed, not the rest of the file
+                  restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
 
             # The cargo registry and the target directory of the static image
             # (see its CARGO_HOME and CARGO_TARGET_DIR)
@@ -171,9 +186,6 @@ jobs:
                       target/docker-static
                   key: cargo-static-${{ hashFiles('Cargo.lock', 'infrastructure/docker/services/php/Dockerfile') }}
                   restore-keys: cargo-static-
-                  # An older one too: static-php:build builds again only if the
-                  # versions or the extensions changed, not the rest of the file
-                  restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
 
             # The builder installs and stages the projects
             - name: "Build the builder"
@@ -233,6 +245,9 @@ jobs:
               with:
                   path: static-php/buildroot
                   key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
+                  # An older one too: static-php:build builds again only if the
+                  # versions or the extensions changed, not the rest of the file
+                  restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
 
             - name: "Cache the Rust build"
               uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -245,9 +260,6 @@ jobs:
                   restore-keys: cargo-${{ runner.os }}-${{ runner.arch }}-
 
             # static-php-cli asks the GitHub API for its downloads: without a
-                  # An older one too: static-php:build builds again only if the
-                  # versions or the extensions changed, not the rest of the file
-                  restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
             # token, the runners share its rate limit
             - name: "Build PHP as a static library"
               run: "castor static-php:build"
