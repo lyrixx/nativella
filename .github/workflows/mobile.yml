@@ -221,11 +221,14 @@ jobs:
               shell: bash
               run: nohup castor mobile:ios-boot > "${RUNNER_TEMP}/ios-boot.log" 2>&1 &
 
-            # cargo tauri ios init installs them otherwise, with a `brew
-            # reinstall` that waits for a yes at the prompt: XcodeGen generates
-            # the Xcode project
-            - name: "Install XcodeGen, libimobiledevice and CocoaPods"
-              run: "brew install cocoapods libimobiledevice xcodegen"
+            # cargo tauri ios init installs those it does not find otherwise,
+            # with a `brew reinstall` that waits for a yes at the prompt:
+            # XcodeGen generates the Xcode project. The runners have CocoaPods
+            # already, as a gem: its bottle and Ruby took 2 minutes for nothing
+            - name: "Install XcodeGen and libimobiledevice, and CocoaPods if missing"
+              run: |
+                  brew install libimobiledevice xcodegen
+                  command -v pod > /dev/null || brew install cocoapods
 
             - name: "Add the iOS simulator target of Rust"
               run: "rustup target add aarch64-apple-ios-sim"
