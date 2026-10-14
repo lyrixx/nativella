@@ -164,17 +164,13 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
 
-# Python, for MkDocs, which builds the documentation: `castor install` puts it
-# in a virtual environment, tools/mkdocs/.venv
+# Python, for Zensical, which builds the documentation: `castor install` puts
+# it in a virtual environment, tools/zensical/.venv
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         python3-venv \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
-
-# Material for MkDocs warns at every build that MkDocs 2 will break it:
-# tools/mkdocs/requirements.txt keeps MkDocs 1
-ENV NO_MKDOCS_2_WARNING=1
 
 # Third party tools
 ENV PATH="$PATH:/var/www/tools/bin"

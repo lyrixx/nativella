@@ -2,8 +2,9 @@
 <?php
 
 /*
- * Builds the landing page into dist/. MkDocs builds the documentation into
- * dist/docs/ afterwards: see mkdocs.yml.
+ * Builds the landing page into dist/, and stages the documents of docs/ in
+ * var/docs/, from which Zensical builds the documentation into dist/docs/
+ * afterwards: see zensical.yml.
  *
  *     bin/build
  *
@@ -11,6 +12,7 @@
  * must be absolute (Open Graph, canonical). Every other link is relative.
  */
 
+use Nativella\Website\Documentation;
 use Nativella\Website\Site;
 
 require dirname(__DIR__).'/vendor/autoload.php';
@@ -23,7 +25,12 @@ $site = new Site(
     outputDir: dirname(__DIR__).'/dist',
     siteUrl: rtrim(getenv('NATIVELLA_SITE_URL') ?: 'https://lyrixx.github.io/nativella', '/').'/',
 );
-
 $site->build();
 
-printf("Built the landing page into website/dist/ in %d ms.\n", (hrtime(true) - $started) / 1_000_000);
+$documentation = new Documentation(
+    projectDir: dirname(__DIR__, 2),
+    outputDir: dirname(__DIR__).'/var/docs',
+);
+$documentation->stage();
+
+printf("Built the landing page into website/dist/, and staged the documentation in website/var/docs/, in %d ms.\n", (hrtime(true) - $started) / 1_000_000);

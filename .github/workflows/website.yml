@@ -1,6 +1,6 @@
 name: Website
 
-# Builds website/ (the landing page, and docs/*.md with MkDocs) on every
+# Builds website/ (the landing page, and docs/*.md with Zensical) on every
 # change, and deploys it to GitHub Pages from main: the landing page at the
 # root, the documentation under docs/. Pages must be set to "GitHub Actions"
 # in the settings of the repository.
@@ -14,7 +14,7 @@ name: Website
             - "castor.php"
             - "docs/**"
             - "infrastructure/docker/services/php/**"
-            - "tools/mkdocs/**"
+            - "tools/zensical/**"
             - "website/**"
     pull_request:
         branches: ["main"]
@@ -24,7 +24,7 @@ name: Website
             - "castor.php"
             - "docs/**"
             - "infrastructure/docker/services/php/**"
-            - "tools/mkdocs/**"
+            - "tools/zensical/**"
             - "website/**"
     workflow_dispatch:
 

@@ -3,7 +3,7 @@
 The landing page and the documentation of Nativella, as a static site, published on GitHub Pages:
 
 - the landing page, built by a PHP script, naturally: it renders the [Twig](https://twig.symfony.com) templates of `templates/` into `dist/`;
-- the documentation, the documents of [`../docs`](../docs), built by [MkDocs](https://www.mkdocs.org) with the [Material](https://squidfunk.github.io/mkdocs-material/) theme into `dist/docs/`.
+- the documentation, the documents of [`../docs`](../docs), built by [Zensical](https://zensical.org), with the look of Material for MkDocs (its `classic` variant), into `dist/docs/`.
 
 ## Build
 
@@ -13,7 +13,7 @@ From the root of the repository:
 castor website:build
 ```
 
-The task builds the landing page first, as it empties `dist/`, then the documentation. MkDocs runs in the builder, from a virtual environment of its own, `tools/mkdocs/.venv`, with the versions of [`tools/mkdocs/requirements.txt`](../tools/mkdocs/requirements.txt).
+The task runs `bin/build` first: it builds the landing page, as it empties `dist/`, and stages the documents in `var/docs/`. Then Zensical builds the documentation from there. It runs in the builder, from a virtual environment of its own, `tools/zensical/.venv`, with the versions of [`tools/zensical/requirements.txt`](../tools/zensical/requirements.txt).
 
 The build fails, with a message that says why, when a document links to a page, a section or a file of the repository that does not exist, or when `docs/README.md` does not list a document.
 
@@ -31,7 +31,7 @@ NATIVELLA_SITE_URL=https://nativella.dev/ castor website:build
 
 | Path | What |
 |---|---|
-| `bin/build` | The entry point. |
+| `bin/build` | The entry point, for the documentation too. |
 | `src/` | The build: `Site` renders the page with Twig, `TwigExtension` adds `asset()` and the `highlight` filter, `CodeBlock` highlights code with [tempest/highlight](https://github.com/tempestphp/highlight). |
 | `templates/` | The Twig templates. `asset('site.css')` is the URL of an asset, with the hash of its content; `{% apply highlight('php', 'src/Kernel.php') %}…{% endapply %}` highlights the code in between, without the indentation of the template; `site` holds the repository, the URL and the version. |
 | `assets/` | Copied as is to `dist/assets/`: the stylesheet, a few lines of JavaScript, the font, the icons. |
@@ -52,17 +52,17 @@ google-chrome --headless --hide-scrollbars --allow-file-access-from-files \
 
 | Path | What |
 |---|---|
-| `mkdocs.yml` | The configuration of MkDocs. |
-| `mkdocs/hooks.py` | What makes the documents of GitHub a site: the navigation, the links to the repository. |
-| `mkdocs/theme/` | The overrides of the theme: the colours and the type of the landing page. |
+| `zensical.yml` | The configuration of Zensical, in the format of `mkdocs.yml`, which Zensical reads: unlike `zensical.toml`, it takes environment variables. |
+| `src/Documentation.php` | What makes the documents of GitHub a site, in `var/docs/`: the navigation, the links to the repository. |
+| `docs-theme/` | The overrides of the theme: the colours and the type of the landing page. |
 
-The documentation is written for GitHub first: it must read well there too. On top of Markdown, MkDocs understands:
+The documentation is written for GitHub first: it must read well there too. On top of Markdown, Zensical understands:
 
 - links between documents (`windows.md#window-options`), turned into links between pages;
-- links to the rest of the repository (`../crates/runtime`), turned into links to GitHub by `mkdocs/hooks.py`;
-- GitHub alerts (`> [!NOTE]`, `> [!WARNING]`…), with [markdown-callouts](https://github.com/oprypin/markdown-callouts);
+- links to the rest of the repository (`../crates/runtime`), turned into links to GitHub by `src/Documentation.php`;
+- GitHub alerts (`> [!NOTE]`, `> [!WARNING]`…), with the `callouts` of `pymdownx.quotes`;
 - a title after the language of a code block, shown as its caption, which GitHub ignores: `` ```php title="src/Kernel.php" ``.
 
-The navigation follows `docs/README.md`: one `## Group` per section, one `- [Label](file.md): description` per page. Headings get the anchors GitHub gives them, so that a link to a section works in both places.
+The navigation follows `docs/README.md`: one `## Group` per section, one `- [Label](file.md): description` per page. `src/Documentation.php` writes it to `var/docs/.nav.yml`, the file of the `awesome-nav` plugin, which Zensical implements. Headings get the anchors GitHub gives them, so that a link to a section works in both places.
 
-The site loads nothing from another domain there either: no Google Fonts (`font: false`), and the link to the repository does not fetch its stars from the GitHub API (`mkdocs/theme/partials/source.html`). The font of the titles comes from the landing page, in `../assets/fonts/`: the documentation is always published under it.
+The site loads nothing from another domain there either: no Google Fonts (`font: false`), and the link to the repository does not fetch its stars from the GitHub API (`docs-theme/partials/source.html`). The font of the titles comes from the landing page, in `../assets/fonts/`: the documentation is always published under it.

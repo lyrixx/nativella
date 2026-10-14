@@ -64,7 +64,7 @@ castor              # every task
 `castor start` runs, in order:
 
 1. `castor docker:build`: the images (the first build takes a while: WebKitGTK and Rust are big).
-2. `castor install`: `composer install` in every project, then the tools: the QA tools, and MkDocs in `tools/mkdocs/.venv`. A Laravel project without a `.env` gets one from `.env.example`, with a key.
+2. `castor install`: `composer install` in every project, then the tools: the QA tools, and Zensical in `tools/zensical/.venv`. A Laravel project without a `.env` gets one from `.env.example`, with a key.
 3. `castor website:build`: the landing page in `website/dist/`, and the documentation in `website/dist/docs/`.
 4. `castor migrate`: the databases of the demos, for the frontend.
 5. `castor docker:up`: the router and the frontend.
@@ -109,7 +109,7 @@ parameters:
         - tests
 ```
 
-The QA tools live in `tools/<tool>/`, each with its own `composer.json`: `castor qa:install` installs them, and `castor qa:update` updates them. `castor qa:install` installs MkDocs too, in `tools/mkdocs/.venv`, with the versions of `tools/mkdocs/requirements.txt`, which tells how to upgrade them.
+The QA tools live in `tools/<tool>/`, each with its own `composer.json`: `castor qa:install` installs them, and `castor qa:update` updates them. `castor qa:install` installs Zensical too, in `tools/zensical/.venv`, with the versions of `tools/zensical/requirements.txt`, which tells how to upgrade them.
 
 ## The desktop application
 
@@ -225,7 +225,7 @@ There is no `test` context: each test suite sets its own environment (`phpunit.x
 
 ## Documentation
 
-The documents of `docs/` read on GitHub as they are, and `castor website:build` turns them into the documentation of the website, with [MkDocs](https://www.mkdocs.org). A new document goes in the list of `docs/README.md`, which is the navigation; the build fails on a link to a page, a section or a file that does not exist. [`website/README.md`](../website/README.md) tells what MkDocs understands on top of Markdown.
+The documents of `docs/` read on GitHub as they are, and `castor website:build` turns them into the documentation of the website, with [Zensical](https://zensical.org). A new document goes in the list of `docs/README.md`, which is the navigation; the build fails on a document left out of it, and on a link to a page, a section or a file that does not exist. [`website/README.md`](../website/README.md) tells what Zensical understands on top of Markdown.
 
 ## Continuous integration
 
@@ -234,7 +234,7 @@ The workflows of `.github/workflows/` run Castor tasks in the same stack:
 | Workflow | When | What |
 |---|---|---|
 | `ci.yml` | Pull requests, `main`, weekly | `castor start`, the PHP checks and tests, the frontend over HTTPS (`castor qa:frontend`); in parallel, `castor qa:rust` and `castor nativella:smoke`, in the builder and on macOS (arm64, the host context, with the static PHP); the static PHP on Linux, in the `static` image: `castor nativella:smoke --static`, then `castor nativella:build` and `castor nativella:package`, as the release does; hadolint on the Dockerfile. |
-| `website.yml` | Changes to `website/`, `docs/` or `tools/mkdocs/` | `castor website:build`, which fails on a broken link; on `main`, deploys `website/dist/` to GitHub Pages: the landing page, and the documentation under `docs/`. Pages must be set to "GitHub Actions" in the settings of the repository. |
+| `website.yml` | Changes to `website/`, `docs/` or `tools/zensical/` | `castor website:build`, which fails on a broken link; on `main`, deploys `website/dist/` to GitHub Pages: the landing page, and the documentation under `docs/`. Pages must be set to "GitHub Actions" in the settings of the repository. |
 | `mobile.yml` | Changes to `crates/`, `mobile/`, `packages/`, `demos/symfony/` or the Docker stack, manually | `castor mobile:android symfony`: the APK as an artifact. Then, experimentally, `castor mobile:ios symfony` on macOS, with the bundle of the Android job, and `castor mobile:ios-simulator symfony`: the simulator app, its screenshot and its output as artifacts. |
 | `release.yml` | `v*` tags, manually | `castor nativella:build` and `castor nativella:package`: the Linux x86_64 executables, in the `static` image, and the macOS arm64 ones; as artifacts and, for a tag, on the GitHub release. |
 | `cache.yml` | Changes to `infrastructure/docker/` on `main` | `castor docker:push`: pushes the build cache of the images to `ghcr.io/lyrixx/nativella`, which the other workflows build from. |

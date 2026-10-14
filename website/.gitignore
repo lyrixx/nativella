@@ -1,4 +1,6 @@
 /dist/
-# Python compiles mkdocs/hooks.py there
-/mkdocs/__pycache__/
+# Zensical's cache, for the next builds
+/.cache/
+# bin/build stages the documentation there, for Zensical
+/var/
 /vendor/

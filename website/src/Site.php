@@ -7,8 +7,8 @@ use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 
 /**
- * Builds the landing page, from the Twig templates of templates/. MkDocs
- * builds the documentation under it, into docs/: see mkdocs.yml.
+ * Builds the landing page, from the Twig templates of templates/. Zensical
+ * builds the documentation under it, into docs/: see zensical.yml.
  */
 final readonly class Site
 {

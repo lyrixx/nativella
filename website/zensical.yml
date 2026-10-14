@@ -1,36 +1,34 @@
-# The documentation: docs/*.md, built by MkDocs into dist/docs/, under the
+# The documentation: docs/*.md, built by Zensical into dist/docs/, under the
 # landing page (castor website:build). See README.md.
 #
-# The navigation is not here: mkdocs/hooks.py reads it from docs/README.md.
+# In the format of mkdocs.yml, which Zensical reads too: unlike zensical.toml,
+# it takes environment variables (!ENV).
+#
+# bin/build stages the documents in var/docs/ first: links to the rest of the
+# repository lead to GitHub there, and .nav.yml holds the navigation, which
+# it reads from docs/README.md (src/Documentation.php).
 
 site_name: Nativella
 site_description: Run a PHP web application as a desktop application, with PHP embedded and no web server.
-# mkdocs/hooks.py replaces it with NATIVELLA_SITE_URL + "docs/" when set
-site_url: https://lyrixx.github.io/nativella/docs/
+# castor website:build sets it from NATIVELLA_SITE_URL
+site_url: !ENV [NATIVELLA_DOCS_URL, "https://lyrixx.github.io/nativella/docs/"]
 repo_url: https://github.com/lyrixx/nativella
 repo_name: lyrixx/nativella
 edit_uri: edit/main/docs/
 copyright: Nativella is open source, under the MIT license.
 
-docs_dir: ../docs
+docs_dir: var/docs
 site_dir: dist/docs
 
-# A broken link, a missing section or a document left out of the navigation
-# fails the build
+# A link to a page or a section that does not exist fails the build; so does
+# a document left out of docs/README.md, in bin/build
 strict: true
-validation:
-    nav:
-        omitted_files: warn
-    links:
-        anchors: warn
-        unrecognized_links: warn
-
-hooks:
-    - mkdocs/hooks.py
 
 theme:
     name: material
-    custom_dir: mkdocs/theme
+    # The look of Material for MkDocs, which docs-theme/ restyles
+    variant: classic
+    custom_dir: docs-theme
     # The site loads nothing from another domain: no Google Fonts
     font: false
     language: en
@@ -77,8 +75,6 @@ extra_css:
 markdown_extensions:
     - admonition
     - attr_list
-    # GitHub alerts: > [!NOTE]
-    - github-callouts
     - md_in_html
     - pymdownx.details
     - pymdownx.highlight:
@@ -91,14 +87,20 @@ markdown_extensions:
           pygments_lang_class: true
     - pymdownx.inlinehilite
     - pymdownx.magiclink
+    # GitHub alerts: > [!NOTE]
+    - pymdownx.quotes:
+          callouts: true
     - pymdownx.superfences
     - tables
     - toc:
           permalink: true
           # The anchors of GitHub, which the documents link to
-          slugify: !!python/object/apply:pymdownx.slugs.slugify
+          slugify:
+              object: pymdownx.slugs.slugify
               kwds:
                   case: lower
 
 plugins:
+    # The navigation, in var/docs/.nav.yml
+    - awesome-nav
     - search

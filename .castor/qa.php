@@ -46,15 +46,15 @@ function install(): void
         }
     }
 
-    install_mkdocs();
+    install_zensical();
 }
 
 /**
- * MkDocs, which builds the documentation, in a virtual environment of its
- * own: tools/mkdocs/.venv, with the versions of tools/mkdocs/requirements.txt.
- * Cheap when installed already.
+ * Zensical, which builds the documentation, in a virtual environment of its
+ * own: tools/zensical/.venv, with the versions of
+ * tools/zensical/requirements.txt. Cheap when installed already.
  */
-function install_mkdocs(): void
+function install_zensical(): void
 {
     $commands = [
         ['python3', '-m', 'venv', '.venv'],
@@ -62,8 +62,8 @@ function install_mkdocs(): void
     ];
 
     foreach ($commands as $command) {
-        if (0 !== docker_exit_code($command, workDir: builder_path('tools/mkdocs'))) {
-            throw new \RuntimeException(\sprintf('"%s" failed in tools/mkdocs.', implode(' ', $command)));
+        if (0 !== docker_exit_code($command, workDir: builder_path('tools/zensical'))) {
+            throw new \RuntimeException(\sprintf('"%s" failed in tools/zensical.', implode(' ', $command)));
         }
     }
 }
