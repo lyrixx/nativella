@@ -143,6 +143,9 @@ function android_emulator(
         throw new \RuntimeException('The device is locked: unlock it, then run the task again.');
     }
 
+    // Those of a previous run would pass for this one's
+    fs()->remove(["{$root}/{$screenshot}", "{$root}/".log_file($screenshot)]);
+
     // Afresh, as on a new phone: a previous install may be signed with another
     // debug key, and its data would hide a first launch
     run([$adb, 'uninstall', $identifier], context: context()->withQuiet()->withAllowFailure());
@@ -280,6 +283,9 @@ function ios_simulator(
     run(['xcrun', 'simctl', 'bootstatus', $device['udid'], '-b']);
     run(['xcrun', 'simctl', 'install', $device['udid'], $app->getPathname()]);
 
+    // Those of a previous run would pass for this one's
+    fs()->remove(["{$root}/{$screenshot}", "{$root}/".log_file($screenshot)]);
+
     // "<identifier>: <pid>"
     $launched = capture(['xcrun', 'simctl', 'launch', '--terminate-running-process', $device['udid'], $identifier]);
     if (!preg_match('/:\s*(\d+)$/', $launched, $matches)) {
@@ -352,12 +358,20 @@ function wait_for_a_page(int $wait, \Closure $output, \Closure $running): string
 }
 
 /**
+ * Where the output of the app goes: next to the screenshot.
+ */
+function log_file(string $screenshot): string
+{
+    return preg_replace('/\.png$/', '', $screenshot).'.log';
+}
+
+/**
  * Writes the output of the app next to the screenshot, and fails if PHP
  * answered no page.
  */
 function check_a_page_answered(string $screenshot, string $log, bool $running, int $wait): void
 {
-    $logFile = preg_replace('/\.png$/', '', $screenshot).'.log';
+    $logFile = log_file($screenshot);
     fs()->dumpFile(variable('root_dir')."/{$logFile}", $log);
 
     if (!preg_match(PHP_ANSWERED, $log)) {

@@ -153,7 +153,9 @@ jobs:
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: nativella-demo-symfony-android-emulator-screenshot
-                  path: target/nativella/android-emulator.*
+                  path: |
+                      target/nativella/android-emulator.log
+                      target/nativella/android-emulator.png
                   if-no-files-found: ignore
 
     ios:
@@ -228,5 +230,7 @@ jobs:
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: nativella-demo-symfony-ios-simulator-screenshot
-                  path: target/nativella/ios-simulator.*
+                  path: |
+                      target/nativella/ios-simulator.log
+                      target/nativella/ios-simulator.png
                   if-no-files-found: ignore
