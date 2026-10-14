@@ -1,6 +1,6 @@
 # Database
 
-A desktop application keeps its data on the user's machine. Nativella gives each application a [data directory](configuration.md#the-data-directory), and the natural database to put there is SQLite: a file, no server, and a PHP extension (`pdo_sqlite`) that Ubuntu packages as `php8.5-sqlite3`.
+A desktop application keeps its data on the user's machine. Nativella gives each application a [data directory](configuration.md#the-data-directory), and the natural database to put there is SQLite: a file, no server, and a PHP extension (`pdo_sqlite`) that the PHP of Nativella [carries](building.md#the-php-inside).
 
 ## Where the database lives
 

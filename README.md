@@ -45,17 +45,15 @@ from a clone of the repository:
 nativella run demos/symfony
 ```
 
-Or build it from source, on Ubuntu 26.04 ([other systems](docs/installation.md#build-from-source)):
+Or build it from source, in Docker, with [Castor](https://castor.jolicode.com),
+as the releases are:
 
 ```bash
-sudo apt install libphp8.5-embed php8.5-dev php8.5-cli php8.5-sqlite3 \
-    libclang-dev libwebkit2gtk-4.1-dev libxdo-dev librsvg2-dev libayatana-appindicator3-1
-(cd demos/symfony && composer install)
-cargo run -p nativella -- run demos/symfony
+castor static-php:build          # PHP 8.5 as a static library, once
+castor nativella:build           # dist/nativella, with PHP inside, and the demos
 ```
 
-Or work in Docker, with [Castor](https://castor.jolicode.com):
-`castor start`, then `castor qa`. See [Developing Nativella](docs/development.md).
+`castor start`, then `castor qa`, runs the checks. See [Developing Nativella](docs/development.md).
 
 ## Repository
 

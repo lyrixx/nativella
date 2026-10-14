@@ -18,7 +18,7 @@ The webview never sees a socket. There is no HTTP server in the process and no p
 
 ## One PHP thread
 
-The `libphp` of Debian and Ubuntu is built without thread safety (NTS). PHP starts once, on its own thread (`sapi_startup()`, then `php_module_startup()`), and stays up for the life of the process. Requests are queued to it and served one at a time, each one a full request cycle, with OPcache shared between them.
+On the desktop, the PHP of Nativella is built without thread safety (NTS). PHP starts once, on its own thread (`sapi_startup()`, then `php_module_startup()`), and stays up for the life of the process. Requests are queued to it and served one at a time, each one a full request cycle, with OPcache shared between them.
 
 It is simple and it is fast enough, with one consequence: a slow request holds back every other one, in every window. So does a [modal dialog](dialogs.md), since PHP waits for its answer. Static files are not affected, as Rust serves them without PHP.
 

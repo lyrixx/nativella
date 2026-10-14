@@ -210,7 +210,7 @@ function rust(
     #[AsOption(description: 'Link the static PHP of "castor static-php:build"')]
     bool $static = false,
 ): int {
-    $c = context()->withData(['docker_compose_run_environment' => $static ? \static_php\environment() : []], recursive: false);
+    $c = context()->withData(['docker_compose_run_environment' => $static ? \static_php\environment() : \static_php\system_php_environment()], recursive: false);
     $service = $static ? \static_php\SERVICE : null;
 
     io()->section('Checking the format of the Rust code...');

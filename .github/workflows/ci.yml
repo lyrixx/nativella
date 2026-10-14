@@ -192,7 +192,7 @@ jobs:
               run: "castor nativella:smoke --static"
 
             - name: "Build the executables"
-              run: "castor nativella:build --static"
+              run: "castor nativella:build"
 
             # Fails if an executable needs a glibc newer than the one of
             # Ubuntu 22.04

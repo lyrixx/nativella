@@ -4,7 +4,9 @@ namespace static_php;
 
 use Castor\Attribute\AsOption;
 use Castor\Attribute\AsTask;
+use Symfony\Component\Process\ExecutableFinder;
 
+use function Castor\capture;
 use function Castor\context;
 use function Castor\fs;
 use function Castor\http_download;
@@ -42,8 +44,8 @@ const GLIBC_VERSION = '2.35';
 /**
  * PHP as a static library (embed SAPI), into static-php/buildroot/: lib/
  * with libphp.a and its dependencies, include/php/, bin/php-config. Linked
- * against it (--static on the tasks that build the Rust crates), the
- * nativella command and the executables it builds need no PHP on the
+ * against it (nativella:build, and --static on the other tasks that build
+ * the Rust crates), the nativella command and the executables it builds need no PHP on the
  * machine. In the static service, or on the host in the host context, as on
  * macOS.
  *
@@ -105,6 +107,54 @@ function environment(): array
         'PHP' => builder_path('mobile/php/php'),
         'PHP_CONFIG' => "{$buildroot}/bin/php-config",
     ];
+}
+
+/**
+ * The environment of a cargo command that links the PHP of the system,
+ * dynamically: none. The builder has that PHP; on the host, it must be
+ * installed.
+ *
+ * @return array<string, string>
+ */
+function system_php_environment(): array
+{
+    if (context()['run_on_host'] && $missing = missing_system_php()) {
+        throw new \RuntimeException(\sprintf("Linking the PHP of the system needs, on this machine (see docs/development.md#the-php-of-the-system):\n - %s\nOr link the static PHP instead: \"castor static-php:build\", then the same task with --static.", implode("\n - ", $missing)));
+    }
+
+    return [];
+}
+
+/**
+ * What ext-php-rs needs to link the PHP of the system: php (`php -i`),
+ * php-config, from PATH or from the PHP and PHP_CONFIG variables as it reads
+ * them, and libphp next to the other libraries of that PHP.
+ *
+ * @return list<string> what is missing, and how to get it
+ */
+function missing_system_php(): array
+{
+    $finder = new ExecutableFinder();
+    $missing = [];
+
+    $php = getenv('PHP') ?: $finder->find('php');
+    if (null === $php || !is_executable($php)) {
+        $missing[] = 'The php command (php8.5-cli on Ubuntu), or PHP pointing to it.';
+    }
+
+    $phpConfig = getenv('PHP_CONFIG') ?: $finder->find('php-config');
+    if (null === $phpConfig || !is_executable($phpConfig)) {
+        $missing[] = 'The php-config command and the headers of PHP (php8.5-dev on Ubuntu), or PHP_CONFIG pointing to it.';
+
+        return $missing;
+    }
+
+    $libDir = trim(capture([$phpConfig, '--prefix'])).'/lib';
+    if (!is_file("{$libDir}/libphp.so") && !is_file("{$libDir}/libphp.dylib")) {
+        $missing[] = \sprintf('libphp, PHP as a shared library, in %s (libphp8.5-embed on Ubuntu).', $libDir);
+    }
+
+    return $missing;
 }
 
 function build_php(): void

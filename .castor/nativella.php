@@ -6,6 +6,7 @@ use Castor\Attribute\AsArgument;
 use Castor\Attribute\AsOption;
 use Castor\Attribute\AsTask;
 use project\Project;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Finder\Finder;
 
 use function Castor\context;
@@ -26,7 +27,7 @@ use function project\demo_names;
 /**
  * A desktop application needs the display of the host: it runs on the host by
  * default, with its cargo, its libphp and its WebKitGTK (the packages of
- * docs/installation.md). --docker runs it in the builder instead, which
+ * docs/development.md). --docker runs it in the builder instead, which
  * reaches the Wayland (or X11) and D-Bus sockets of the session, or in the
  * static service with --static.
  */
@@ -48,7 +49,7 @@ function run_demo(
     if (!$docker) {
         // As in the host context: the paths of the static PHP are those of the host
         return with(
-            static fn (): int => (int) run($command, context: context()->withEnvironment($static ? \static_php\environment() : []))->getExitCode(),
+            static fn (): int => (int) run($command, context: context()->withEnvironment($static ? \static_php\environment() : \static_php\system_php_environment()))->getExitCode(),
             workingDirectory: variable('root_dir'),
             allowFailure: true,
             context: context()->withData(['run_on_host' => true]),
@@ -62,7 +63,7 @@ function run_demo(
     $c = context()->withData(
         [
             'docker_compose_files' => [...context()['docker_compose_files'], 'docker-compose.desktop.yml'],
-            'docker_compose_run_environment' => $static ? \static_php\environment() : [],
+            'docker_compose_run_environment' => $static ? \static_php\environment() : \static_php\system_php_environment(),
         ],
         recursive: false,
     );
@@ -71,11 +72,12 @@ function run_demo(
 }
 
 /**
- * In the builder, the executables link the libphp and the WebKitGTK of the
- * image (Debian), dynamically. With --static, as the release does, they link
- * the static PHP of "castor static-php:build", in the static service (Ubuntu
- * 22.04, for its old glibc). Each demo ships staged for production: without
- * its dev dependencies, in the production environment.
+ * The executables link the static PHP of "castor static-php:build", as the
+ * release does, in the static service (Ubuntu 22.04, for its old glibc): they
+ * need no PHP on the machine. With --no-static, they link the libphp and the
+ * WebKitGTK of the builder (Debian), dynamically, and need them. Each demo
+ * ships staged for production: without its dev dependencies, in the
+ * production environment.
  *
  * @param list<string> $demos
  */
@@ -83,12 +85,12 @@ function run_demo(
 function build_demos(
     #[AsArgument(description: 'The demos to build (default: all)', autocomplete: 'project\complete_demo_names')]
     array $demos = [],
-    #[AsOption(description: 'Link the static PHP of "castor static-php:build": the executables need no PHP on the machine')]
-    bool $static = false,
+    #[AsOption(description: 'Link the static PHP of "castor static-php:build", so that the executables need no PHP on the machine, or the PHP of the system', mode: InputOption::VALUE_NEGATABLE)]
+    bool $static = true,
 ): void {
     // Staging installs their dependencies: they need not be installed here
     $projects = array_map(demo(...), $demos ?: demo_names());
-    $environment = $static ? \static_php\environment() : [];
+    $environment = $static ? \static_php\environment() : \static_php\system_php_environment();
     $service = $static ? \static_php\SERVICE : null;
 
     io()->title('Building the nativella command');
@@ -110,8 +112,8 @@ function build_demos(
 /**
  * What a GitHub release publishes: nativella-<platform> and
  * nativella-demo-<demo>-<platform>, with SHA256SUMS-<platform>. On Linux,
- * only executables that run on the glibc of the static service, built with
- * --static.
+ * only executables that run on the glibc of the static service, built
+ * against the static PHP.
  */
 #[AsTask(description: 'Copies the executables of dist/ into release/, named after the platform, with their checksums')]
 function package(): void
@@ -157,7 +159,7 @@ function check_glibc(string $executable): void
     }
 
     if (version_compare($required, \static_php\GLIBC_VERSION, '>')) {
-        throw new \RuntimeException(\sprintf('%s needs glibc %s, newer than the %s of the static service: build it with "castor nativella:build --static".', $executable, $required, \static_php\GLIBC_VERSION));
+        throw new \RuntimeException(\sprintf('%s needs glibc %s, newer than the %s of the static service: build it against the static PHP, with "castor nativella:build", without --no-static.', $executable, $required, \static_php\GLIBC_VERSION));
     }
 
     io()->writeln(\sprintf('<info>✔</info> %s runs on glibc %s.', $executable, $required));
@@ -178,7 +180,7 @@ function smoke(
     bool $static = false,
 ): int {
     $projects = installed_demos($demos);
-    $environment = $static ? \static_php\environment() : [];
+    $environment = $static ? \static_php\environment() : \static_php\system_php_environment();
     $service = $static ? \static_php\SERVICE : null;
 
     io()->title('Smoke testing the demos');

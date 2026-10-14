@@ -9,7 +9,7 @@ Only the desktop application itself runs on your machine by default: a window ne
 - [Docker](https://docs.docker.com/engine/install/), with Compose v2.
 - [Castor](https://castor.jolicode.com/getting-started/installation/) 1.8 or later.
 - Optionally, [mkcert](https://github.com/FiloSottile/mkcert#installation), for HTTPS certificates that your browser trusts (run `mkcert -install` once). Without it, the certificates are self-signed.
-- To run the desktop application on your machine: Rust and the system packages of [Installation](installation.md). Without them, `--docker` runs it in a container (see [below](#the-desktop-application)).
+- To run the desktop application on your machine: Rust and the [system packages](#on-your-machine). Without them, `--docker` runs it in a container (see [below](#the-desktop-application)).
 
 Castor completes its tasks in bash, zsh and fish:
 
@@ -114,18 +114,39 @@ The QA tools live in `tools/<tool>/`, each with its own `composer.json`: `castor
 ## The desktop application
 
 ```bash
-castor nativella:run symfony             # on your machine, with cargo
-castor nativella:run symfony --docker    # in the builder
+castor nativella:run symfony --static            # on your machine, with cargo
+castor nativella:run symfony --static --docker   # in a container
 ```
 
-`nativella:run` builds and runs the `nativella` command on a demo (`cargo run -p nativella -- run demos/<demo>`). On your machine, it needs Rust and the packages of [Installation](installation.md); the demo must be installed (`castor install`).
+`nativella:run` builds and runs the `nativella` command on a demo (`cargo run -p nativella -- run demos/<demo>`), the demo installed (`castor install`). `--static` links the [static PHP](#static-php), as the releases do: build it first, with `castor static-php:build`. Without `--static`, the tasks link [the PHP of the system](#the-php-of-the-system).
 
-`--docker` runs it in the builder, on your display: the container gets the Wayland socket, the session D-Bus (notifications, tray) and the X11 socket, through the runtime directory of your session (`XDG_RUNTIME_DIR`), without the AppArmor profile of Docker, which the session bus refuses (see `infrastructure/docker/docker-compose.desktop.yml`). Its data directory is then in `.home/.local/share/`.
+### On your machine
+
+A recent stable Rust, 1.88 or later ([rustup](https://rustup.rs)), and the libraries Tauri builds against. On Ubuntu 26.04:
+
+```bash
+sudo apt install libclang-dev libwebkit2gtk-4.1-dev libxdo-dev librsvg2-dev libayatana-appindicator3-1
+```
+
+| Package | What for |
+|---|---|
+| `libclang-dev` | The PHP bindings are generated with clang (bindgen, through ext-php-rs). |
+| `libwebkit2gtk-4.1-dev` | WebKitGTK, the webview of the windows. |
+| `libxdo-dev`, `librsvg2-dev` | Libraries Tauri needs on Linux. |
+| `libayatana-appindicator3-1` | The [tray](tray.md) icon of the Symfony demo. |
+
+> [!TIP]
+> Without `libclang-dev`, bindgen misses the builtin headers of clang (`stddef.h` not found). Pointing it at an extracted `libclang-common-21-dev` works too:
+> `BINDGEN_EXTRA_CLANG_ARGS="-isystem …/usr/lib/llvm-21/lib/clang/21/include"`.
+
+### In a container
+
+`--docker` runs it in a container, the builder (the `static` image with `--static`), on your display: the container gets the Wayland socket, the session D-Bus (notifications, tray) and the X11 socket, through the runtime directory of your session (`XDG_RUNTIME_DIR`), without the AppArmor profile of Docker, which the session bus refuses (see `infrastructure/docker/docker-compose.desktop.yml`). Its data directory is then in `.home/.local/share/`.
 
 ### Smoke tests
 
 ```bash
-castor nativella:smoke [symfony]
+castor nativella:smoke [symfony] [--static]
 ```
 
 Serves requests to each demo through the runtime, without any window (`cargo run -p nativella-runtime --example request`): the `app.booted` event, which migrates the database, then the home page. Each demo gets an empty data directory (`NATIVELLA_DATA_DIR`), under `.home/.local/share/nativella-smoke/`.
@@ -133,11 +154,11 @@ Serves requests to each demo through the runtime, without any window (`cargo run
 ### Standalone executables
 
 ```bash
-castor nativella:build [symfony] [--static]
+castor nativella:build [symfony]
 castor nativella:package
 ```
 
-`nativella:build` builds `dist/nativella`, then the standalone executable of each demo (`dist/symfony`…), in release mode, in the builder. Each demo ships staged for production in `target/nativella/stage/`: without its dev dependencies, in the production environment. The executables link the libphp and the WebKitGTK of the image (Debian 13), dynamically, or the static PHP below with `--static`, in the `static` image. `nativella:package` copies them to `release/`, named after the platform, with their checksums, as the releases publish them. On Linux, it refuses an executable that needs a glibc newer than the one of Ubuntu 22.04: one built without `--static`.
+`nativella:build` builds `dist/nativella`, then the standalone executable of each demo (`dist/symfony`…), in release mode, in the builder. Each demo ships staged for production in `target/nativella/stage/`: without its dev dependencies, in the production environment. The executables link the static PHP below, as the releases do, in the `static` image, and carry it; `--no-static` links [the PHP of the system](#the-php-of-the-system) instead. `nativella:package` copies them to `release/`, named after the platform, with their checksums, as the releases publish them. On Linux, it refuses an executable that needs a glibc newer than the one of Ubuntu 22.04: one built with `--no-static`.
 
 ### Static PHP
 
@@ -149,9 +170,28 @@ Builds PHP as a static library with [static-php-cli](https://github.com/crazywha
 
 On Linux, it builds in the `static` image, which the task builds first: Ubuntu 22.04, with Rust and the libraries of Tauri, but no PHP. An executable needs the glibc it was built with, or a newer one: built on Debian 13, like the builder, it would need glibc 2.41, which not even Ubuntu 24.04 has. Built there, it runs on Ubuntu 22.04 and later, Debian 12 and later. static-php-cli builds PHP against that glibc, with zig, as WebKitGTK is linked against it too.
 
-`--static` on `nativella:run`, `nativella:build`, `nativella:smoke` and `qa:rust` links it, in the `static` image too, in a target directory of its own (`target/docker-static/`, `target/static/` on the host): the executables then need no PHP on the machine. That is how macOS gets a PHP, which Homebrew does not ship as a library. There is no `php.ini`: PHP runs with its defaults, plus the settings Nativella sets.
+`nativella:build` links it, and so does `--static` on `nativella:run`, `nativella:smoke` and `qa:rust`, in the `static` image too, in a target directory of its own (`target/docker-static/`, `target/static/` on the host): the executables then need no PHP on the machine. That is how macOS gets a PHP, which Homebrew does not ship as a library. There is no `php.ini`: PHP runs with its defaults, plus the settings Nativella sets.
 
 An embed-only PHP has no `php` binary for ext-php-rs to ask `php -i`: the stand-in `mobile/php/php` describes it from its headers, as it does for the PHP of phones.
+
+### The PHP of the system
+
+Without `--static`, `nativella:run`, `nativella:smoke` and `qa:rust` link the PHP of the system, dynamically, and so does `nativella:build` with `--no-static`: in the builder, the `libphp` of its image (Debian 13); on your machine, the one of your distribution. Nothing to build first, which suits the checks: the Linux jobs of the CI run `qa:rust` and `nativella:smoke` this way, and the static PHP in a job of its own. The executables need that PHP on the machine that runs them (`libphp`, its extensions and its `php.ini`), and a glibc as recent as the one they were built with: they are for development only. On your machine, the tasks check that it is there first, and say what is missing.
+
+On your machine, on Ubuntu 26.04, besides the [packages of Tauri](#on-your-machine):
+
+```bash
+sudo apt install libphp8.5-embed php8.5-dev php8.5-cli php8.5-sqlite3
+```
+
+| Package | What for |
+|---|---|
+| `libphp8.5-embed` | PHP as a shared library (`libphp.so`), with the embed SAPI. |
+| `php8.5-dev` | The headers of PHP, to compile the runtime against them. |
+| `php8.5-cli` | `php -i`, which ext-php-rs reads to generate its bindings. Keep it on the same version as the embedded PHP. |
+| `php8.5-sqlite3` | SQLite and `pdo_sqlite`, for the [database](database.md). |
+
+Add the extensions an application needs: `php8.5-mbstring`, `php8.5-xml`, `php8.5-intl`… Debian enables an extension for every SAPI, including the embedded one: they show up in `/etc/php/8.5/embed/conf.d/`, next to its `php.ini`. `cargo install --locked --path crates/nativella` then installs a `nativella` command linked against this PHP, in `~/.cargo/bin`.
 
 ### Android and iOS
 
@@ -193,8 +233,8 @@ The workflows of `.github/workflows/` run Castor tasks in the same stack:
 
 | Workflow | When | What |
 |---|---|---|
-| `ci.yml` | Pull requests, `main`, weekly | `castor start`, the PHP checks and tests, the frontend over HTTPS (`castor qa:frontend`); in parallel, `castor qa:rust` and `castor nativella:smoke`, in the builder and on macOS (arm64, the host context, with the static PHP); the static PHP on Linux, in the `static` image: `castor nativella:smoke --static`, then `castor nativella:build --static` and `castor nativella:package`, as the release does; hadolint on the Dockerfile. |
+| `ci.yml` | Pull requests, `main`, weekly | `castor start`, the PHP checks and tests, the frontend over HTTPS (`castor qa:frontend`); in parallel, `castor qa:rust` and `castor nativella:smoke`, in the builder and on macOS (arm64, the host context, with the static PHP); the static PHP on Linux, in the `static` image: `castor nativella:smoke --static`, then `castor nativella:build` and `castor nativella:package`, as the release does; hadolint on the Dockerfile. |
 | `website.yml` | Changes to `website/`, `docs/` or `tools/mkdocs/` | `castor website:build`, which fails on a broken link; on `main`, deploys `website/dist/` to GitHub Pages: the landing page, and the documentation under `docs/`. Pages must be set to "GitHub Actions" in the settings of the repository. |
 | `mobile.yml` | Changes to `crates/`, `mobile/`, `packages/`, `demos/symfony/` or the Docker stack, manually | `castor mobile:android symfony`: the APK as an artifact. Then, experimentally, `castor mobile:ios symfony` on macOS, with the bundle of the Android job, and `castor mobile:ios-simulator symfony`: the simulator app, its screenshot and its output as artifacts. |
-| `release.yml` | `v*` tags, manually | `castor nativella:build --static` and `castor nativella:package`: the Linux x86_64 executables, in the `static` image, and the macOS arm64 ones; as artifacts and, for a tag, on the GitHub release. |
+| `release.yml` | `v*` tags, manually | `castor nativella:build` and `castor nativella:package`: the Linux x86_64 executables, in the `static` image, and the macOS arm64 ones; as artifacts and, for a tag, on the GitHub release. |
 | `cache.yml` | Changes to `infrastructure/docker/` on `main` | `castor docker:push`: pushes the build cache of the images to `ghcr.io/lyrixx/nativella`, which the other workflows build from. |

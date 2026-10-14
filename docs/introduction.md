@@ -47,7 +47,7 @@ A desktop application has no server to deploy to and no database server to conne
 
 ## One file to hand over
 
-`nativella build` writes a single executable that carries your project. Today that executable still needs PHP's shared library on the machine: static linking of PHP is in progress. See [Building a standalone app](building.md).
+`nativella build` writes a single executable that carries your project and PHP itself, linked statically: your users install neither PHP nor Composer. On Linux, the webview of the system is all it needs. See [Building a standalone app](building.md).
 
 ## On a phone, too
 
@@ -65,7 +65,7 @@ It is not a good fit, yet, for:
 
 - an application that must ship on macOS or Windows today: both are untested;
 - long requests or many busy windows: one PHP thread serves every request, one at a time;
-- end users without PHP on their machine: the static build is not done.
+- long requests or many busy windows: one PHP thread serves every request, one at a time.
 
 ## Status
 

@@ -44,22 +44,19 @@ Nativella is experimental. This page lists what does not work, what is untested 
 
 ## Distribution
 
-- **PHP on the machine, by default.** [`nativella build`](building.md) packs the project, not PHP: the machine needs `libphp`, the extensions and the `php.ini` of the system, and WebKitGTK. Unless the `nativella` command itself was [built against a static PHP](building.md#without-php-on-the-machine).
+- **A fixed PHP.** The executable carries [the PHP of the `nativella` command](building.md#the-php-inside): its extensions are those of the build, without intl, and it has no `php.ini`.
 - **No installers.** No `.deb`, `.dmg` or `.msi`, no code signing, no updates.
 - **No secrets.** Everything in the project ships, readable by anyone who has the executable.
 
 ## Roadmap
-
-In progress:
-
-- **Static PHP by default.** Static linking works on Linux ([Building](building.md#without-php-on-the-machine)), but it is a separate build: release executables of Nativella should come with it, and with a `php.ini` of their own. Then bundle with `tauri build`.
 
 Next:
 
 - **Worker mode**: boot the framework once, and loop over requests. ext-php-rs ships `worker_request_startup()` and `worker_request_shutdown()`; on the PHP side, it is a `symfony/runtime` runner, as with FrankenPHP.
 - **ZTS and several PHP threads**, so that a slow request or a dialog does not hold back the others.
 - **macOS and Windows**: build, test, fix.
-
-- **Mobile**: more [phone APIs](phone-apis.md) (camera, sharing, push notifications), PHP builds of Nativella's own, and iOS. See [Mobile](mobile.md).
+- **Extensions and `php.ini`**: let an application pick the extensions of its PHP, intl among them, and its settings.
+- **Installers**: bundle with `tauri build`.
+- **Mobile**: more [phone APIs](phone-apis.md) (camera, sharing, push notifications), PHP builds of Nativella's own, iOS on a device. See [Mobile](mobile.md).
 
 Found something that is not on this page? [Open an issue](https://github.com/lyrixx/nativella/issues).

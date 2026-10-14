@@ -7,7 +7,7 @@ Nativella is young and experimental. Linux is the platform it is built and teste
 ## Start here
 
 - [Introduction](introduction.md): what Nativella is, what it is not, and when it fits.
-- [Installation](installation.md): the system packages, the `nativella` command and the PHP package.
+- [Installation](installation.md): the `nativella` command, with PHP inside, and the PHP package.
 - [Getting started](getting-started.md): from an empty directory to a desktop application, in plain PHP.
 - [Configuration](configuration.md): the `extra.nativella` section of `composer.json`, and the environment.
 

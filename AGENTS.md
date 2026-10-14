@@ -37,14 +37,14 @@ castor builder                                                # a shell, in /var
 The builder also holds the Rust toolchain, libphp and WebKitGTK: the crates build and are tested
 there (`castor qa:rust`), in their own target directory (`target/docker/`). The Android builds run
 in the `android` service: the builder, plus the Android SDK. The static PHP
-(`castor static-php:build`) and what links it (`--static`) build in the `static` service: Ubuntu
+(`castor static-php:build`) and what links it (`nativella:build`, `--static` elsewhere) build in the `static` service: Ubuntu
 22.04, for its old glibc, without PHP, so the projects are staged in the builder.
 
 **The exceptions are the desktop application and iOS**:
 
 - a window needs the display, so `castor nativella:run <demo>` runs cargo on the host (it needs
-  the system packages of [docs/installation.md](docs/installation.md)). `--docker` runs it in the
-  builder instead, on the Wayland/X11 display of the host;
+  the system packages of [docs/development.md](docs/development.md#on-your-machine)). `--docker`
+  runs it in the builder instead, on the Wayland/X11 display of the host;
 - `castor mobile:ios <demo>` needs Xcode, on a Mac.
 
 Host prerequisites: Docker, Castor (and, for `nativella:run` on the host, Rust and the Ubuntu
@@ -68,8 +68,8 @@ castor migrate                   # migrate the databases of the demos, for the f
 castor website:build             # website/dist/, and the documentation in website/dist/docs/
 castor nativella:run symfony     # the Symfony demo, as a desktop application (host)
 castor nativella:smoke           # each demo answers through the runtime, without a window
-castor nativella:build [demo]    # dist/nativella and the standalone executables of the demos (staged for production)
-castor static-php:build          # PHP as a static library, for --static (nativella:build, qa:rust…), in the static service
+castor nativella:build [demo]    # dist/nativella and the standalone executables of the demos, with the static PHP (staged for production)
+castor static-php:build          # PHP as a static library, for nativella:build and --static (qa:rust…), in the static service
 castor mobile:android symfony    # an Android APK of the demo (android service)
 castor mobile:ios symfony        # an iOS simulator app of the demo (macOS), then mobile:ios-simulator
 castor logs [--service=service]  # logs (frontend, router)

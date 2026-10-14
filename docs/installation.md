@@ -1,6 +1,6 @@
 # Installation
 
-The `nativella` command opens a PHP project in a window, and builds it into a standalone executable. The [releases](https://github.com/lyrixx/nativella/releases) have it for Linux x86_64 and macOS arm64, with PHP inside: download it, or build it from source.
+The `nativella` command opens a PHP project in a window, and builds it into a standalone executable. It carries its own PHP: nothing else to install, apart from the webview of the system on Linux. The [releases](https://github.com/lyrixx/nativella/releases) have it for Linux x86_64 and macOS arm64.
 
 ## Download
 
@@ -29,56 +29,13 @@ The executable is not signed: downloaded with a browser, it is quarantined, and 
 
 ### What is inside
 
-The executable carries PHP 8.5, built with [static-php-cli](https://github.com/crazywhalecc/static-php-cli), with the extensions a Symfony, Laravel or Doctrine application needs: see [Building](building.md#without-php-on-the-machine) for the list. The PHP of the machine, if any, is only for your project: Composer, the console. Check that it runs:
+The executable carries PHP 8.5, linked statically, built with [static-php-cli](https://github.com/crazywhalecc/static-php-cli), with the extensions a Symfony, Laravel or Doctrine application needs: see [Building](building.md#the-php-inside) for the list. The PHP of the machine, if any, is only for your project: Composer, the console. Check that it runs:
 
 ```bash
 nativella --version
 ```
 
 `nativella --help` lists the commands: `run` opens a project in a window, `build` makes a [standalone executable](building.md) of it.
-
-## Build from source
-
-A Rust toolchain compiles the `nativella` command, which links against the PHP of the system. Ubuntu 26.04 is the platform it is developed and tested on.
-
-### System packages
-
-On Ubuntu 26.04:
-
-```bash
-sudo apt install libphp8.5-embed php8.5-dev php8.5-cli php8.5-sqlite3 \
-    libclang-dev libwebkit2gtk-4.1-dev libxdo-dev librsvg2-dev
-```
-
-| Package | What for |
-|---|---|
-| `libphp8.5-embed` | PHP as a shared library (`libphp.so`): the PHP that Nativella embeds. |
-| `php8.5-dev` | The headers of PHP, to compile the runtime against them. |
-| `php8.5-cli` | PHP on the command line, for Composer. Keep it on the same version as the embedded PHP. |
-| `php8.5-sqlite3` | SQLite and `pdo_sqlite`, for the [database](database.md). |
-| `libclang-dev` | The PHP bindings are generated with clang (bindgen, through ext-php-rs). |
-| `libwebkit2gtk-4.1-dev` | WebKitGTK, the webview of the windows. |
-| `libxdo-dev`, `librsvg2-dev` | Libraries Tauri needs on Linux. |
-
-Add the extensions your application needs: `php8.5-mbstring`, `php8.5-xml`, `php8.5-intl`… Debian enables an extension for every SAPI, including the embedded one: they show up in `/etc/php/8.5/embed/conf.d/`, next to its `php.ini`.
-
-> [!TIP]
-> Without `libclang-dev`, bindgen misses the builtin headers of clang (`stddef.h` not found). Pointing it at an extracted `libclang-common-21-dev` works too:
-> `BINDGEN_EXTRA_CLANG_ARGS="-isystem …/usr/lib/llvm-21/lib/clang/21/include"`.
-
-### Rust
-
-A recent stable Rust, 1.88 or later: the crates use the 2024 edition. [rustup](https://rustup.rs) installs it.
-
-### The `nativella` command
-
-```bash
-git clone https://github.com/lyrixx/nativella.git
-cd nativella
-cargo install --locked --path crates/nativella
-```
-
-`nativella` lands in `~/.cargo/bin`. Check that it runs: `nativella --version`.
 
 ## The PHP package
 
@@ -118,6 +75,12 @@ Composer symlinks path repositories into `vendor/`. That is fine: [`nativella bu
 nativella run path/to/your/app
 ```
 
+## Build from source
+
+The releases are built from the repository, with its Docker stack: `castor static-php:build` builds the static PHP, `castor nativella:build` links `dist/nativella` against it. See [Developing Nativella](development.md#static-php).
+
 ## Other platforms
 
 On macOS, the CI builds Nativella and runs its tests and the demos, without a window: nobody has opened one there yet. Windows is untested: the code has the platform switches Tauri needs (pages are served from `http://php.localhost/` instead of `php://localhost/`), but nobody has built Nativella there yet. It would need PHP for Windows, static or as a library, and WebView2, which ships with Windows 11. Reports and patches are welcome.
+
+Phones are a separate build, from the repository: Android, and iOS in the simulator. See [Mobile](mobile.md).

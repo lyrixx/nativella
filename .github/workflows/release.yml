@@ -83,7 +83,7 @@ jobs:
               run: "castor install"
 
             - name: "Build the executables"
-              run: "castor nativella:build --static"
+              run: "castor nativella:build"
 
             # And checks that they run on the glibc of Ubuntu 22.04
             - name: "Name the executables after the platform"
@@ -133,7 +133,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: "Build the executables"
-              run: "castor nativella:build --static"
+              run: "castor nativella:build"
 
             - name: "Name the executables after the platform"
               run: "castor nativella:package"

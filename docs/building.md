@@ -1,6 +1,6 @@
 # Building a standalone app
 
-`nativella build` turns a project into a single executable: a copy of the `nativella` command with the project packed inside. Run it, and the application starts.
+`nativella build` turns a project into a single executable: a copy of the `nativella` command, PHP included, with the project packed inside. Run it, and the application starts: the machine needs no PHP.
 
 ```bash
 cd path/to/notes
@@ -67,29 +67,21 @@ Then the application runs exactly as with `nativella run`. Its command line belo
 
 The [data directory](configuration.md#the-data-directory) is separate from the extracted project: the database and the settings survive updates, as long as the identifier does not change.
 
-## What the machine still needs
+## What the machine needs
 
-By default, the executable carries your project, not PHP: it uses the PHP and the webview of the system, so the target machine needs their runtime packages, without the `-dev` ones:
-
-```bash
-sudo apt install libphp8.5-embed php8.5-sqlite3 libwebkit2gtk-4.1-0
-```
-
-plus the PHP extensions your application uses, and `libayatana-appindicator3-1` for a [tray](tray.md) icon, which Ubuntu desktops have: without it, the application stops when it shows the icon. The embedded PHP reads the `php.ini` of the system, `/etc/php/8.5/embed/php.ini`.
-
-## Without PHP on the machine
-
-Built with a static PHP, the `nativella` command makes executables that carry their own PHP: the machine only needs the webview (`libwebkit2gtk-4.1-0` on Linux) and a glibc as recent as the one of the build machine.
-
-The `nativella` of the [releases](https://github.com/lyrixx/nativella/releases) is built this way, so the executables it makes are too. On Linux, it is built on Ubuntu 22.04, for its glibc, 2.35: they run on Ubuntu 22.04 and later, Debian 12 and later. From the repository, with [its Docker stack](development.md):
+The executable carries the project and PHP: the machine needs neither PHP nor Composer. On Linux, it needs the webview of the system, WebKitGTK, and a glibc as recent as the one of the machine that built the `nativella` command: 2.35 for the releases, built on Ubuntu 22.04, so Ubuntu 22.04 and later, Debian 12 and later.
 
 ```bash
-castor static-php:build              # PHP and its libraries, with static-php-cli, on Ubuntu 22.04
-castor nativella:build --static      # dist/nativella, and the demos, linked against it
-dist/nativella build path/to/project -o dist/my-app
+sudo apt install libwebkit2gtk-4.1-0
 ```
 
-The Symfony demo makes a 66 MB executable this way. That PHP has the extensions a Symfony, Laravel or Doctrine application needs (bcmath, ctype, curl, dom, fileinfo, filter, iconv, mbstring, opcache, openssl, pdo_sqlite, phar, session, simplexml, sodium, sqlite3, tokenizer, xml, xmlreader, xmlwriter, zip, zlib), but not intl, and no `php.ini`: PHP runs with its defaults, plus the settings Nativella sets (sessions in the cache directory of the application, the time zone of the system). See [Developing Nativella](development.md#static-php).
+An application with a [tray](tray.md) icon needs `libayatana-appindicator3-1` too, which Ubuntu desktops have: without it, the application stops when it shows the icon. On macOS, the executable needs nothing.
+
+## The PHP inside
+
+The executable carries the PHP of the `nativella` command that built it: for the [releases](https://github.com/lyrixx/nativella/releases), PHP 8.5, linked statically, built with [static-php-cli](https://github.com/crazywhalecc/static-php-cli). The Symfony demo makes a 66 MB executable.
+
+It has the extensions a Symfony, Laravel or Doctrine application needs (bcmath, ctype, curl, dom, fileinfo, filter, iconv, mbstring, opcache, openssl, pdo_sqlite, phar, session, simplexml, sodium, sqlite3, tokenizer, xml, xmlreader, xmlwriter, zip, zlib), but not intl, and no `php.ini`: PHP runs with its defaults, plus the settings Nativella sets (sessions in the cache directory of the application, the time zone of the system).
 
 > [!NOTE]
 > Installers (`.deb`, `.dmg`, `.msi`), code signing and updates are not there yet. See [Limitations and roadmap](limitations.md#distribution).
