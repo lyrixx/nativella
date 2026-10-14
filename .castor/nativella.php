@@ -226,6 +226,20 @@ function smoke(
 }
 
 /**
+ * What mobile:android and mobile:ios compile into the application: for the
+ * Mobile workflow, whose macOS runners have no Docker to make it.
+ */
+#[AsTask(name: 'bundle', description: 'Bundles a demo for a phone, staged for production, into target/nativella/app.bundle')]
+function bundle_demo(
+    #[AsArgument(description: 'The demo to bundle, e.g. symfony', autocomplete: 'project\complete_demo_names')]
+    string $demo,
+): void {
+    io()->title("Bundling demos/{$demo}");
+
+    io()->success('The bundle: '.bundle(demo($demo)));
+}
+
+/**
  * Copies a project to target/nativella/stage/ and prepares it for production
  * there: the dependencies without the dev ones, copied rather than linked
  * from the path repositories of the demos, and the production environment.

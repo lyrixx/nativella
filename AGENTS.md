@@ -72,6 +72,7 @@ castor nativella:build [demo]    # dist/nativella and the standalone executables
 castor static-php:build          # PHP as a static library, for nativella:build and --static (qa:rust…), in the static service
 castor mobile:android symfony    # an Android APK of the demo (android service), then mobile:android-emulator
 castor mobile:ios symfony        # an iOS simulator app of the demo (macOS), then mobile:ios-simulator
+castor nativella:bundle symfony  # the bundle a phone build compiles, made in Docker (mobile:ios --bundle)
 castor logs [--service=service]  # logs (frontend, router)
 ```
 
