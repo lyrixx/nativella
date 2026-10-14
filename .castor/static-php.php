@@ -62,8 +62,8 @@ function build(
     $buildroot = variable('root_dir').'/static-php/buildroot';
     $stamp = "{$buildroot}/.nativella-build";
     $build = SPC_VERSION.' '.PHP_BRANCH.' '.builder_platform().' '.EXTENSIONS;
-    if (!context()['run_on_host']) {
-        $build .= ' glibc '.GLIBC_VERSION;
+    if (null !== $target = zig_target()) {
+        $build .= ' '.$target;
     }
 
     if (!$force && is_file($stamp) && file_get_contents($stamp) === $build) {
@@ -157,6 +157,24 @@ function missing_system_php(): array
     return $missing;
 }
 
+/**
+ * On Linux, static-php-cli builds with zig, for the glibc of the static
+ * service, as the rest of the application (WebKitGTK) links against it, and
+ * for the baseline of the architecture. Not for "native", the processor of
+ * the build machine: the executables would stop with an illegal instruction
+ * on an older one, as on a runner of the CI that restored the PHP another
+ * one had built.
+ */
+function zig_target(): ?string
+{
+    $platform = builder_platform();
+    if (!str_starts_with($platform, 'linux-')) {
+        return null;
+    }
+
+    return substr($platform, \strlen('linux-')).'-linux-gnu.'.GLIBC_VERSION;
+}
+
 function build_php(): void
 {
     $dir = variable('root_dir').'/static-php';
@@ -172,9 +190,8 @@ function build_php(): void
         fs()->remove("{$dir}/spc.tar.gz");
     }
 
-    // On Linux, linked against the glibc of the system, as the rest of the
-    // application (WebKitGTK) is: static-php-cli builds with zig for that
-    $environment = str_starts_with(builder_platform(), 'linux-') ? ['SPC_TARGET' => 'native-native-gnu'] : [];
+    $target = zig_target();
+    $environment = null === $target ? [] : ['SPC_TARGET' => $target];
 
     run_in_builder(['./spc', 'doctor', '--auto-fix'], $workDir, $environment, SERVICE);
     run_in_builder(['./spc', 'download', '--for-extensions='.EXTENSIONS, '--with-php='.PHP_BRANCH, '--prefer-pre-built'], $workDir, $environment, SERVICE);
