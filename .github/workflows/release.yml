@@ -52,6 +52,9 @@ jobs:
               with:
                   path: static-php/buildroot
                   key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
+                  # An older one too: static-php:build builds again only if the
+                  # versions or the extensions changed, not the rest of the file
+                  restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
 
             # The cargo registry and the target directory of the static image
             # (see its CARGO_HOME and CARGO_TARGET_DIR)
@@ -124,6 +127,9 @@ jobs:
               with:
                   path: static-php/buildroot
                   key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
+                  # An older one too: static-php:build builds again only if the
+                  # versions or the extensions changed, not the rest of the file
+                  restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
 
             # static-php-cli asks the GitHub API for its downloads: without a
             # token, the runners share its rate limit

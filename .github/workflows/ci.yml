@@ -171,6 +171,9 @@ jobs:
                       target/docker-static
                   key: cargo-static-${{ hashFiles('Cargo.lock', 'infrastructure/docker/services/php/Dockerfile') }}
                   restore-keys: cargo-static-
+                  # An older one too: static-php:build builds again only if the
+                  # versions or the extensions changed, not the rest of the file
+                  restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
 
             # The builder installs and stages the projects
             - name: "Build the builder"
@@ -242,6 +245,9 @@ jobs:
                   restore-keys: cargo-${{ runner.os }}-${{ runner.arch }}-
 
             # static-php-cli asks the GitHub API for its downloads: without a
+                  # An older one too: static-php:build builds again only if the
+                  # versions or the extensions changed, not the rest of the file
+                  restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
             # token, the runners share its rate limit
             - name: "Build PHP as a static library"
               run: "castor static-php:build"
