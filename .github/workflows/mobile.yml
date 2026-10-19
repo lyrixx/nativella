@@ -45,9 +45,9 @@ permissions:
 env:
     # Fix for symfony/color detection. We know GitHub Actions can handle it
     ANSICON: 1
-    # As in rust.yml: no incremental compilation, no debug info. The Bundle
-    # job restores the build of rust.yml: built with them, it is of use only
-    # with them too
+    # As in rust.yml: no incremental compilation, no debug info, but line
+    # tables for the iOS job (see there). The Bundle job restores the build of
+    # rust.yml: built with them, it is of use only with them too
     CARGO_INCREMENTAL: 0
     CARGO_PROFILE_DEV_DEBUG: 0
     CASTOR_CONTEXT: ci
@@ -238,6 +238,12 @@ jobs:
         runs-on: macos-latest
         timeout-minutes: 60
         env:
+            # Line tables, not no debug info: swift-rs builds the Swift of
+            # Tauri in debug only when cargo builds with debug info (its DEBUG
+            # variable), and only a debug build of it sends what the app
+            # writes to the log of the system, where mobile:ios-simulator reads
+            # that PHP answered
+            CARGO_PROFILE_DEV_DEBUG: line-tables-only
             # No Docker on macOS runners: the tasks run on the runner itself
             CASTOR_CONTEXT: host
         steps:
