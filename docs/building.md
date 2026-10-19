@@ -42,7 +42,7 @@ The caches, logs and sessions of your machine stay behind, but the directories s
 Symbolic links are followed, so the packages Composer links from [path repositories](installation.md#the-php-package) ship as real files.
 
 > [!WARNING]
-> Everything else ships, and anyone who has the executable can read it: `.env` files, keys, credentials. A desktop application has no secrets from its users. Keep out of the project anything they should not see.
+> Everything else ships, and anyone who has the executable can read it: `.env` files, keys, credentials. A desktop application has no secrets from its users. Keep out of the project anything they should not see: [Credentials](#credentials) says where each kind goes.
 
 ## Preparing the project
 
@@ -50,6 +50,19 @@ Symbolic links are followed, so the packages Composer links from [path repositor
 - Build the front-end assets, if you have any: `node_modules` stays behind, `public/build` does not.
 - Set the production environment. With Symfony, `composer dump-env prod` writes `.env.local.php`, which ships (its name does not end with `.local`) and wins over the `.env` files.
 - Avoid caches that hold absolute paths of your machine, like Laravel's `config:cache`: once extracted, the project runs from another directory.
+
+## Credentials
+
+The users of the application can read whatever ships: the project is extracted in clear into their cache directory, and no packaging hides it. Where a credential comes from decides where it goes:
+
+| Credential | Where it goes |
+|---|---|
+| The secret the framework signs and encrypts with: Symfony's `APP_SECRET`, Laravel's `APP_KEY` | Nowhere: each installation has its own, `NATIVELLA_SECRET`. The [Laravel](laravel.md#the-encryption-key) integration gives it to the framework; with Symfony, a line of `framework.yaml` [does](symfony.md#the-secret). |
+| The credentials of the user: a token, the password of an account, a key they bring | Asked for in the application, and kept in the keychain of the system with [`Secrets`](secrets.md). |
+| Your own credentials: the key of a paid API, a token with rights on your services | Not in the application: on a server of yours, which keeps them, does the calls, and authenticates the users of the application. |
+| Keys made to be public: a Sentry DSN, a publishable Stripe key, a key restricted to one use | In the configuration that ships, like `.env.local.php`. |
+
+A release built by a CI can write the `.env.local.php` of `composer dump-env prod` from the secrets of the CI, just before `nativella build`: what it holds still ships, in clear. Keep it for what may be public.
 
 ## At startup
 
