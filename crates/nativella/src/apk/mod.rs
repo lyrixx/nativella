@@ -20,6 +20,7 @@
 
 mod manifest;
 mod signing;
+mod string_pool;
 mod zip;
 
 use std::fs::{self, File, OpenOptions};
