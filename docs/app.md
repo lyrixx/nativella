@@ -18,6 +18,7 @@ $app->setBadgeCount(3);
 |---|---|
 | `info(): AppInfo` | The name, version and identifier of the application, from [`composer.json`](configuration.md), and the version of Nativella. |
 | `path(Directory $directory): string` | The absolute path of a directory of the user or of the application. |
+| `thirdPartyNotices(): ?string` | The [licenses](building.md#licenses) of the software the application contains, PHP and the libraries of Nativella, for an "about" page. Null when the `nativella` command is a development build, which has none. |
 | `quit(): void` | Quits, once the current request is answered. |
 | `restart(): void` | Restarts, once the current request is answered. |
 | `hide(): void` | Hides every window of the application. macOS only. |

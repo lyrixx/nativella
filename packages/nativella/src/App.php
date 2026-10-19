@@ -27,6 +27,17 @@ final readonly class App
     }
 
     /**
+     * The licenses of the software the application contains (PHP, its
+     * libraries, the Rust crates of Nativella…), which they ask to show or
+     * to ship with it: for an "about" page. Null when running from a
+     * development build of Nativella, which has none.
+     */
+    public function thirdPartyNotices(): ?string
+    {
+        return $this->client->call('app.thirdPartyNotices')['text'];
+    }
+
+    /**
      * Quits once the current request is answered.
      */
     public function quit(): void

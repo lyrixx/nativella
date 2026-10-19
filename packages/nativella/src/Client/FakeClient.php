@@ -18,6 +18,7 @@ final class FakeClient implements Client
     private const array DEFAULTS = [
         'app.info' => ['name' => 'Nativella', 'version' => '0.1.0', 'identifier' => 'dev.nativella.app', 'nativellaVersion' => '0.1.0'],
         'app.isAutostartEnabled' => ['enabled' => false],
+        'app.thirdPartyNotices' => ['text' => null],
         'biometrics.authenticate' => ['authenticated' => false],
         'biometrics.isAvailable' => ['available' => false],
         'childProcess.all' => ['processes' => []],

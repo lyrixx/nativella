@@ -92,6 +92,10 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
                 .after_queued(move || handle.request_restart());
             Ok(json!({}))
         }
+        // Null in a development build, which has none.
+        "thirdPartyNotices" => crate::notices::text()
+            .map(|text| json!({ "text": text }))
+            .map_err(failed),
         "hide" => hide(app).map(|()| json!({})),
         "show" => show(app).map(|()| json!({})),
         #[cfg(desktop)]

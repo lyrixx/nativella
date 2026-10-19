@@ -6,7 +6,6 @@
 //! `nativella build` makes of it. An Android application carries them as an
 //! asset of its APK instead, from the template.
 
-#[cfg(not(target_os = "android"))]
 use std::io::{self, Read};
 
 /// The name of the notices: next to the executables `nativella build`
@@ -26,6 +25,19 @@ pub fn text() -> io::Result<Option<String>> {
 
     let mut text = String::new();
     flate2::read::GzDecoder::new(COMPRESSED).read_to_string(&mut text)?;
+
+    Ok(Some(text))
+}
+
+/// The notices of the application: the asset [`FILE`] of its APK.
+#[cfg(target_os = "android")]
+pub fn text() -> io::Result<Option<String>> {
+    let Some(mut asset) = crate::embedded::asset::open(FILE)? else {
+        return Ok(None);
+    };
+
+    let mut text = String::new();
+    asset.read_to_string(&mut text)?;
 
     Ok(Some(text))
 }

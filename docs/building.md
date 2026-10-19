@@ -107,7 +107,7 @@ Done: dist/notes
 
 To distribute the application:
 
-- ship `THIRD_PARTY_NOTICES.txt` with the executable, in the same archive or installer, or show it in the application, in an "about" page;
+- ship `THIRD_PARTY_NOTICES.txt` with the executable, in the same archive or installer, or show it in the application, in an "about" page: [`App::thirdPartyNotices()`](app.md#methods) returns it;
 - add the licenses of what your project ships: the Composer packages of `vendor/` (`composer licenses` lists them), the front-end libraries.
 
 The libraries of the system the executable loads are not part of it, and need no notice: glibc, libstdc++ and WebKitGTK on Linux, the frameworks of macOS. The releases attach the notices of each platform too, `THIRD_PARTY_NOTICES-<platform>.txt`. A `nativella` built without them, by `cargo build` rather than [`castor nativella:build`](development.md#standalone-executables), says so, and `nativella build` warns.
