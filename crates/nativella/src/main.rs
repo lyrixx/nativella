@@ -9,12 +9,15 @@ use nativella_lib::apk::{self, Key};
 use nativella_lib::{Project, embedded};
 
 const USAGE: &str = "Usage:
-  nativella [run] [<project-dir>]                  Run a PHP project as a desktop application
+  nativella run [<project-dir>]                    Run a PHP project as a desktop application
   nativella build [<project-dir>] [-o <output>]    Build a standalone executable of the project
   nativella android [<project-dir>] --template <apk> [--key <pem>] [-o <output>]
                                                    Make an Android application (APK) of the project
-  nativella bundle [<project-dir>] [-o <output>]   Bundle the project for an iOS build (NATIVELLA_BUNDLE)
-  nativella --version";
+  nativella bundle [<project-dir>] [-o <output>]   Pack the project into a file to embed in an iOS app
+  nativella --version                              Print the version
+
+The project directory defaults to the current one.
+Documentation: https://lyrixx.github.io/nativella/docs/";
 
 fn main() -> ExitCode {
     // A standalone application runs its own project, whatever its arguments:
@@ -29,7 +32,6 @@ fn main() -> ExitCode {
     let command = args.next();
 
     match command.as_deref() {
-        None => load(None).map_or_else(|error| fail(&error), run),
         Some("run") => load(args.next()).map_or_else(|error| fail(&error), run),
         Some("build") => package(args, Package::Executable),
         Some("android") => package(args, Package::Android),
@@ -38,13 +40,9 @@ fn main() -> ExitCode {
             println!("nativella {}", env!("CARGO_PKG_VERSION"));
             ExitCode::SUCCESS
         }
-        Some("-h" | "--help" | "help") => {
+        None | Some("-h" | "--help" | "help") => {
             println!("{USAGE}");
             ExitCode::SUCCESS
-        }
-        // `nativella path/to/project`
-        Some(dir) if !dir.starts_with('-') => {
-            load(Some(dir.to_owned())).map_or_else(|error| fail(&error), run)
         }
         Some(other) => fail(&format!("Unknown command \"{other}\".\n\n{USAGE}")),
     }
