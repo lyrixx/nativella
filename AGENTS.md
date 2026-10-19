@@ -40,7 +40,8 @@ castor builder                                                # a shell, in /var
 
 The builder also holds the Rust toolchain, libphp and WebKitGTK: the crates build and are tested
 there (`castor qa:rust`), in their own target directory (`target/docker/`). The Android builds run
-in the `android` service: the builder, plus the Android SDK. The static PHP
+in the `android` service: the builder, plus the Android SDK, and so does the PHP of Android
+(`castor static-php:android`), which static-php-cli downloads in the builder. The static PHP
 (`castor static-php:build`) and what links it (`nativella:build`, `--static` elsewhere) build in the `static` service: Ubuntu
 22.04, for its old glibc, without PHP, so the projects are staged in the builder.
 
@@ -58,9 +59,8 @@ The `host` context (`castor --context=host …`) runs on the host what the build
 machines without Docker: the macOS runners of the CI. In a task, never write `/var/www`: take the
 paths of the commands from `builder_path()` (`.castor/docker.php`).
 
-No shell scripts: everything is a Castor task. The only executables left are the stand-ins of
-`mobile/php/`, which ext-php-rs runs as `php` and `php-config`, and the runit services of the
-image.
+No shell scripts: everything is a Castor task. The only executables left are the stand-in of
+`mobile/php/`, which ext-php-rs runs as `php`, and the runit services of the image.
 
 ## Essential commands
 
@@ -74,6 +74,8 @@ castor nativella:run symfony     # the Symfony demo, as a desktop application (h
 castor nativella:smoke           # each demo answers through the runtime, without a window
 castor nativella:build [demo]    # dist/nativella and the standalone executables of the demos, with the static PHP (staged for production) and the third-party notices
 castor static-php:build          # PHP as a static library, for nativella:build and --static (qa:rust…), in the static service
+castor static-php:android        # the same PHP for Android (android service), --abi=x86_64 for emulators
+castor static-php:ios            # the same PHP for iOS and its simulator (macOS)
 castor mobile:android-template   # the template APK that `nativella android` makes applications of (android service)
 castor mobile:android symfony    # the template, then the APK of the demo with `nativella android`, then mobile:android-emulator
 castor mobile:ios symfony        # an iOS simulator app of the demo (macOS), then mobile:ios-simulator

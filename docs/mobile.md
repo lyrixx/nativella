@@ -3,14 +3,14 @@
 Nativella builds Android and iOS applications from the same PHP project as the desktop one, with PHP inside. The three demos — [Symfony](../demos/symfony), [Laravel](../demos/laravel) and [plain PHP](../demos/vanilla) — run on Android: forms, sessions and CSRF tokens, the SQLite database and its migrations, native dialogs, the file picker and the clipboard. On iOS, the Symfony demo runs in the simulator.
 
 > [!WARNING]
-> Mobile support is experimental: Android (arm64, API level 28 or later) is tested on an emulator, iOS in the simulator, neither on a real phone. See [what is tested](#what-is-tested).
+> Mobile support is experimental: Android (arm64, and x86_64 for emulators, API level 28 or later) is tested on an emulator, iOS in the simulator, neither on a real phone. See [what is tested](#what-is-tested).
 
 ## How it differs from the desktop
 
 On a phone there is no `nativella` executable to append the project to: the application is a library that Android or iOS loads. So:
 
 - On Android, the library is built once per release, without any project, into a template APK: `nativella android` adds the project to it, packed the same way `nativella build` does, as an asset of the APK. On iOS, `nativella bundle` packs it into a file that the build compiles **into** the library (the `NATIVELLA_BUNDLE` variable). Either way, the application extracts it once per build, in its cache directory, at first launch.
-- PHP is linked statically: phones have no PHP to share. The build of the library downloads a static `libphp.a` built for the phone, with its headers (see [PHP for the phone](#php-for-the-phone)).
+- PHP is linked statically: phones have no PHP to share. The build of the library links the PHP of the desktop, built for the phone as a static `libphp.a`, with its libraries and its headers (see [PHP for the phone](#php-for-the-phone)).
 - Pages are served from `http://php.localhost/`, as Tauri does for custom schemes on Android. PHP sees that origin too.
 - Android's WebView drops the body of the requests it hands to the application: Nativella injects a script that sends the body of forms, `fetch()` and `XMLHttpRequest` to the runtime first, through Tauri's IPC. Synchronous `XMLHttpRequest` bodies cannot be captured.
 - What PHP writes to stderr goes to logcat, under the `nativella` tag.
@@ -75,7 +75,7 @@ The classes of the template keep their package, `dev.nativella.runtime`, which t
 
 As a [standalone executable](building.md#licenses), an APK contains the software of others, under their licenses: the PHP of the phone and its libraries, the Rust crates of the library, and the Java and Kotlin libraries of the Android project of Tauri (AndroidX, Kotlin, Google Play services for geolocation, under Google's terms). The template carries their third-party notices, and so does every APK made of it: the asset `THIRD_PARTY_NOTICES.txt`, which [`App::thirdPartyNotices()`](app.md#methods) returns, for an "about" page, since an application has no other place to show them. The releases attach them too, `THIRD_PARTY_NOTICES-android.txt`. Add the licenses of what your project ships, as on the desktop.
 
-The Rust crates and the Java libraries come from the build of the template: cargo-about, and the dependencies Gradle resolves, with the license their POM declares. NativePHP's build of PHP ships no license: the template takes the ones of the sources of PHP, in its version, and of its libraries, in their current one, as static-php-cli dumps them. Like the desktop one, that PHP links [LGPL](building.md#licenses) code statically: libbcmath and libmbfl, from the sources of its version of PHP, and GNU libiconv, whose version NativePHP does not publish. The notices give their sources, and `nativella android` packs an application again.
+The Rust crates and the Java libraries come from the build of the template: cargo-about, and the dependencies Gradle resolves, with the license their POM declares. PHP and its libraries come from [the build of PHP for the phone](#php-for-the-phone): static-php-cli dumps the licenses of their sources, as for the desktop, with the ones of what php-src bundles. Like the desktop one, that PHP links [LGPL](building.md#licenses) code statically: libbcmath and libmbfl, inside php-src, and GNU libiconv. The notices give the version of each and the URL of its source archive, and `nativella android` packs an application again.
 
 ### From the repository
 
@@ -99,7 +99,7 @@ castor mobile:android-emulator symfony
 
 installs the APK afresh, without the data of a previous install, on the emulator, or the phone, that `adb` sees (from `ANDROID_HOME`, or `PATH`), opens it, and waits for PHP to answer a page: it fails if PHP answers none within 2 minutes, or if the app stops. The screenshot and what the app wrote to logcat land in `target/nativella/`.
 
-Without Docker, `castor --context=host mobile:android symfony` runs the same build on your machine, with its tools: what the desktop build needs, from [Developing Nativella](development.md#on-your-machine); PHP and Composer; the Android SDK with an NDK (`ANDROID_HOME`, the most recent NDK unless `NDK_HOME` says otherwise); a JDK 17 or later (`JAVA_HOME`); `rustup target add aarch64-linux-android` and `cargo install tauri-cli --version '^2' --locked`. The task says what is missing before it starts.
+Without Docker, `castor --context=host mobile:android symfony` runs the same build on your machine, with its tools: what the desktop build needs, from [Developing Nativella](development.md#on-your-machine); PHP and Composer; the Android SDK with an NDK (`ANDROID_HOME`, the most recent NDK unless `NDK_HOME` says otherwise); a JDK 17 or later (`JAVA_HOME`); `rustup target add aarch64-linux-android` (`x86_64-linux-android` for `--abi=x86_64`) and `cargo install tauri-cli --version '^2' --locked`; for PHP, a C and C++ compiler for your machine, which builds the tools of ICU, CMake, make, Perl and pkg-config. The task says what is missing before it starts.
 
 ## Building an iOS app
 
@@ -109,25 +109,31 @@ Without Docker, `castor --context=host mobile:android symfony` runs the same bui
 
 | | The CI | By hand |
 |---|---|---|
-| Android | Builds the template APK (arm64) and makes the APK of the Symfony demo of it with `nativella android`, on every change to the crates, the packages, the Symfony demo or the Docker stack, and opens it in an Android 16 emulator: PHP must answer a page. The APK, the screenshot and the logcat output are artifacts of the run. | The three demos, on an Android 16 emulator (x86_64, which runs arm64 through its ARM translation): pages, forms, the database, dialogs, the file picker, the clipboard and the [phone APIs](phone-apis.md). Their three APKs, made from one template, installed side by side. |
-| iOS | Builds the Symfony demo for the simulator (arm64) on a macOS runner, and opens it in a simulator: PHP must answer a page. The screenshot and the output of the app are artifacts of the run. | Nothing more: no device, no phone API. |
+| Android | Builds the template APK (arm64) and makes the APK of the Symfony demo of it with `nativella android`, on every change to the crates, the packages, the Symfony demo or the Docker stack, and opens it in an Android 16 emulator: PHP must answer a page. The APK, the screenshot and the logcat output are artifacts of the run. | The three demos, on an Android 16 emulator (x86_64, which runs arm64 through its ARM translation): pages, forms, the database, dialogs, the file picker, the clipboard and the [phone APIs](phone-apis.md). Their three APKs, made from one template, installed side by side. The Symfony demo built for x86_64, which the emulator runs natively. |
+| iOS | Builds PHP for iOS and its simulator, then the Symfony demo for the simulator (arm64) on a macOS runner, and opens it in a simulator: PHP must answer a page. The screenshot and the output of the app are artifacts of the run. | Nothing more: no device, no phone API. |
 
 PHP answers a page when the runtime writes `[php] GET <url> 200`: the framework booted, migrated its database and rendered the page. The [Mobile workflow](development.md#continuous-integration) runs these jobs.
 
 ## PHP for the phone
 
-The build of the library downloads the static PHP builds that [NativePHP](https://github.com/NativePHP) publishes for its own mobile runtime (MIT, built with static-php-cli and the NDK) into `mobile/php/dist/`, until Nativella builds its own:
+The PHP of a phone is the one of [the desktop](building.md#the-php-inside), built for the phone by Nativella: the same sources, the same libraries, the same extensions, from the same list. The build of the template builds it first, once (`castor static-php:android`, see [Developing Nativella](development.md#php-for-the-phones)):
 
-- PHP 8.5, thread safe, arm64 only: x86_64 emulators run it through their ARM translation;
-- the extensions a Symfony or Laravel application needs: ctype, curl, dom, fileinfo, filter, iconv, mbstring, opcache, openssl, pdo_sqlite, session, sodium, sqlite3, tokenizer, xml, zlib… but not intl, which [the desktop PHP](building.md#the-php-inside) has;
-- NativePHP's own extension, whose callbacks into its host Nativella answers with "nothing available" (`crates/runtime/src/nativephp_stubs.rs`).
+- PHP 8.5, without thread safety, as on the desktop: it runs on a thread of its own, one request at a time (see [How it works](how-it-works.md#one-php-thread));
+- the extensions a Symfony, Laravel or Doctrine application needs, intl included: bcmath, ctype, curl, dom, fileinfo, filter, iconv, intl, mbstring, opcache, openssl, pdo_sqlite, phar, session, simplexml, sodium, sqlite3, tokenizer, xml, xmlreader, xmlwriter, zip, zlib;
+- for Android 9 (API level 28) and later, arm64; and x86_64, for the emulators of x86_64 computers, which then run it without their ARM translation: `castor mobile:android symfony --abi=x86_64`. The releases publish the arm64 template only;
+- without JIT, of PCRE or of opcache: iOS runs no code it did not sign, and on Android, the JIT of PCRE needs a function of the runtime of clang that Rust does not link. PCRE interprets the regular expressions instead;
+- intl carries ICU and its data, for every locale: about 36 MB of the library, as of the executables of the desktop, which the APK stores uncompressed, as Android loads the library from there. A release template weighs about 72 MB, twice the 36 MB it weighed with NativePHP's PHP, which had no intl.
 
-ext-php-rs reads `php -i` and `php-config` to generate its bindings, which the PHP of the computer cannot answer for the phone: `mobile/php/php` and `mobile/php/php-config` stand in for them, from the headers of the downloaded build.
+ICU is C++: the application library carries the C++ library of the NDK (`c++_static`), as no other code of the application needs one to share.
+
+ext-php-rs reads `php -i` and `php-config` to generate its bindings, which the PHP of the computer cannot answer for the phone: the build of PHP has its own `php-config`, and `mobile/php/php` stands in for `php -i`, from its headers.
+
+On iOS, `castor static-php:ios` builds the same PHP on a Mac, with Xcode, for iOS 15 and later, for the device and the simulator, and `castor mobile:ios` links it: the Mobile workflow builds both on a macOS runner, then opens the app in the simulator. No device has run it.
 
 ## Limitations
 
 - **First launch is slow**: the project is extracted, then the framework builds its cache on the phone (about 5 seconds for the Symfony demo on an emulator). The following requests take a few hundred milliseconds in a debug build.
-- **Debug templates are big** (about 220 MB), and so are the APKs made of them: the library is not stripped. A release template weighs about 36 MB, the APK of the Symfony demo made of it 40 MB.
+- **Debug templates are big** (about 265 MB), and so are the APKs made of them: the library is not stripped. A release template weighs about 72 MB, the APK of the Symfony demo made of it 75 MB: ICU and its data, for intl, are half of it (see [PHP for the phone](#php-for-the-phone)).
 - **25 seconds per page**: Android's webview, through wry, gives up on a page after 30 seconds and shows an error in its place. So when PHP takes longer, because the user left a dialog, the file picker or a fingerprint prompt open, Nativella answers first with a page that waits: it loads the same page again for a `GET`, the page of the form for a `POST`, once PHP is done. The response PHP gives at last is dropped, so a redirect after a form is lost, not the form's work. A `fetch()` or an XHR gets a 504 instead, even one that asks for HTML, as Turbo does.
 - **No adaptive icon**: the launcher icon is a plain one, which launchers that shape icons, such as the Pixel one, shrink onto a white shape. No round icon, nor a monochrome one for themed icons.
 - **No Google Play bundle**: `nativella android` writes APKs, to install with `adb` or to open on the phone; Google Play asks for an Android App Bundle (AAB), which a Gradle build, in a Docker image, will make. Its keys are EC P-256 ones, in PEM files, not Java keystores yet.
