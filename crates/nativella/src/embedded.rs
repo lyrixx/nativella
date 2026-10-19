@@ -35,7 +35,8 @@ static COMPILED_BUNDLE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/bundle
 
 /// Paths of the project that never ship: version control, editors, tests.
 /// Relative to the project, with `/`. Local overrides (`.env.local`, every
-/// path ending with `.local`), which may hold secrets, don't either.
+/// path ending with `.local`), which may hold secrets, never ship either:
+/// `append_dir` leaves them out on their own, to list them.
 const EXCLUDED: &[&str] = &[".git", ".idea", "node_modules", "tests"];
 
 /// Directories that ship empty: caches, logs and sessions of the computer
