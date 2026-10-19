@@ -205,9 +205,13 @@ jobs:
             - name: "Build the builder"
               run: "castor docker:build --service=builder"
 
-            # Builds the android image first
+            # Builds the android image first. static-php-cli asks the GitHub
+            # API for the sources of the licenses of the PHP of the phone:
+            # without a token, the runners share its rate limit
             - name: "Build the template APK"
               run: "castor mobile:android-template --release --output=release/nativella-android-template-arm64.apk"
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: "Upload the template APK"
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -243,6 +247,12 @@ jobs:
                   and builds standalone applications (`nativella build`);
                   `nativella-demo-*-<platform>` are the demos, as standalone applications.
                   `SHA256SUMS-<platform>` holds their checksums.
+
+                  `THIRD_PARTY_NOTICES-<platform>.txt` holds the licenses of the software they
+                  contain: PHP, its libraries, the Rust crates and, on Android, the Java
+                  libraries. `nativella licenses` prints them, `nativella build` writes them
+                  next to the applications it builds, and the APKs carry them: distribute them
+                  with your applications.
 
                   They are linked against a static PHP 8.5: they need no PHP on the machine.
 

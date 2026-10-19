@@ -1,12 +1,13 @@
 //! The `nativella` command, and the entry point of standalone applications.
 
 use std::env;
-use std::io;
+use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use nativella_lib::apk::{self, Key};
-use nativella_lib::{Project, embedded};
+use nativella_lib::{Project, embedded, notices};
 
 const USAGE: &str = "Usage:
   nativella run [<project-dir>]                    Run a PHP project as a desktop application
@@ -14,6 +15,7 @@ const USAGE: &str = "Usage:
   nativella android [<project-dir>] --template <apk> [--key <pem>] [-o <output>]
                                                    Make an Android application (APK) of the project
   nativella bundle [<project-dir>] [-o <output>]   Pack the project into a file to embed in an iOS app
+  nativella licenses                               Print the licenses of the software nativella contains
   nativella --version                              Print the version
 
 The project directory defaults to the current one.
@@ -36,6 +38,7 @@ fn main() -> ExitCode {
         Some("build") => package(args, Package::Executable),
         Some("android") => package(args, Package::Android),
         Some("bundle") => package(args, Package::Bundle),
+        Some("licenses") => licenses(),
         Some("-V" | "--version") => {
             println!("nativella {}", env!("CARGO_PKG_VERSION"));
             ExitCode::SUCCESS
@@ -113,7 +116,8 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
         output.display()
     );
     let result = match package {
-        Package::Executable => embedded::build(&project, &output),
+        Package::Executable => embedded::build(&project, &output)
+            .and_then(|local_overrides| write_notices(&output).map(|()| local_overrides)),
         Package::Android => android(&project, template.as_deref(), key.as_deref(), &output),
         Package::Bundle => embedded::bundle(&project, &output),
     };
@@ -131,6 +135,43 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
         }
         Err(error) => fail(&format!("The packaging failed: {error}")),
     }
+}
+
+/// Prints the third-party notices this executable carries.
+fn licenses() -> ExitCode {
+    match notices::text() {
+        Ok(Some(text)) => match io::stdout().write_all(text.as_bytes()) {
+            Ok(()) => ExitCode::SUCCESS,
+            // `nativella licenses | head` closes the pipe before the end.
+            Err(error) if error.kind() == io::ErrorKind::BrokenPipe => ExitCode::SUCCESS,
+            Err(error) => fail(&format!("The notices cannot be printed: {error}")),
+        },
+        Ok(None) => fail(
+            "This nativella is a development build, without the notices of the software it contains: the releases have them, and so does castor nativella:build.",
+        ),
+        Err(error) => fail(&format!("The notices cannot be read: {error}")),
+    }
+}
+
+/// Writes the third-party notices next to the standalone executable
+/// `output`, which carries the same software as this one: they ship with
+/// it.
+fn write_notices(output: &Path) -> io::Result<()> {
+    let Some(text) = notices::text()? else {
+        eprintln!(
+            "Warning: this nativella is a development build, without the notices of the software it contains: build the applications you distribute with a release, or with castor nativella:build."
+        );
+        return Ok(());
+    };
+
+    let path = output.with_file_name(notices::FILE);
+    fs::write(&path, text)?;
+    eprintln!(
+        "Wrote the licenses of the software the application contains to {}: distribute them with it.",
+        path.display()
+    );
+
+    Ok(())
 }
 
 /// The APK of `project`, signed with the key in `key`, or the debug key.

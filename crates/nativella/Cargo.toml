@@ -76,6 +76,8 @@ geolocation = ["dep:tauri-plugin-geolocation"]
 haptics = ["dep:tauri-plugin-haptics"]
 
 [build-dependencies]
+# What build.rs compresses the third-party notices with.
+flate2 = "1"
 tauri-build = { version = "2", features = [] }
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]

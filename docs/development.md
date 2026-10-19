@@ -160,6 +160,8 @@ castor nativella:package
 
 `nativella:build` builds `dist/nativella`, then the standalone executable of each demo (`dist/symfony`…), in release mode, in the builder. Each demo ships staged for production in `target/nativella/stage/`: without its dev dependencies, in the production environment. The executables link the static PHP below, as the releases do, in the `static` image, and carry it; `--no-static` links [the PHP of the system](#the-php-of-the-system) instead. `nativella:package` copies them to `release/`, named after the platform, with their checksums, as the releases publish them. On Linux, it refuses an executable that needs a glibc, or a libstdc++, newer than the one of Ubuntu 22.04: one built with `--no-static`, or outside the `static` image.
 
+Before building, `nativella:build` gathers the [third-party notices](building.md#licenses) of the platform into `target/nativella/notices/` (`.castor/notices.php`): the licenses static-php-cli dumped when it built PHP, with the ones of what php-src bundles, then the Rust crates of the target, read from their sources by [cargo-about](https://github.com/EmbarkStudios/cargo-about), which the task downloads into `tools/cargo-about/bin/` (`tools/cargo-about/about.toml` lists the licenses a crate may have: another one fails the build). `NATIVELLA_NOTICES` hands them to the build of the crate, which compresses them into the executable; `nativella build` writes them to `dist/THIRD_PARTY_NOTICES.txt`, and `nativella:package` to `release/THIRD_PARTY_NOTICES-<platform>.txt`. `mobile:android-template` does the same for the template APK, with the Java libraries Gradle resolves, and puts them in its assets.
+
 ### Static PHP
 
 ```bash
