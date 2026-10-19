@@ -10,11 +10,15 @@ name: macOS
 # catch a change of the protocol with the runtime. Not on the Docker stack:
 # there is none on the macOS runners. Weekly too: the runners update their
 # Rust stable.
+#
+# Its caches, the static PHP and the build of the dependencies, are the ones
+# of main: main saves them, a pull request and the release restore them (see
+# docs/development.md#caches).
 
 "on":
     # Every push to main, whatever the paths: main catches a path missing
     # below, and pull requests that break only together, before a release is
-    # tagged from it. And its caches are the ones every pull request restores,
+    # tagged from it. And it saves the caches every pull request restores,
     # which GitHub evicts after 7 days unused
     push:
         branches: ["main"]
@@ -73,9 +77,11 @@ jobs:
                   tools: composer
 
             # Built once, then as long as the version of PHP, its extensions and
-            # static-php-cli stay the same
-            - name: "Cache static PHP"
-              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+            # static-php-cli stay the same. release.yml restores it too: keep
+            # the path and the key in sync
+            - name: "Restore static PHP"
+              id: static-php
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/buildroot
                   key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
@@ -83,15 +89,25 @@ jobs:
                   # versions or the extensions changed, not the rest of the file
                   restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
 
-            - name: "Cache the Rust build"
-              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+            # The Rust of the runner, which its image updates
+            - name: "Read the version of Rust"
+              id: rust
+              run: echo "version=$(rustc --version | cut -d ' ' -f 2)" >> "${GITHUB_OUTPUT}"
+
+            # Keyed on the Rust of the runner, then on Cargo.lock, as rust.yml
+            # on the image
+            - name: "Restore the Rust build"
+              id: cargo
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: |
                       ~/.cargo/git
                       ~/.cargo/registry
                       target/static
-                  key: cargo-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
-                  restore-keys: cargo-${{ runner.os }}-${{ runner.arch }}-
+                  key: cargo-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.version }}-${{ hashFiles('Cargo.lock') }}
+                  restore-keys: |
+                      cargo-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.version }}-
+                      ${{ github.ref != 'refs/heads/main' && format('cargo-{0}-{1}-', runner.os, runner.arch) || '' }}
 
             # static-php-cli asks the GitHub API for its downloads: without a
             # token, the runners share its rate limit
@@ -99,6 +115,15 @@ jobs:
               run: "castor static-php:build"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            # Main only, as soon as built, whatever fails next: the key stays
+            # until .castor/static-php.php changes, with what it holds
+            - name: "Save static PHP"
+              if: github.ref == 'refs/heads/main' && steps.static-php.outputs.cache-hit != 'true'
+              uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: static-php/buildroot
+                  key: ${{ steps.static-php.outputs.cache-primary-key }}
 
             # The smoke tests serve the demos, with their vendor/
             - name: "Install the projects"
@@ -109,3 +134,18 @@ jobs:
 
             - name: "Smoke test the demos through the runtime"
               run: "castor nativella:smoke --static"
+
+            # Main only, once all built, as in rust.yml
+            - name: "Prune the Rust build"
+              if: github.ref == 'refs/heads/main' && steps.cargo.outputs.cache-hit != 'true'
+              run: "castor nativella:prune-target"
+
+            - name: "Save the Rust build"
+              if: github.ref == 'refs/heads/main' && steps.cargo.outputs.cache-hit != 'true'
+              uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      ~/.cargo/git
+                      ~/.cargo/registry
+                      target/static
+                  key: ${{ steps.cargo.outputs.cache-primary-key }}

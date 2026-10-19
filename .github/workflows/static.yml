@@ -8,11 +8,15 @@ name: Static PHP
 # an extension that the static PHP lacks, or break once staged for
 # production. And on mobile/php/php, which describes the static PHP to
 # ext-php-rs. Weekly too: the static image installs Rust stable.
+#
+# Its caches, the static PHP and the build of the dependencies, are the ones
+# of main: main saves them, a pull request and the release restore them (see
+# docs/development.md#caches).
 
 "on":
     # Every push to main, whatever the paths: main catches a path missing
     # below, and pull requests that break only together, before a release is
-    # tagged from it. And its caches are the ones every pull request restores,
+    # tagged from it. And it saves the caches every pull request restores,
     # which GitHub evicts after 7 days unused
     push:
         branches: ["main"]
@@ -79,9 +83,11 @@ jobs:
                 persist-credentials: false
 
             # Built once, then as long as the version of PHP, its extensions,
-            # static-php-cli and the glibc stay the same
-            - name: "Cache static PHP"
-              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+            # static-php-cli and the glibc stay the same. release.yml restores
+            # it too: keep the path and the key in sync
+            - name: "Restore static PHP"
+              id: static-php
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/buildroot
                   key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
@@ -90,16 +96,20 @@ jobs:
                   restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
 
             # The cargo registry and the target directory of the static image
-            # (see its CARGO_HOME and CARGO_TARGET_DIR)
-            - name: "Cache the Rust build"
-              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+            # (see its CARGO_HOME and CARGO_TARGET_DIR), keyed as in rust.yml.
+            # release.yml restores it too: keep the paths and the key in sync
+            - name: "Restore the Rust build"
+              id: cargo
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: |
                       .home/.cargo/git
                       .home/.cargo/registry
                       target/docker-static
-                  key: cargo-static-${{ hashFiles('Cargo.lock', 'infrastructure/docker/services/php/Dockerfile') }}
-                  restore-keys: cargo-static-
+                  key: cargo-static-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock') }}
+                  restore-keys: |
+                      cargo-static-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      ${{ github.ref != 'refs/heads/main' && 'cargo-static-' || '' }}
 
             # The builder installs and stages the projects
             - name: "Build the builder"
@@ -113,6 +123,15 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+            # Main only, as soon as built, whatever fails next: the key stays
+            # until .castor/static-php.php changes, with what it holds
+            - name: "Save static PHP"
+              if: github.ref == 'refs/heads/main' && steps.static-php.outputs.cache-hit != 'true'
+              uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: static-php/buildroot
+                  key: ${{ steps.static-php.outputs.cache-primary-key }}
+
             # The smoke tests serve the demos, with their vendor/
             - name: "Install the projects"
               run: "castor install"
@@ -122,6 +141,21 @@ jobs:
 
             - name: "Build the executables"
               run: "castor nativella:build"
+
+            # Main only, once all built, as in rust.yml
+            - name: "Prune the Rust build"
+              if: github.ref == 'refs/heads/main' && steps.cargo.outputs.cache-hit != 'true'
+              run: "castor nativella:prune-target"
+
+            - name: "Save the Rust build"
+              if: github.ref == 'refs/heads/main' && steps.cargo.outputs.cache-hit != 'true'
+              uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      .home/.cargo/git
+                      .home/.cargo/registry
+                      target/docker-static
+                  key: ${{ steps.cargo.outputs.cache-primary-key }}
 
             # Fails if an executable needs a glibc, or a libstdc++, newer than
             # the one of Ubuntu 22.04

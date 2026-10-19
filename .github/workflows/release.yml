@@ -5,6 +5,10 @@ name: Release
 # 22.04, for its glibc), and for macOS arm64; the template APK that
 # nativella android makes Android applications of, in the android image;
 # attaches them to the GitHub release of a v* tag.
+#
+# It restores the caches of main, saved by static.yml, macos.yml and
+# mobile.yml, and saves none: those of a tag would serve no other run (see
+# docs/development.md#caches).
 
 "on":
     push:
@@ -48,8 +52,9 @@ jobs:
               with:
                 persist-credentials: false
 
-            - name: "Cache static PHP"
-              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+            # The one of static.yml, from main: its path and its key
+            - name: "Restore static PHP"
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/buildroot
                   key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
@@ -58,16 +63,19 @@ jobs:
                   restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
 
             # The cargo registry and the target directory of the static image
-            # (see its CARGO_HOME and CARGO_TARGET_DIR)
-            - name: "Cache the Rust build"
-              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+            # (see its CARGO_HOME and CARGO_TARGET_DIR): the build of
+            # static.yml, from main, its paths and its key
+            - name: "Restore the Rust build"
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: |
                       .home/.cargo/git
                       .home/.cargo/registry
                       target/docker-static
-                  key: cargo-static-${{ hashFiles('Cargo.lock', 'infrastructure/docker/services/php/Dockerfile') }}
-                  restore-keys: cargo-static-
+                  key: cargo-static-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock') }}
+                  restore-keys: |
+                      cargo-static-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      cargo-static-
 
             # The builder installs and stages the projects
             - name: "Build the builder"
@@ -124,8 +132,9 @@ jobs:
                   extensions: intl, pdo_sqlite, sqlite3
                   tools: composer
 
-            - name: "Cache static PHP"
-              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+            # The one of macos.yml, from main: its path and its key
+            - name: "Restore static PHP"
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/buildroot
                   key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
@@ -174,20 +183,23 @@ jobs:
               with:
                 persist-credentials: false
 
-            # The cargo registry and Gradle live in the home of the containers
-            # (.home/), the build in the target directory of the builder
-            - name: "Cache the Rust, Gradle and PHP downloads and builds"
-              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+            # The cargo registry and the dependencies of Gradle live in the
+            # home of the containers (.home/): the downloads of the Android job
+            # of mobile.yml, from main, its paths and its key. Its build is a
+            # debug one, of no use to this one
+            - name: "Restore the Rust, Gradle and PHP downloads"
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: |
                       .home/.cargo/git
                       .home/.cargo/registry
                       .home/.gradle/caches
-                      .home/.gradle/wrapper
                       mobile/php/dist
                       target/docker
-                  key: android-release-${{ hashFiles('Cargo.lock', 'infrastructure/docker/services/php/Dockerfile', '.castor/mobile.php') }}
-                  restore-keys: android-release-
+                  key: android-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock', '.castor/mobile.php') }}
+                  restore-keys: |
+                      android-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      android-
 
             # Unzips the PHP of the phone
             - name: "Build the builder"
