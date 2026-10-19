@@ -145,7 +145,7 @@ use Nativella\Laravel\Http\Middleware\EnsureNative;
 Route::post('/tasks/export', ExportTasks::class)->name('tasks.export')->middleware(EnsureNative::class);
 ```
 
-Laravel builds absolute URLs (`route()`, `url()`, `asset()`) from the request, so `http://localhost/…` in Nativella. The runtime rewrites them to the address of the window in the URL attributes of HTML and the `url()` of CSS that PHP answers: links, forms and assets work as usual. In JSON and scripts, use relative URLs (`route('notes.show', $note, absolute: false)`). See [Pages and JavaScript](javascript.md#links-and-absolute-urls).
+Laravel builds absolute URLs (`route()`, `url()`, `asset()`) from the request, so `http://localhost/…` in Nativella. The runtime rewrites them to the address of the window in the URL attributes of HTML and the `url()` of CSS that PHP answers: links, forms and assets work as usual. In JSON and scripts, use relative URLs (`route('notes.show', $note, absolute: false)`): only the requests of `fetch()`, `XMLHttpRequest` and `EventSource` to `http://localhost/` are brought back to the application. See [Pages and JavaScript](javascript.md#links-and-absolute-urls).
 
 ## Testing
 

@@ -5,6 +5,8 @@
 //! application; mobile platforms start from the entry point below, with the
 //! project compiled into the library.
 
+#[cfg(not(any(windows, target_os = "android")))]
+mod absolute_urls;
 #[cfg(any(test, target_os = "android"))]
 mod deadline;
 pub mod embedded;

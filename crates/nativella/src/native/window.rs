@@ -283,6 +283,10 @@ pub(crate) fn open(
     }
 
     builder = with_desktop_options(builder, &options);
+    #[cfg(not(any(windows, target_os = "android")))]
+    {
+        builder = builder.initialization_script(crate::absolute_urls::SCRIPT);
+    }
     #[cfg(target_os = "android")]
     {
         builder = builder.initialization_script(crate::request_bodies::SCRIPT);
