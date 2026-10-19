@@ -13,9 +13,9 @@ name = "nativella_lib"
 crate-type = ["cdylib", "rlib", "staticlib"]
 
 [dependencies]
-base64 = "0.22"
+base64 = "0.23"
 flate2 = "1"
-getrandom = "0.3"
+getrandom = "0.4"
 iana-time-zone = "0.1"
 nativella-runtime = { path = "../runtime" }
 png = "0.18"
@@ -42,7 +42,7 @@ trash = "5"
 libc = "0.2"
 
 [target.'cfg(all(unix, not(any(target_os = "android", target_os = "ios"))))'.dependencies]
-signal-hook = "0.3"
+signal-hook = "0.4"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { version = "3", features = ["crypto-rust", "sync-secret-service"] }
