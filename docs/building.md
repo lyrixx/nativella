@@ -82,13 +82,7 @@ The [data directory](configuration.md#the-data-directory) is separate from the e
 
 ## What the machine needs
 
-The executable carries the project and PHP: the machine needs neither PHP nor Composer. On Linux, it needs the webview of the system, WebKitGTK, and a glibc as recent as the one of the machine that built the `nativella` command: 2.35 for the releases, built on Ubuntu 22.04, so Ubuntu 22.04 and later, Debian 12 and later.
-
-```bash
-sudo apt install libwebkit2gtk-4.1-0
-```
-
-An application with a [tray](tray.md) icon needs `libayatana-appindicator3-1` too, which Ubuntu desktops have: without it, the application stops when it shows the icon. On macOS, the executable needs nothing.
+The executable carries the project and PHP: the machine needs neither PHP nor Composer. On Linux, it needs, to run, what the `nativella` command needs: the webview of the system, WebKitGTK 4.1, the library of the tray if the application shows a [tray](tray.md) icon, and a glibc as recent as the one of the machine that built the `nativella` command, 2.35 for the releases, built on Ubuntu 22.04. The users of your application install them too: [Installation](installation.md#linux-x86_64) lists the packages of each distribution, to repeat in the instructions of your application. On macOS, the executable needs nothing.
 
 ## The PHP inside
 
