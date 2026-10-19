@@ -96,8 +96,8 @@ const WAITED: Duration = Duration::from_secs(1);
 
 /// Waiting for the user is not running PHP: as with sleep() on Linux, it does
 /// not count against max_execution_time. Where PHP measures the time of the
-/// wall clock (Android, ZTS builds), a dialog left open would otherwise kill
-/// the request.
+/// wall clock (on Apple's processors, macOS and iOS, and in thread-safe
+/// builds), a dialog left open would otherwise kill the request.
 fn restart_time_limit() {
     let seconds = ExecutorGlobals::get().timeout_seconds;
     if seconds > 0 {

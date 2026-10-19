@@ -13,7 +13,7 @@ mod bridge;
 mod cookies;
 #[cfg(all(nativella_static_php, target_os = "linux", target_env = "gnu"))]
 mod glibc_compat;
-#[cfg(any(target_os = "android", target_os = "ios"))]
+#[cfg(target_os = "ios")]
 mod nativephp_stubs;
 mod redirects;
 mod runtime;

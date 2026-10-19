@@ -7,9 +7,9 @@ name: Mobile
 # output of the app are artifacts. The two platforms build side by side: iOS
 # waits only for the bundle of the demo.
 #
-# Its caches, the downloads and the build of the dependencies, are the ones of
-# main: main saves them, a pull request and the release restore them (see
-# docs/development.md#caches).
+# Its caches, the downloads, PHP for the phones and the build of the
+# dependencies, are the ones of main: main saves them, a pull request and the
+# release restore them (see docs/development.md#caches).
 
 "on":
     # Every push to main, whatever the paths: main catches a path missing
@@ -76,13 +76,28 @@ jobs:
               with:
                 persist-credentials: false
 
+            # PHP for Android, keyed on the image, for its NDK, then on what it
+            # is built from: static-php-cli and the extensions, the recipes,
+            # the API level of the template. static-php:android builds it again
+            # only if one of them changed. release.yml restores it too: keep
+            # the path and the key in sync
+            - name: "Restore PHP for Android"
+              id: static-php
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: static-php/android-arm64/buildroot
+                  key: static-php-android-arm64-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('.castor/static-php.php', '.castor/static-php-mobile.php', 'crates/nativella/tauri.android.conf.json') }}
+                  restore-keys: |
+                      static-php-android-arm64-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      ${{ github.ref != 'refs/heads/main' && 'static-php-android-arm64-' || '' }}
+
             # The cargo registry and the dependencies of Gradle live in the
             # home of the containers (.home/), the build in the target
             # directory of the builder. Not the distribution of Gradle
             # (.home/.gradle/wrapper/): downloaded as fast as restored. Keyed
             # on the image, for its Rust and its Tauri command, as in rust.yml.
             # release.yml restores it too: keep the paths and the key in sync
-            - name: "Restore the Rust, Gradle and PHP downloads and builds"
+            - name: "Restore the Rust and Gradle downloads and builds"
               id: android
               uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
@@ -90,25 +105,38 @@ jobs:
                       .home/.cargo/git
                       .home/.cargo/registry
                       .home/.gradle/caches
-                      mobile/php/dist
                       target/docker
                   key: android-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock', '.castor/mobile.php') }}
                   restore-keys: |
                       android-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
                       ${{ github.ref != 'refs/heads/main' && 'android-' || '' }}
 
-            # Stages and bundles the demo in the builder
+            # Downloads the sources of PHP, and stages and bundles the demo, in
+            # the builder
             - name: "Build the builder"
               run: "castor docker:build --service=builder"
 
-            # Builds the android image, then the template APK, then the APK of
-            # the demo from it. static-php-cli asks the GitHub API for the
-            # sources of the licenses of the PHP of the phone: without a
-            # token, the runners share its rate limit
-            - name: "Build the APK"
-              run: "castor mobile:android symfony"
+            # Builds the android image first. static-php-cli asks the GitHub
+            # API for the sources: without a token, the runners share its rate
+            # limit
+            - name: "Build PHP for Android"
+              run: "castor static-php:android"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            # Main only, as soon as built, whatever fails next, as static.yml
+            # saves the static PHP of the desktop
+            - name: "Save PHP for Android"
+              if: github.ref == 'refs/heads/main' && steps.static-php.outputs.cache-hit != 'true'
+              uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: static-php/android-arm64/buildroot
+                  key: ${{ steps.static-php.outputs.cache-primary-key }}
+
+            # The template APK, with the PHP built above, then the APK of the
+            # demo from it
+            - name: "Build the APK"
+              run: "castor mobile:android symfony"
 
             - name: "Upload the APK"
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -123,7 +151,7 @@ jobs:
               if: github.ref == 'refs/heads/main' && steps.android.outputs.cache-hit != 'true'
               run: "castor nativella:prune-target"
 
-            - name: "Save the Rust, Gradle and PHP downloads and builds"
+            - name: "Save the Rust and Gradle downloads and builds"
               if: github.ref == 'refs/heads/main' && steps.android.outputs.cache-hit != 'true'
               uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
@@ -131,7 +159,6 @@ jobs:
                       .home/.cargo/git
                       .home/.cargo/registry
                       .home/.gradle/caches
-                      mobile/php/dist
                       target/docker
                   key: ${{ steps.android.outputs.cache-primary-key }}
 

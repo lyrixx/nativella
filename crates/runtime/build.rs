@@ -53,13 +53,16 @@ fn main() {
         println!("cargo:rustc-link-lib=static={library}");
     }
 
-    // The libraries of the system that static-php-cli links PHP with
-    // (spc-config). On the desktop, the C++ library too, for intl and ICU,
-    // which are C++: libstdc++ on Linux, which WebKitGTK loads anyway, libc++
-    // on macOS. On Linux, the linker drops it when nothing uses it
-    // (--as-needed).
+    // The libraries of the system that PHP is linked with (spc-config, on the
+    // desktop). The C++ library too, for intl and ICU, which are C++:
+    // libstdc++ on Linux, which WebKitGTK loads anyway, libc++ on macOS, the
+    // one of the NDK on Android. On Linux, the linker drops it when nothing
+    // uses it (--as-needed).
     let system: &[&str] = match target_os.as_str() {
-        "android" => &["dl", "log", "m"],
+        "android" => {
+            link_android_cpp();
+            &["dl", "m"]
+        }
         "linux" => &["dl", "m", "pthread", "resolv", "rt", "stdc++", "util"],
         "ios" => {
             link_apple_frameworks();
@@ -73,6 +76,17 @@ fn main() {
     };
     for library in system {
         println!("cargo:rustc-link-lib={library}");
+    }
+}
+
+/// The C++ library of the NDK, in the application library: Android has none
+/// to share, and the application has no other C++ code, which would need the
+/// shared one (libc++_shared.so in the APK) for both to share a single copy.
+/// Not bundled into the rlib of this crate: the linker of the application
+/// finds both archives in the sysroot of the NDK.
+fn link_android_cpp() {
+    for library in ["c++_static", "c++abi"] {
+        println!("cargo:rustc-link-lib=static:-bundle={library}");
     }
 }
 

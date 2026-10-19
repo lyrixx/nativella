@@ -2,11 +2,12 @@
 
 namespace notices;
 
+use static_php\mobile\Target;
+
 use function Castor\context;
 use function Castor\finder;
 use function Castor\fs;
 use function Castor\http_download;
-use function Castor\io;
 use function Castor\run;
 use function Castor\variable;
 use function docker\builder_path;
@@ -43,7 +44,7 @@ function desktop(bool $staticPhp): string
     if ($staticPhp) {
         $buildroot = 'static-php/buildroot';
         $version = php_version("{$buildroot}/include/php/main/php_version.h");
-        $sections = php_sections($version, "{$buildroot}/license");
+        $sections = php_sections($version, "{$buildroot}/license", 'PHP is built by static-php-cli, https://github.com/crazywhalecc/static-php-cli, and linked with the libraries below.');
 
         /** @var list<string> $extensions what static-php-cli built */
         $extensions = json_decode((string) file_get_contents(variable('root_dir')."/{$buildroot}/build-extensions.json"), true, flags: \JSON_THROW_ON_ERROR);
@@ -72,32 +73,34 @@ function desktop(bool $staticPhp): string
  * with the libraries it links, and the Java and Kotlin libraries of the
  * Android project.
  *
- * @param string       $php           the PHP of the phone, from the root of the repository (see mobile\fetch_php())
+ * @param string       $php           the buildroot of the PHP of the phone, from the root of the repository (static_php\mobile\build())
  * @param list<string> $features      the features of the nativella crate the template has
  * @param list<string> $javaLibraries "<group>:<artifact>:<version>" (see gradle_libraries())
  *
  * @return string the file, from the root of the repository
  */
-function android(string $php, array $features, array $javaLibraries): string
+function android(Target $target, string $php, array $features, array $javaLibraries): string
 {
     $root = variable('root_dir');
-    $version = php_version("{$php}/include/php_version.h");
-    $sections = php_sections($version, nativephp_licenses($php), nativephp: true);
-    $rust = rust_section('aarch64-linux-android', $features);
+    $version = php_version("{$php}/include/php/main/php_version.h");
+    $sections = php_sections($version, "{$php}/license", 'PHP is built by Nativella for the phone, from the sources static-php-cli downloads for the desktop, with the features it builds them with there (.castor/static-php-mobile.php), and linked with the libraries below.');
+    $rust = rust_section($target->host, $features);
     $sections[] = $rust;
     $sections[] = java_section($javaLibraries, str_contains($rust['text'], "\n--- Apache License 2.0: "));
 
     // The extensions of the build, from its configure command
-    preg_match_all("{'--(?:enable|with)-([\\w-]+)}", (string) file_get_contents("{$root}/{$php}/include/build-defs.h"), $matches);
-    $iconv = [] !== glob("{$root}/{$php}/staticLibs/*/libiconv.a")
-        ? 'GNU libiconv, built by NativePHP, which does not publish its version: https://ftp.gnu.org/pub/gnu/libiconv/'
+    preg_match_all("{'--(?:enable|with)-([\\w-]+)}", (string) file_get_contents("{$root}/{$php}/include/php/main/build-defs.h"), $matches);
+    // GNU libiconv, which the build downloads from there (config/source.json
+    // of static-php-cli), in the version of its header
+    $iconv = is_file("{$root}/{$php}/license/lib_libiconv_0.txt")
+        ? \sprintf('GNU libiconv %1$s: https://ftp.gnu.org/gnu/libiconv/libiconv-%1$s.tar.gz', libiconv_version("{$php}/include/iconv.h"))
         : '';
     $lgpl = lgpl($version, $matches[1], $iconv, '`nativella android`');
 
     $intro = 'The template APK of `nativella android`, and every application made of it, contain the software below, '
         .'under the licenses below. The libraries of Android they load, such as its WebView, are not part of them.';
 
-    return write('target/nativella/notices/THIRD_PARTY_NOTICES-android.txt', 'android', $intro, true, $lgpl, $sections);
+    return write("target/nativella/notices/THIRD_PARTY_NOTICES-{$target->name}.txt", $target->name, $intro, true, $lgpl, $sections);
 }
 
 /**
@@ -182,77 +185,6 @@ function copy_php_src_licenses(string $phpSrc, string $to): void
             fs()->copy($file, "{$root}/{$to}/".substr($file, \strlen("{$root}/{$phpSrc}/")));
         }
     }
-}
-
-/**
- * The libraries of NativePHP's build of PHP for phones, as static-php-cli
- * names their sources: to dump their licenses, which the build does not
- * ship. Null for NativePHP's own code. A library missing here fails the
- * build, so that none ships without its license.
- */
-const NATIVEPHP_LIBRARIES = [
-    'libcharset.a' => 'libiconv',
-    'libcompat.a' => null,
-    'libcrypto.a' => 'openssl',
-    'libcurl.a' => 'curl',
-    'libglob_compat.a' => null,
-    'libiconv.a' => 'libiconv',
-    'libonig.a' => 'onig',
-    'libphp.a' => 'php-src',
-    'libpng16.a' => 'libpng',
-    'libsodium.a' => 'libsodium',
-    'libsqlite3.a' => 'sqlite',
-    'libssl.a' => 'openssl',
-    'libxml2.a' => 'libxml2',
-    'libz.a' => 'zlib',
-];
-
-/**
- * The licenses of NativePHP's build of PHP for phones, which ships none,
- * dumped by static-php-cli from the sources of its libraries: PHP in its
- * version, the libraries in their current one. Once, next to the build.
- *
- * @return string the directory, from the root of the repository
- */
-function nativephp_licenses(string $php): string
-{
-    $root = variable('root_dir');
-    $dir = "{$php}/licenses";
-
-    if (is_file("{$root}/{$dir}/php-src/README.REDIST.BINS")) {
-        return $dir;
-    }
-
-    $sources = [];
-    foreach (finder()->in("{$root}/{$php}/staticLibs")->files()->name('*.a') as $library) {
-        $name = $library->getFilename();
-        if (!\array_key_exists($name, NATIVEPHP_LIBRARIES)) {
-            throw new \RuntimeException(\sprintf('NativePHP\'s PHP links %s, which notices\NATIVEPHP_LIBRARIES does not know: add its source, for its license.', $name));
-        }
-        if (null !== NATIVEPHP_LIBRARIES[$name]) {
-            $sources[] = NATIVEPHP_LIBRARIES[$name];
-        }
-    }
-    $sources = array_values(array_unique($sources));
-    sort($sources);
-    $sources = implode(',', $sources);
-
-    io()->section('Gathering the licenses of the PHP of the phone');
-
-    // static-php-cli works in its working directory: downloads, sources
-    $work = 'target/nativella/nativephp-licenses';
-    $spc = builder_path(\static_php\spc());
-    $version = php_version("{$php}/include/php_version.h");
-    fs()->remove("{$root}/{$work}");
-    fs()->mkdir("{$root}/{$work}");
-    run_in_builder([$spc, 'download', $sources, "--custom-url=php-src:https://www.php.net/distributions/php-{$version}.tar.xz", '--no-motd'], builder_path($work));
-    run_in_builder([$spc, 'extract', $sources, '--source-only', '--no-motd'], builder_path($work));
-    run_in_builder([$spc, 'dump-license', "--for-sources={$sources}", '--dump-dir='.builder_path("{$dir}.partial"), '--no-motd'], builder_path($work));
-    copy_php_src_licenses("{$work}/source/php-src", "{$dir}.partial/php-src");
-    fs()->remove("{$root}/{$work}");
-    fs()->rename("{$root}/{$dir}.partial", "{$root}/{$dir}", overwrite: true);
-
-    return $dir;
 }
 
 /**
@@ -362,9 +294,11 @@ function rust_section(string $target, array $features = []): array
  * license of php-src being src_php-src_0.txt, and php-src/ with the
  * licenses of what php-src bundles (copy_php_src_licenses()).
  *
+ * @param string $builtBy how PHP is built, and from what
+ *
  * @return list<array{title: string, text: string}>
  */
-function php_sections(string $version, string $licenses, bool $nativephp = false): array
+function php_sections(string $version, string $licenses, string $builtBy): array
 {
     $root = variable('root_dir');
     $php = '';
@@ -396,12 +330,7 @@ function php_sections(string $version, string $licenses, bool $nativephp = false
 
     $php .= "\nphp-src bundles the libraries below: its README.REDIST.BINS lists them,\nwith the files it refers to.\n".$bundled;
 
-    $intro = $nativephp
-        ? "NativePHP's build of PHP for phones, https://github.com/NativePHP, links the libraries below, "
-            .'and adds an extension and compatibility functions of its own. It ships no license: these are '
-            .'the licenses of the sources of the libraries, in their current version, as static-php-cli dumps them.'
-        : 'PHP is built by static-php-cli, https://github.com/crazywhalecc/static-php-cli, and linked with the libraries below.';
-    $libraries = wordwrap($intro, 79)."\n".$libraries;
+    $libraries = wordwrap($builtBy, 79)."\n".$libraries;
 
     return [
         ['title' => "PHP {$version}", 'text' => $php],

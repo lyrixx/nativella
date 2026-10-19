@@ -183,31 +183,43 @@ jobs:
               with:
                 persist-credentials: false
 
+            # The one of the Android job of mobile.yml, from main: its path and
+            # its key
+            - name: "Restore PHP for Android"
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: static-php/android-arm64/buildroot
+                  key: static-php-android-arm64-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('.castor/static-php.php', '.castor/static-php-mobile.php', 'crates/nativella/tauri.android.conf.json') }}
+                  # An older one too: static-php:android builds again only if
+                  # what it is built from changed
+                  restore-keys: |
+                      static-php-android-arm64-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      static-php-android-arm64-
+
             # The cargo registry and the dependencies of Gradle live in the
             # home of the containers (.home/): the downloads of the Android job
             # of mobile.yml, from main, its paths and its key. Its build is a
             # debug one, of no use to this one
-            - name: "Restore the Rust, Gradle and PHP downloads"
+            - name: "Restore the Rust and Gradle downloads"
               uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: |
                       .home/.cargo/git
                       .home/.cargo/registry
                       .home/.gradle/caches
-                      mobile/php/dist
                       target/docker
                   key: android-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock', '.castor/mobile.php') }}
                   restore-keys: |
                       android-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
                       android-
 
-            # Unzips the PHP of the phone
+            # Downloads the sources of PHP
             - name: "Build the builder"
               run: "castor docker:build --service=builder"
 
-            # Builds the android image first. static-php-cli asks the GitHub
-            # API for the sources of the licenses of the PHP of the phone:
-            # without a token, the runners share its rate limit
+            # Builds the android image first, then PHP for Android, unless
+            # restored. static-php-cli asks the GitHub API for the sources of
+            # PHP: without a token, the runners share its rate limit
             - name: "Build the template APK"
               run: "castor mobile:android-template --release --output=release/nativella-android-template-arm64.apk"
               env:
