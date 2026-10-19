@@ -1,5 +1,78 @@
 version: 2
+
+# One pull request per ecosystem: a group gathers the updates of the
+# dependencies its patterns match, across every directory of the entry, and
+# '*' matches them all. Without a group, each dependency gets a pull request of
+# its own. The *-security groups do the same for the security updates.
 updates:
+    # The workspace: crates/nativella and crates/runtime
+    - package-ecosystem: 'cargo'
+      directory: '/'
+      schedule:
+          interval: 'monthly'
+      groups:
+          cargo:
+              patterns:
+                  - '*'
+          cargo-security:
+              applies-to: security-updates
+              patterns:
+                  - '*'
+      cooldown:
+          default-days: 7
+
+    # Every project with a composer.json; the directories without one are
+    # skipped. Dependabot raises a constraint of an application when it no
+    # longer allows the new version, and widens it for a package of type
+    # library: a symfony-bundle is an application to it.
+    - package-ecosystem: 'composer'
+      directories:
+          - '/demos/*'
+          - '/packages/*'
+          - '/tools/*'
+          - '/website'
+      schedule:
+          interval: 'monthly'
+      groups:
+          composer:
+              patterns:
+                  - '*'
+          composer-security:
+              applies-to: security-updates
+              patterns:
+                  - '*'
+      ignore:
+          # The packages of this repository, through path repositories
+          - dependency-name: 'nativella/*'
+          # Symfony 9 would turn the ^7.4|^8.0 of the bundle into ^9.0. Symfony
+          # majors are migrated by hand: raise this bound with each one. Not
+          # update-types: they need the version of a lock, the bundle has none.
+          - dependency-name: 'symfony/*'
+            versions:
+                - '>=9.0'
+      cooldown:
+          default-days: 7
+
+    # The images of the Dockerfiles. No security group: the GitHub Advisory
+    # Database has no Docker ecosystem.
+    - package-ecosystem: 'docker'
+      directories:
+          - '/infrastructure/docker/services/*'
+      schedule:
+          interval: 'monthly'
+      groups:
+          docker:
+              patterns:
+                  - '*'
+      ignore:
+          # The static service builds on Ubuntu 22.04 for its glibc, 2.35: see
+          # the Dockerfile
+          - dependency-name: 'ubuntu'
+            versions:
+                - '> 22.04'
+      cooldown:
+          default-days: 7
+
     - package-ecosystem: 'github-actions'
       directory: '/'
       schedule:
@@ -22,6 +95,10 @@ updates:
           interval: 'monthly'
       groups:
           zensical:
+              patterns:
+                  - '*'
+          zensical-security:
+              applies-to: security-updates
               patterns:
                   - '*'
       cooldown:
