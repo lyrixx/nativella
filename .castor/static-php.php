@@ -24,7 +24,7 @@ const SPC_VERSION = '2.8.5';
  * The extensions Symfony, Laravel and Doctrine applications need. Keep in
  * sync with docs/building.md.
  */
-const EXTENSIONS = 'bcmath,ctype,curl,dom,fileinfo,filter,iconv,mbstring,opcache,openssl,pdo,pdo_sqlite,phar,session,simplexml,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zlib';
+const EXTENSIONS = 'bcmath,ctype,curl,dom,fileinfo,filter,iconv,intl,mbstring,opcache,openssl,pdo,pdo_sqlite,phar,session,simplexml,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zlib';
 
 const PHP_BRANCH = '8.5';
 
@@ -62,8 +62,8 @@ function build(
     $buildroot = variable('root_dir').'/static-php/buildroot';
     $stamp = "{$buildroot}/.nativella-build";
     $build = SPC_VERSION.' '.PHP_BRANCH.' '.builder_platform().' '.EXTENSIONS;
-    if (null !== $target = zig_target()) {
-        $build .= ' '.$target;
+    if ([] !== spc_environment()) {
+        $build .= ' gcc glibc '.GLIBC_VERSION;
     }
 
     if (!$force && is_file($stamp) && file_get_contents($stamp) === $build) {
@@ -158,21 +158,24 @@ function missing_system_php(): array
 }
 
 /**
- * On Linux, static-php-cli builds with zig, for the glibc of the static
- * service, as the rest of the application (WebKitGTK) links against it, and
- * for the baseline of the architecture. Not for "native", the processor of
- * the build machine: the executables would stop with an illegal instruction
- * on an older one, as on a runner of the CI that restored the PHP another
- * one had built.
+ * On Linux, static-php-cli builds with the gcc of the static service
+ * (SPC_LIBC=glibc), not with zig, its default: against the glibc of the
+ * service, as the rest of the application (WebKitGTK) is, and for the
+ * baseline of the architecture, not for the processor of the build machine:
+ * the executables would stop with an illegal instruction on an older one. gcc
+ * builds intl and ICU, which are C++, against the libstdc++ that WebKitGTK
+ * loads too; zig would build them against a libc++ of its own, which the
+ * linker of cargo does not have.
+ *
+ * @return array<string, string>
  */
-function zig_target(): ?string
+function spc_environment(): array
 {
-    $platform = builder_platform();
-    if (!str_starts_with($platform, 'linux-')) {
-        return null;
+    if (!str_starts_with(builder_platform(), 'linux-')) {
+        return [];
     }
 
-    return substr($platform, \strlen('linux-')).'-linux-gnu.'.GLIBC_VERSION;
+    return ['SPC_LIBC' => 'glibc'];
 }
 
 function build_php(): void
@@ -190,8 +193,7 @@ function build_php(): void
         fs()->remove("{$dir}/spc.tar.gz");
     }
 
-    $target = zig_target();
-    $environment = null === $target ? [] : ['SPC_TARGET' => $target];
+    $environment = spc_environment();
 
     run_in_builder(['./spc', 'doctor', '--auto-fix'], $workDir, $environment, SERVICE);
     run_in_builder(['./spc', 'download', '--for-extensions='.EXTENSIONS, '--with-php='.PHP_BRANCH, '--prefer-pre-built'], $workDir, $environment, SERVICE);

@@ -44,7 +44,7 @@ Nativella is experimental. This page lists what does not work, what is untested 
 
 ## Distribution
 
-- **A fixed PHP.** The executable carries [the PHP of the `nativella` command](building.md#the-php-inside): its extensions are those of the build, without intl, and it has no `php.ini`.
+- **A fixed PHP.** The executable carries [the PHP of the `nativella` command](building.md#the-php-inside): its extensions are those of the build, and it has no `php.ini`.
 - **No installers.** No `.deb`, `.dmg` or `.msi`, no code signing, no updates.
 - **No secrets.** Everything in the project ships, readable by anyone who has the executable.
 
@@ -55,7 +55,7 @@ Next:
 - **Worker mode**: boot the framework once, and loop over requests. ext-php-rs ships `worker_request_startup()` and `worker_request_shutdown()`; on the PHP side, it is a `symfony/runtime` runner, as with FrankenPHP.
 - **ZTS and several PHP threads**, so that a slow request or a dialog does not hold back the others.
 - **macOS and Windows**: build, test, fix.
-- **Extensions and `php.ini`**: let an application pick the extensions of its PHP, intl among them, and its settings.
+- **Extensions and `php.ini`**: let an application pick the extensions of its PHP, to add one or to leave intl and the data of ICU out of a smaller executable, and its settings.
 - **Installers**: bundle with `tauri build`.
 - **Mobile**: more [phone APIs](phone-apis.md) (camera, sharing, push notifications), PHP builds of Nativella's own, iOS on a device. See [Mobile](mobile.md).
 

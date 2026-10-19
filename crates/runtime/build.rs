@@ -53,18 +53,31 @@ fn main() {
         println!("cargo:rustc-link-lib=static={library}");
     }
 
+    // The libraries of the system that static-php-cli links PHP with
+    // (spc-config). On the desktop, the C++ library too, for intl and ICU,
+    // which are C++: libstdc++ on Linux, which WebKitGTK loads anyway, libc++
+    // on macOS. On Linux, the linker drops it when nothing uses it
+    // (--as-needed).
     let system: &[&str] = match target_os.as_str() {
         "android" => &["dl", "log", "m"],
-        "linux" => &["dl", "m", "pthread", "resolv", "rt", "util"],
-        "ios" | "macos" => {
-            for framework in ["CoreFoundation", "Security", "SystemConfiguration"] {
-                println!("cargo:rustc-link-lib=framework={framework}");
-            }
+        "linux" => &["dl", "m", "pthread", "resolv", "rt", "stdc++", "util"],
+        "ios" => {
+            link_apple_frameworks();
             &["resolv"]
+        }
+        "macos" => {
+            link_apple_frameworks();
+            &["c++", "resolv"]
         }
         _ => &[],
     };
     for library in system {
         println!("cargo:rustc-link-lib={library}");
+    }
+}
+
+fn link_apple_frameworks() {
+    for framework in ["CoreFoundation", "Security", "SystemConfiguration"] {
+        println!("cargo:rustc-link-lib=framework={framework}");
     }
 }

@@ -81,7 +81,7 @@ PHP answers a page when the runtime writes `[php] GET <url> 200`: the framework 
 The build downloads the static PHP builds that [NativePHP](https://github.com/NativePHP) publishes for its own mobile runtime (MIT, built with static-php-cli and the NDK) into `mobile/php/dist/`, until Nativella builds its own:
 
 - PHP 8.5, thread safe, arm64 only: x86_64 emulators run it through their ARM translation;
-- the extensions a Symfony or Laravel application needs: ctype, curl, dom, fileinfo, filter, iconv, mbstring, opcache, openssl, pdo_sqlite, session, sodium, sqlite3, tokenizer, xml, zlib… but not intl;
+- the extensions a Symfony or Laravel application needs: ctype, curl, dom, fileinfo, filter, iconv, mbstring, opcache, openssl, pdo_sqlite, session, sodium, sqlite3, tokenizer, xml, zlib… but not intl, which [the desktop PHP](building.md#the-php-inside) has;
 - NativePHP's own extension, whose callbacks into its host Nativella answers with "nothing available" (`crates/runtime/src/nativephp_stubs.rs`).
 
 ext-php-rs reads `php -i` and `php-config` to generate its bindings, which the PHP of the computer cannot answer for the phone: `mobile/php/php` and `mobile/php/php-config` stand in for them, from the headers of the downloaded build.
