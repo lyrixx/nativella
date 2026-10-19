@@ -1,0 +1,98 @@
+name: Rust
+
+# Checks the Rust crates in the builder (fmt, Clippy, tests), against its
+# libphp, and serves each demo through the runtime, without a window.
+#
+# A pull request runs it on the changes that can break it: the crates; the
+# projects, which the smoke tests serve through the runtime, but not their
+# tests, which they do not load; and the Castor tasks and the Docker stack,
+# which every task goes through. Not on the documentation alone. Weekly too:
+# the builder installs Rust stable.
+
+"on":
+    # Every push to main, whatever the paths: main catches a path missing
+    # below, and pull requests that break only together, before a release is
+    # tagged from it. And its caches are the ones every pull request restores,
+    # which GitHub evicts after 7 days unused
+    push:
+        branches: ["main"]
+    pull_request:
+        branches: ["main"]
+        paths:
+            - ".castor/**"
+            - ".github/workflows/rust.yml"
+            - "Cargo.lock"
+            - "Cargo.toml"
+            - "castor.php"
+            - "crates/**"
+            - "demos/**"
+            - "infrastructure/docker/**"
+            - "packages/**"
+            - "!**.md"
+            - "!demos/*/tests/**"
+            - "!packages/*/tests/**"
+    schedule:
+        - cron: "0 0 * * MON"
+    workflow_dispatch:
+
+concurrency:
+    group: rust-${{ github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+    packages: read
+
+env:
+    # Fix for symfony/color detection. We know GitHub Actions can handle it
+    ANSICON: 1
+    CASTOR_CONTEXT: ci
+    # The images build from the cache that .github/workflows/cache.yml pushes
+    REGISTRY: "ghcr.io/lyrixx/nativella"
+
+jobs:
+    rust:
+        name: Rust
+        runs-on: ubuntu-latest
+        timeout-minutes: 60
+        steps:
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+            - name: Log in to registry
+              shell: bash
+              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: setup-castor
+              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false
+
+            # The cargo registry and the target directory of the builder (see
+            # its CARGO_HOME and CARGO_TARGET_DIR), keyed on what they build with
+            - name: "Cache the Rust build"
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      .home/.cargo/git
+                      .home/.cargo/registry
+                      target/docker
+                  key: cargo-debug-${{ hashFiles('Cargo.lock', 'infrastructure/docker/services/php/Dockerfile') }}
+                  restore-keys: cargo-debug-
+
+            - name: "Build the builder"
+              run: "castor docker:build --service=builder"
+
+            # The smoke tests serve the demos, with their vendor/
+            - name: "Install the projects"
+              run: "castor install"
+
+            - name: "Check the Rust crates (fmt, Clippy, tests)"
+              run: "castor qa:rust"
+
+            - name: "Smoke test the demos through the runtime"
+              run: "castor nativella:smoke"

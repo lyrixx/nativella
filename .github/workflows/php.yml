@@ -1,0 +1,106 @@
+name: PHP
+
+# Builds and starts the stack, then checks the PHP of the projects and of the
+# Castor tasks: the security audit, the coding standards, PHPStan, the test
+# suites, and the website and the demos through the frontend.
+#
+# A pull request runs it on the changes that can break it: the projects, their
+# tools, the configurations of the checks (.gitignore too: PHP CS Fixer leaves
+# out what Git ignores), and the Castor tasks and the Docker stack, which
+# every task goes through. Not on the crates: the frontend serves the demos
+# without the runtime. Not on the documentation alone, Markdown but the
+# fixtures of the tests, and what builds it: the Website workflow builds it,
+# and fails on a broken link. Weekly too, for the new advisories of the
+# security audit.
+
+"on":
+    # Every push to main, whatever the paths: main catches a path missing
+    # below, and pull requests that break only together, before a release is
+    # tagged from it
+    push:
+        branches: ["main"]
+    pull_request:
+        branches: ["main"]
+        paths:
+            - ".castor/**"
+            - ".github/workflows/php.yml"
+            - ".gitignore"
+            - ".php-cs-fixer.php"
+            - ".twig-cs-fixer.php"
+            - "castor.php"
+            - "demos/**"
+            - "infrastructure/docker/**"
+            - "packages/**"
+            - "phpstan.neon"
+            - "tools/**"
+            - "website/**"
+            - "!**.md"
+            - "!tools/zensical/**"
+            - "!website/docs-theme/**"
+            - "!website/zensical.yml"
+            - "demos/*/tests/**"
+            - "packages/*/tests/**"
+    schedule:
+        - cron: "0 0 * * MON"
+    workflow_dispatch:
+
+concurrency:
+    group: php-${{ github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+    packages: read
+
+env:
+    # Fix for symfony/color detection. We know GitHub Actions can handle it
+    ANSICON: 1
+    CASTOR_CONTEXT: ci
+    # The images build from the cache that .github/workflows/cache.yml pushes
+    REGISTRY: "ghcr.io/lyrixx/nativella"
+
+jobs:
+    php:
+        name: PHP
+        runs-on: ubuntu-latest
+        steps:
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+            - name: Log in to registry
+              shell: bash
+              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: setup-castor
+              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false
+
+            # Builds the images, installs every project, builds the website,
+            # migrates the demos and starts the frontend
+            - name: "Build and start the infrastructure"
+              run: "castor start"
+
+            - name: "Check Security issues"
+              run: "castor qa:security-audit"
+
+            - name: "Check PHP coding standards"
+              run: "castor qa:cs --dry-run"
+
+            - name: "Check Twig coding standards"
+              run: "castor qa:twig-cs --dry-run"
+
+            - name: "Run PHPStan"
+              run: "castor qa:phpstan"
+
+            - name: "Run PHPUnit"
+              run: "castor qa:phpunit"
+
+            # The website on the root domain and www, each demo on its own
+            # subdomain: the demos run without the native features there
+            - name: "Test the frontend"
+              run: "castor qa:frontend"

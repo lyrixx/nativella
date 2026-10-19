@@ -1,0 +1,38 @@
+name: Dockerfile
+
+# Checks the Dockerfile of the stack with hadolint. A pull request runs it on
+# the changes to the Docker stack only: hadolint reads that file, and runs no
+# Castor task.
+
+"on":
+    # Every push to main, whatever the paths: main catches a path missing
+    # below, before a release is tagged from it
+    push:
+        branches: ["main"]
+    pull_request:
+        branches: ["main"]
+        paths:
+            - ".github/workflows/dockerfile.yml"
+            - "infrastructure/docker/**"
+
+concurrency:
+    group: dockerfile-${{ github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+jobs:
+    check-dockerfiles:
+        name: Check Dockerfile
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false
+
+            - name: Check php/Dockerfile
+              uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+              with:
+                  dockerfile: infrastructure/docker/services/php/Dockerfile

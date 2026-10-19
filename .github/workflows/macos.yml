@@ -1,0 +1,108 @@
+name: macOS
+
+# Checks the Rust crates on macOS (arm64), against a static PHP, and serves
+# each demo through the runtime, without a window.
+#
+# A pull request runs it on the changes that can break it: the crates,
+# mobile/php/php, which describes the static PHP to ext-php-rs, and the
+# Castor tasks, which every task goes through. Not on the projects: their PHP
+# is the same on every platform, and the smoke tests of the Linux workflows
+# catch a change of the protocol with the runtime. Not on the Docker stack:
+# there is none on the macOS runners. Weekly too: the runners update their
+# Rust stable.
+
+"on":
+    # Every push to main, whatever the paths: main catches a path missing
+    # below, and pull requests that break only together, before a release is
+    # tagged from it. And its caches are the ones every pull request restores,
+    # which GitHub evicts after 7 days unused
+    push:
+        branches: ["main"]
+    pull_request:
+        branches: ["main"]
+        paths:
+            - ".castor/**"
+            - ".github/workflows/macos.yml"
+            - "Cargo.lock"
+            - "Cargo.toml"
+            - "castor.php"
+            - "crates/**"
+            - "mobile/php/php"
+            - "!**.md"
+    schedule:
+        - cron: "0 0 * * MON"
+    workflow_dispatch:
+
+concurrency:
+    group: macos-${{ github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+env:
+    # Fix for symfony/color detection. We know GitHub Actions can handle it
+    ANSICON: 1
+
+jobs:
+    macos:
+        name: macOS
+        runs-on: macos-latest
+        timeout-minutes: 90
+        env:
+            # No Docker on macOS runners: the tasks run on the runner itself
+            CASTOR_CONTEXT: host
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false
+
+            - name: setup-castor
+              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+
+            # Composer and the PHP of the projects, for castor install: the
+            # crates link the static PHP below
+            - name: "Set up PHP"
+              uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+              with:
+                  php-version: "8.5"
+                  extensions: intl, pdo_sqlite, sqlite3
+                  tools: composer
+
+            # Built once, then as long as the version of PHP, its extensions and
+            # static-php-cli stay the same
+            - name: "Cache static PHP"
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: static-php/buildroot
+                  key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
+                  # An older one too: static-php:build builds again only if the
+                  # versions or the extensions changed, not the rest of the file
+                  restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
+
+            - name: "Cache the Rust build"
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      ~/.cargo/git
+                      ~/.cargo/registry
+                      target/static
+                  key: cargo-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+                  restore-keys: cargo-${{ runner.os }}-${{ runner.arch }}-
+
+            # static-php-cli asks the GitHub API for its downloads: without a
+            # token, the runners share its rate limit
+            - name: "Build PHP as a static library"
+              run: "castor static-php:build"
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            # The smoke tests serve the demos, with their vendor/
+            - name: "Install the projects"
+              run: "castor install"
+
+            - name: "Check the Rust crates (fmt, Clippy, tests)"
+              run: "castor qa:rust --static"
+
+            - name: "Smoke test the demos through the runtime"
+              run: "castor nativella:smoke --static"
