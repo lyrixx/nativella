@@ -50,7 +50,9 @@ in the `android` service: the builder, plus the Android SDK, and so does the PHP
 - a window needs the display, so `castor nativella:run <demo>` runs cargo on the host (it needs
   the system packages of [docs/development.md](docs/development.md#on-your-machine)). `--docker`
   runs it in the builder instead, on the Wayland/X11 display of the host;
-- `castor mobile:ios <demo>` needs Xcode, on a Mac.
+- the template apps of iOS (`castor mobile:ios-template`) need Xcode, on a Mac: `nativella ios`
+  then makes the app of a demo of one in the builder (`castor mobile:ios <demo> --template=…`),
+  and `castor mobile:ios-simulator <demo>` opens it in the simulator, on the Mac.
 
 Host prerequisites: Docker, Castor (and, for `nativella:run` on the host, Rust and the Ubuntu
 packages).
@@ -78,8 +80,8 @@ castor static-php:android        # the same PHP for Android (android service), -
 castor static-php:ios            # the same PHP for iOS and its simulator (macOS)
 castor mobile:android-template   # the template APK that `nativella android` makes applications of (android service)
 castor mobile:android symfony    # the template, then the APK of the demo with `nativella android`, then mobile:android-emulator
-castor mobile:ios symfony        # an iOS simulator app of the demo (macOS), then mobile:ios-simulator
-castor nativella:bundle symfony  # the bundle an iOS build compiles, made in Docker (mobile:ios --bundle)
+castor mobile:ios-template       # the template app that `nativella ios` makes iOS apps of, for the simulator (macOS; --device: for devices)
+castor mobile:ios symfony        # the template, then the simulator app of the demo with `nativella ios`, then mobile:ios-simulator (macOS)
 castor logs [--service=service]  # logs (frontend, router)
 ```
 

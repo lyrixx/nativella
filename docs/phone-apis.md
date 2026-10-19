@@ -22,7 +22,7 @@ An application asks for the APIs it uses in the `permissions` of its [configurat
 }
 ```
 
-On Android, every application has the plugins of the three, from the template APK, but registers only those it asks for, and keeps only the permissions they declare to Android, location for `geolocation`: an application that never locates the phone does not ask for it. iOS builds turn them into features of the `nativella` crate (`--features geolocation,haptics`): only these plugins go into the application.
+Every application has the plugins of the three, from the template of its platform, but registers only those it asks for. On Android, it keeps only the permissions they declare, location for `geolocation`: an application that never locates the phone does not ask for it. On iOS, its `Info.plist` has the reasons of those it asks for only, which iOS shows the user: Face ID for `biometrics`, the location for `geolocation`.
 
 Where the user must agree, they are asked on the first call, not at install: location, on Android.
 
