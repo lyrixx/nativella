@@ -24,6 +24,10 @@ the documentation. The Docker/Castor workflow is described in
 Every directory of `packages/*` and `demos/*`, and `website/`, with a `composer.json` is a
 project: the Castor tasks find them at each run, a new one needs no configuration.
 
+Each package of `packages/*` is split to a read-only repository (`.gitsplit.yml`, run by
+`.github/workflows/gitsplit.yml` on `main` and the `v*` tags): a new package needs its entry
+there, and its repository. See [docs/development.md](docs/development.md#split-repositories).
+
 ## Fundamental rule: PHP and Composer run in the builder
 
 Never run PHP or Composer on the host. Everything goes through the `builder` container, via
@@ -122,4 +126,5 @@ There is no `test` context: each test suite sets its own environment (`phpunit.x
 5. Tool dependencies live in `tools/<tool>/` (`composer.json`, or `requirements.txt` for Zensical),
    not in the projects.
 6. The CI (`.github/workflows/`) runs Castor tasks only, with `CASTOR_CONTEXT=ci` (`host` on
-   macOS): what passes locally passes there.
+   macOS): what passes locally passes there. The split of the packages (`gitsplit.yml`) is
+   the exception: it runs the docker-gitsplit image.
