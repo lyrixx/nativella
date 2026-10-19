@@ -272,7 +272,10 @@ function build_library(Build $build, string $library, string $archive): void
             '-DLIBXML2_WITH_ICU=OFF',
             '-DLIBXML2_WITH_PYTHON=OFF', '-DLIBXML2_WITH_PROGRAMS=OFF', '-DLIBXML2_WITH_TESTS=OFF',
         ]),
-        'sqlite', 'libsodium' => $build->autoconf($source),
+        // The library only: its shell runs commands with system(), which iOS
+        // does not have
+        'sqlite' => $build->autoconf($source, [], ['install-libLTLIBRARIES', 'install-includeHEADERS', 'install-pkgconfigDATA']),
+        'libsodium' => $build->autoconf($source),
         'libzip' => $build->cmake($source, [
             '-DENABLE_OPENSSL=ON', '-DENABLE_GNUTLS=OFF', '-DENABLE_MBEDTLS=OFF',
             '-DENABLE_BZIP2=OFF', '-DENABLE_LZMA=OFF', '-DENABLE_ZSTD=OFF',
