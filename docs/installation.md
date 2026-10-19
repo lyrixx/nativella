@@ -39,33 +39,19 @@ nativella --version
 
 ## The PHP package
 
-`nativella/nativella`, and the Symfony and Laravel integrations, are not on Packagist yet. Point Composer at a clone of the repository (`git clone https://github.com/lyrixx/nativella.git`) with a path repository, in the `composer.json` of your application:
-
-```json title="composer.json"
-{
-    "repositories": [
-        {
-            "type": "path",
-            "url": "../nativella/packages/*",
-            "options": {
-                "versions": {
-                    "nativella/laravel": "0.1.x-dev",
-                    "nativella/nativella": "0.1.x-dev",
-                    "nativella/symfony-bundle": "0.1.x-dev"
-                }
-            }
-        }
-    ]
-}
-```
-
-The packages share one Git repository, so Composer cannot guess their versions: the `versions` option gives them one. Then:
+The native APIs are a Composer package, `nativella/nativella`. The Symfony bundle and the Laravel package require it: add the one your application needs.
 
 ```bash
-composer require nativella/nativella:^0.1@dev
+composer require nativella/symfony-bundle   # Symfony
+composer require nativella/laravel          # Laravel
+composer require nativella/nativella        # plain PHP, or another framework
 ```
 
-Composer symlinks path repositories into `vendor/`. That is fine: [`nativella build`](building.md) follows the links and ships what they point to.
+[Symfony](symfony.md), [Laravel](laravel.md) and [Plain PHP](plain-php.md) go on from there.
+
+Composer writes a constraint such as `^0.2`, which stays on 0.2.x: before 1.0, a minor version can break things. The packages and the `nativella` command are released together, with the same version number: upgrade them together.
+
+To work on Nativella itself, the demos of the repository take the packages from `packages/` through a [path repository](https://getcomposer.org/doc/05-repositories.md#path): see [Developing Nativella](development.md).
 
 ## Try it without the package
 

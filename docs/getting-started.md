@@ -58,7 +58,13 @@ The identifier names the directory where the application keeps its data: pick it
 
 ## 3. Call native code
 
-Install the PHP package, as [Installation](installation.md#the-php-package) explains, then call it from the page:
+Install the PHP package:
+
+```bash
+composer require nativella/nativella
+```
+
+Then call it from the page:
 
 ```php title="public/index.php"
 <?php
