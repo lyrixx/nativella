@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "da798f976465d2d02cdbf83a05ae0c63",
+    "content-hash": "d42bca3d9daafdd664f1d84557205fc0",
     "packages": [
         {
             "name": "brick/math",
@@ -2145,11 +2145,11 @@
         },
         {
             "name": "nativella/laravel",
-            "version": "0.1.x-dev",
+            "version": "0.2.x-dev",
             "dist": {
                 "type": "path",
                 "url": "../../packages/laravel",
-                "reference": "33aaf1e6fe5a065c612ae47528d765b499873c32"
+                "reference": "8825120fed589f33dbb86e89164625ab735ec75f"
             },
             "require": {
                 "illuminate/console": "^12.0 || ^13.0",
@@ -2159,7 +2159,7 @@
                 "illuminate/routing": "^12.0 || ^13.0",
                 "illuminate/support": "^12.0 || ^13.0",
                 "illuminate/view": "^12.0 || ^13.0",
-                "nativella/nativella": "^0.1",
+                "nativella/nativella": "^0.2",
                 "php": ">=8.4"
             },
             "require-dev": {
@@ -2170,7 +2170,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "0.1.x-dev"
+                    "dev-main": "0.2.x-dev"
                 },
                 "laravel": {
                     "providers": [
@@ -2204,11 +2204,11 @@
         },
         {
             "name": "nativella/nativella",
-            "version": "0.1.x-dev",
+            "version": "0.2.x-dev",
             "dist": {
                 "type": "path",
                 "url": "../../packages/nativella",
-                "reference": "c1f985fb51fa6fa9d33427843434f8989959b264"
+                "reference": "9c1f4798a0f1bcf1a4e9fb9c8dc53305ceb7c6d3"
             },
             "require": {
                 "php": ">=8.4"
@@ -2219,7 +2219,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "0.1.x-dev"
+                    "dev-main": "0.2.x-dev"
                 }
             },
             "autoload": {

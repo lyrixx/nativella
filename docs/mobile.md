@@ -49,7 +49,7 @@ adb install dist/notes.apk
 ```
 
 > [!NOTE]
-> The command and the template must come from the same version of Nativella: `nativella android` warns when they do not. Nativella 0.1.1 and older have neither: until a release has them, build both from the repository, `castor nativella:build` for the command (see [Developing Nativella](development.md#static-php)) and `castor mobile:android-template --release` for the template (see [below](#from-the-repository)).
+> The command and the template must come from the same version of Nativella: `nativella android` warns when they do not. Both come with Nativella 0.2.0 and later.
 
 The APK is the template, with:
 
