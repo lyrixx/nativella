@@ -30,7 +30,7 @@ The whole project directory, `vendor/` included, as a compressed archive, except
 | Left out | |
 |---|---|
 | `.git`, `.idea`, `node_modules`, `tests` | At the root of the project. |
-| `.env.local`, and every path ending with `.local` | Local overrides, which tend to hold secrets. |
+| `.env.local`, and every path ending with `.local` | Local overrides, which tend to hold secrets. The build lists the ones it leaves out. |
 
 | Shipped empty | |
 |---|---|

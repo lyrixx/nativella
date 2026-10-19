@@ -104,7 +104,13 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
     };
 
     match result {
-        Ok(()) => {
+        Ok(local_overrides) => {
+            if !local_overrides.is_empty() {
+                eprintln!(
+                    "Left out {}: local overrides never ship. Set the production environment in a file that does, like the .env.local.php of `composer dump-env prod` with Symfony.",
+                    local_overrides.join(", ")
+                );
+            }
             eprintln!("Done: {}", output.display());
             ExitCode::SUCCESS
         }

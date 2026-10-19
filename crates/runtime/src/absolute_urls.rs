@@ -5,7 +5,8 @@
 //!
 //! Only URL attributes of HTML (`href`, `src`, `action`…) and `url()` of CSS
 //! are rewritten: text, form values, scripts and JSON documents are the
-//! user's data, which may well mention `http://localhost`.
+//! user's data, which may well mention `http://localhost`. The shell brings
+//! back the requests scripts send there (`crates/nativella/src/absolute_urls.rs`).
 //!
 //! Where the webview itself uses HTTP (Windows, Android: `http://php.localhost/`),
 //! there is nothing to do.

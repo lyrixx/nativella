@@ -179,7 +179,7 @@ when@test:
 {% endif %}
 ```
 
-`url()` and `absolute_url()` work too: Symfony believes it is served from `http://localhost/`, and the runtime rewrites those URLs to the address of the window in the URL attributes of HTML and the `url()` of CSS. In JSON and scripts, use `path()`. See [Pages and JavaScript](javascript.md#links-and-absolute-urls).
+`url()` and `absolute_url()` work too: Symfony believes it is served from `http://localhost/`, and the runtime rewrites those URLs to the address of the window in the URL attributes of HTML and the `url()` of CSS. In JSON and scripts, use `path()`: only the requests of `fetch()`, `XMLHttpRequest` and `EventSource` to `http://localhost/` are brought back to the application. See [Pages and JavaScript](javascript.md#links-and-absolute-urls).
 
 ## The profiler
 
