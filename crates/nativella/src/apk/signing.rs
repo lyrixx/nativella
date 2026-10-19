@@ -333,8 +333,12 @@ mod tests {
 
         let certificate = certificate(&signing_key).unwrap();
 
+        let digest: String = Sha256::digest(&certificate)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
         assert_eq!(
-            format!("{:x}", Sha256::digest(&certificate)),
+            digest,
             "a714a00fe2b9ba5828ed18f0896c991ef44ff946eb0ef7be7a8bd688f20aeb3a"
         );
     }
