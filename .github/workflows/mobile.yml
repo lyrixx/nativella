@@ -1,10 +1,11 @@
 name: Mobile
 
-# Builds the Symfony demo for Android (arm64) in the android image, and opens
-# it in an emulator; builds it for the iOS simulator on a macOS runner, and
-# opens it there, experimentally. Both fail if PHP answers no page: their
-# screenshot and the output of the app are artifacts. The two platforms build
-# side by side: iOS waits only for the bundle of the demo.
+# Builds the template APK (arm64) in the android image, makes the APK of the
+# Symfony demo of it with nativella android, and opens it in an emulator;
+# builds the demo for the iOS simulator on a macOS runner, and opens it there,
+# experimentally. Both fail if PHP answers no page: their screenshot and the
+# output of the app are artifacts. The two platforms build side by side: iOS
+# waits only for the bundle of the demo.
 
 "on":
     # Every push to main, whatever the paths: main catches a path missing
@@ -85,7 +86,8 @@ jobs:
             - name: "Build the builder"
               run: "castor docker:build --service=builder"
 
-            # Builds the android image first
+            # Builds the android image, then the template APK, then the APK of
+            # the demo from it
             - name: "Build the APK"
               run: "castor mobile:android symfony"
 
@@ -93,7 +95,7 @@ jobs:
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: nativella-demo-symfony-android-arm64-debug
-                  path: crates/nativella/gen/android/app/build/outputs/apk/**/*.apk
+                  path: target/nativella/android/symfony.apk
                   if-no-files-found: error
                   retention-days: 1 # Only carries the APK to the emulator job
 

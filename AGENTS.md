@@ -13,7 +13,7 @@ the documentation. The Docker/Castor workflow is described in
 | Path | What |
 |---|---|
 | `crates/runtime` | `nativella-runtime`: the SAPI, the PHP thread, `nativella_call()` |
-| `crates/nativella` | `nativella`: the Tauri shell, the native APIs, `nativella build` |
+| `crates/nativella` | `nativella`: the Tauri shell, the native APIs, `nativella build` and `nativella android` |
 | `packages/nativella` | The PHP client of the native APIs, framework-agnostic |
 | `packages/symfony`, `packages/laravel` | The Symfony bundle, the Laravel package |
 | `demos/symfony`, `demos/laravel`, `demos/vanilla` | The demos, on `packages/*` through a Composer path repository |
@@ -74,9 +74,10 @@ castor nativella:run symfony     # the Symfony demo, as a desktop application (h
 castor nativella:smoke           # each demo answers through the runtime, without a window
 castor nativella:build [demo]    # dist/nativella and the standalone executables of the demos, with the static PHP (staged for production)
 castor static-php:build          # PHP as a static library, for nativella:build and --static (qa:rust…), in the static service
-castor mobile:android symfony    # an Android APK of the demo (android service), then mobile:android-emulator
+castor mobile:android-template   # the template APK that `nativella android` makes applications of (android service)
+castor mobile:android symfony    # the template, then the APK of the demo with `nativella android`, then mobile:android-emulator
 castor mobile:ios symfony        # an iOS simulator app of the demo (macOS), then mobile:ios-simulator
-castor nativella:bundle symfony  # the bundle a phone build compiles, made in Docker (mobile:ios --bundle)
+castor nativella:bundle symfony  # the bundle an iOS build compiles, made in Docker (mobile:ios --bundle)
 castor logs [--service=service]  # logs (frontend, router)
 ```
 

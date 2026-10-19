@@ -41,6 +41,8 @@ The identifier names the directories of the application, the [data directory](#t
 
 Defaults to `dev.nativella.` followed by the package name: `acme/note-taker` becomes `dev.nativella.note-taker`.
 
+On Android, the application ID, what Android knows the application by, is the identifier with its dashes as underscores, as Android accepts no dash: `dev.nativella.note_taker`. It needs two segments at least, each starting with a letter: `com.acme.2048` cannot make one. See [Mobile](mobile.md#building-an-apk).
+
 ## `version`
 
 The version of the application, as [`App::info()`](app.md) reports it. Defaults to the `version` of `composer.json`, then to `0.1.0`.
@@ -80,7 +82,7 @@ Schemes are lowercase letters, digits, `+`, `-` and `.`, starting with a letter;
 
 ## `permissions`
 
-The [phone APIs](phone-apis.md) the application uses: `biometrics`, `geolocation`, `haptics`. Mobile builds include these, and only these, with the permissions they declare to Android. Computers ignore it.
+The [phone APIs](phone-apis.md) the application uses: `biometrics`, `geolocation`, `haptics`. Mobile applications have these, and only these: on Android, with the permissions they declare. Computers ignore it.
 
 ## The data directory
 

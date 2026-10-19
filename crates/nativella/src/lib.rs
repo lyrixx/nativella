@@ -3,10 +3,12 @@
 //!
 //! [`run`] lets the desktop binary and the examples share the same
 //! application; mobile platforms start from the entry point below, with the
-//! project compiled into the library.
+//! project their package carries (see embedded.rs).
 
 #[cfg(not(any(windows, target_os = "android")))]
 mod absolute_urls;
+#[cfg(desktop)]
+pub mod apk;
 #[cfg(any(test, target_os = "android"))]
 mod deadline;
 pub mod embedded;
@@ -21,16 +23,12 @@ mod secret;
 
 use std::env;
 use std::fs;
-#[cfg(mobile)]
-use std::io::Cursor;
 use std::path::PathBuf;
 
 use nativella_runtime::{PhpApp, PhpRuntime, RequestOrigin};
 use serde_json::json;
 use tauri::{App, Builder, Manager, RunEvent, WindowEvent, Wry};
 
-#[cfg(mobile)]
-use crate::embedded::Bundle;
 use crate::native::State;
 pub use crate::project::{Manifest, Project};
 
@@ -49,9 +47,9 @@ pub(crate) const MAIN_WINDOW: &str = "main";
 enum Source {
     /// A directory: `nativella run`, or a standalone executable once extracted.
     Project(Project),
-    /// The bundle compiled into the library (mobile), extracted at startup.
+    /// The bundle of a phone application, extracted at startup.
     #[cfg(mobile)]
-    Compiled(Bundle<Cursor<&'static [u8]>>),
+    Packaged(embedded::Packaged),
 }
 
 impl Source {
@@ -59,7 +57,7 @@ impl Source {
         match self {
             Self::Project(project) => &project.manifest,
             #[cfg(mobile)]
-            Self::Compiled(bundle) => bundle.manifest(),
+            Self::Packaged(bundle) => bundle.manifest(),
         }
     }
 
@@ -71,7 +69,7 @@ impl Source {
         Ok(match self {
             Self::Project(project) => project,
             #[cfg(mobile)]
-            Self::Compiled(bundle) => bundle.extract(&app.path().app_cache_dir()?)?,
+            Self::Packaged(bundle) => bundle.extract(&app.path().app_cache_dir()?)?,
         })
     }
 }
@@ -85,15 +83,20 @@ pub fn run(
     start(Source::Project(project), customize)
 }
 
-/// Android and iOS start here, with the bundle compiled into the library.
+/// Android and iOS start here, with the bundle their package carries.
 #[cfg(mobile)]
 #[tauri::mobile_entry_point]
 fn mobile_main() {
     #[cfg(target_os = "android")]
     logcat::redirect_stderr();
 
-    let result = match embedded::compiled() {
-        Ok(Some(bundle)) => start(Source::Compiled(bundle), |builder| builder),
+    let result = match embedded::packaged() {
+        Ok(Some(bundle)) => start(Source::Packaged(bundle), |builder| builder),
+        #[cfg(target_os = "android")]
+        Ok(None) => {
+            Err("This APK carries no PHP project: make it with nativella android.".to_owned())
+        }
+        #[cfg(target_os = "ios")]
         Ok(None) => Err("No PHP project in this build: build it with NATIVELLA_BUNDLE.".to_owned()),
         Err(error) => Err(format!("The bundled PHP project is unreadable: {error}")),
     };
@@ -179,12 +182,32 @@ fn start(
     // Reads the files picked in dialogs (content URIs), see native/dialog.rs.
     #[cfg(mobile)]
     let builder = builder.plugin(tauri_plugin_fs::init());
+    // The APIs of phones the application asks for, and only them: the template
+    // APK of `nativella android` is built with them all.
     #[cfg(all(mobile, feature = "biometrics"))]
-    let builder = builder.plugin(tauri_plugin_biometric::init());
+    let builder = if manifest
+        .permissions
+        .contains(&project::Permission::Biometrics)
+    {
+        builder.plugin(tauri_plugin_biometric::init())
+    } else {
+        builder
+    };
     #[cfg(all(mobile, feature = "geolocation"))]
-    let builder = builder.plugin(tauri_plugin_geolocation::init());
+    let builder = if manifest
+        .permissions
+        .contains(&project::Permission::Geolocation)
+    {
+        builder.plugin(tauri_plugin_geolocation::init())
+    } else {
+        builder
+    };
     #[cfg(all(mobile, feature = "haptics"))]
-    let builder = builder.plugin(tauri_plugin_haptics::init());
+    let builder = if manifest.permissions.contains(&project::Permission::Haptics) {
+        builder.plugin(tauri_plugin_haptics::init())
+    } else {
+        builder
+    };
 
     #[cfg(target_os = "android")]
     let builder = builder
@@ -231,7 +254,7 @@ fn start(
             let extracted = match &source {
                 Source::Project(_) => embedded::is_standalone(),
                 #[cfg(mobile)]
-                Source::Compiled(_) => true,
+                Source::Packaged(_) => true,
             };
             let project = source.into_project(app)?;
             // Not before: a second instance has exited by now, so the

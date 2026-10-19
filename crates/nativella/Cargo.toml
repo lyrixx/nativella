@@ -30,6 +30,9 @@ tauri-plugin-opener = "2"
 tauri-plugin-os = "2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+# What `nativella android` signs APKs with (src/apk/signing.rs).
+p256 = "0.13"
+sha2 = "0.10"
 starship-battery = "0.12"
 tauri-plugin-autostart = "2"
 tauri-plugin-deep-link = "2"
@@ -62,7 +65,9 @@ keyring = { version = "3", features = ["windows-native"] }
 [features]
 # The APIs of phones: each one brings its plugin and the permissions it
 # declares to the Android manifest. An application asks for them with the
-# "permissions" of its composer.json, which mobile builds turn into features.
+# "permissions" of its composer.json: the template APK of `nativella android`
+# has them all, and the application only registers the plugins it asks for;
+# iOS builds turn them into features.
 biometrics = ["dep:tauri-plugin-biometric"]
 geolocation = ["dep:tauri-plugin-geolocation"]
 haptics = ["dep:tauri-plugin-haptics"]
@@ -76,3 +81,11 @@ tauri-plugin-biometric = { version = "2", optional = true }
 tauri-plugin-fs = "2"
 tauri-plugin-geolocation = { version = "2", optional = true }
 tauri-plugin-haptics = { version = "2", optional = true }
+
+# What tao already uses, to read the assets of the APK: the bundle of the
+# application is one (see src/embedded.rs).
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk = { version = "0.9", default-features = false }
+ndk-context = "0.1"
+ndk-sys = "0.6"

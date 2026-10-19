@@ -22,7 +22,7 @@ castor completion | sudo tee /etc/bash_completion.d/castor
 | Service | What |
 |---|---|
 | `builder` | PHP 8.5 and Composer, the Rust toolchain (stable, with Clippy and rustfmt), `libphp8.5-embed` and its headers, clang, WebKitGTK 4.1 and the other libraries of Tauri. Every command runs there. |
-| `android` | The builder, plus a JDK, the Android SDK with an NDK, the Android target of Rust and the Tauri command, for `castor mobile:android`. A few gigabytes, x86_64 only: `castor docker:build` leaves it out, the Android build builds it. |
+| `android` | The builder, plus a JDK, the Android SDK with an NDK, the Android target of Rust and the Tauri command, for the template APK of `castor mobile:android`. A few gigabytes, x86_64 only: `castor docker:build` leaves it out, the Android build builds it. |
 | `static` | Ubuntu 22.04, with Rust and the libraries of Tauri, but no PHP: the [static PHP](#static-php) and the executables linked against it, for an old glibc. `castor docker:build` leaves it out, `castor static-php:build` builds it. |
 | `frontend` | nginx and PHP-FPM: the website, and each demo in a browser. |
 | `router` | Traefik, for the domains and HTTPS. |
@@ -196,7 +196,8 @@ Add the extensions an application needs: `php8.5-mbstring`, `php8.5-xml`, `php8.
 ### Android and iOS
 
 ```bash
-castor mobile:android symfony [--release]
+castor mobile:android-template [--release]       # target/nativella/android-template-*.apk
+castor mobile:android symfony [--release]        # the template, then the APK of the demo
 castor mobile:android-emulator symfony           # after mobile:android, with adb
 castor nativella:bundle symfony                  # target/nativella/app.bundle, for --bundle
 castor mobile:ios symfony [--bundle=<file>]      # on a Mac
@@ -204,7 +205,7 @@ castor mobile:ios-boot                           # on a Mac, the simulator, ahea
 castor mobile:ios-simulator symfony              # on a Mac, after mobile:ios
 ```
 
-`mobile:android` builds the `android` image, then the APK in it: it lands in `crates/nativella/gen/android/app/build/outputs/apk/`. `mobile:android-emulator` installs it on the emulator, or the phone, that `adb` sees, on your machine. `mobile:ios` runs on the Mac itself, which needs Xcode and XcodeGen; `nativella:bundle` makes the bundle it compiles, in Docker, for a Mac without it. `mobile:ios-simulator` opens the app it built in a simulator, once booted: `mobile:ios-boot` boots it beforehand, as the CI does while it builds. Both open the app and wait for PHP to answer a page, and fail if it does not: the screenshot and the output of the app land in `target/nativella/`. See [Mobile](mobile.md#what-is-tested).
+`mobile:android-template` builds the `android` image, then the template APK in it, which `nativella android` makes applications of: it lands in `target/nativella/`. `mobile:android` builds it, then makes the APK of the demo of it in the builder, in `target/nativella/android/`. `mobile:android-emulator` installs it on the emulator, or the phone, that `adb` sees, on your machine. `mobile:ios` runs on the Mac itself, which needs Xcode and XcodeGen; `nativella:bundle` makes the bundle it compiles, in Docker, for a Mac without it. `mobile:ios-simulator` opens the app it built in a simulator, once booted: `mobile:ios-boot` boots it beforehand, as the CI does while it builds. Both open the app and wait for PHP to answer a page, and fail if it does not: the screenshot and the output of the app land in `target/nativella/`. See [Mobile](mobile.md#what-is-tested).
 
 ## Contexts
 
@@ -256,7 +257,7 @@ On `main`, they all run on every push, whatever the paths, but `cache.yml` and `
 | `macos.yml` | Changes to the crates, `mobile/php/php` or the Castor tasks; weekly; manually | `castor qa:rust --static` and `castor nativella:smoke --static` on macOS (arm64, the host context, with the static PHP). |
 | `dockerfile.yml` | Changes to `infrastructure/docker/` | hadolint on the Dockerfile. |
 | `website.yml` | Changes to `website/`, `docs/` or `tools/zensical/` | `castor website:build`, in the host context, with the PHP and the Python of the runner: no image to build. It fails on a broken link; on `main`, deploys `website/dist/` to GitHub Pages: the landing page, and the documentation under `docs/`. Pages must be set to "GitHub Actions" in the settings of the repository. |
-| `mobile.yml` | Changes to `crates/`, `mobile/`, `packages/`, `demos/symfony/` or the Docker stack, manually | `castor mobile:android symfony`: the APK as an artifact. Then `castor mobile:android-emulator symfony`, in an Android 16 emulator (x86_64, with KVM); and, experimentally, `castor mobile:ios symfony` on macOS, with the bundle of `castor nativella:bundle symfony`, made by a job of its own so that iOS does not wait for Android, and `castor mobile:ios-simulator symfony`, the simulator booted in the background while the app builds. Their screenshots and the output of the apps as artifacts. |
-| `release.yml` | `v*` tags, manually | `castor nativella:build` and `castor nativella:package`: the Linux x86_64 executables, in the `static` image, and the macOS arm64 ones; as artifacts and, for a tag, on the GitHub release. |
+| `mobile.yml` | Changes to `crates/`, `mobile/`, `packages/`, `demos/symfony/` or the Docker stack, manually | `castor mobile:android symfony`: the template APK, then the APK of the demo, as an artifact. Then `castor mobile:android-emulator symfony`, in an Android 16 emulator (x86_64, with KVM); and, experimentally, `castor mobile:ios symfony` on macOS, with the bundle of `castor nativella:bundle symfony`, made by a job of its own so that iOS does not wait for Android, and `castor mobile:ios-simulator symfony`, the simulator booted in the background while the app builds. Their screenshots and the output of the apps as artifacts. |
+| `release.yml` | `v*` tags, manually | `castor nativella:build` and `castor nativella:package`: the Linux x86_64 executables, in the `static` image, and the macOS arm64 ones; `castor mobile:android-template --release`: the template APK of Android, in the `android` image; as artifacts and, for a tag, on the GitHub release, with their checksums. |
 | `cache.yml` | Changes to `infrastructure/docker/` on `main` | `castor docker:push`: pushes the build cache of the images to `ghcr.io/lyrixx/nativella`, which the other workflows build from. |
 | `gitsplit.yml` | `main`, `v*` tags, manually | Not a Castor task: [docker-gitsplit](https://github.com/jderusse/docker-gitsplit) pushes each package of `packages/` to its [repository](#split-repositories). Each run splits `main` and the release tags as they are when it starts. |

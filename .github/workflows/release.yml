@@ -2,8 +2,9 @@ name: Release
 
 # Builds the nativella command and the standalone executables of the demos,
 # linked against a static PHP, for Linux x86_64, in the static image (Ubuntu
-# 22.04, for its glibc), and for macOS arm64; attaches them to the GitHub
-# release of a v* tag.
+# 22.04, for its glibc), and for macOS arm64; the template APK that
+# nativella android makes Android applications of, in the android image;
+# attaches them to the GitHub release of a v* tag.
 
 "on":
     push:
@@ -152,10 +153,61 @@ jobs:
                   path: release/
                   if-no-files-found: error
 
+    android:
+        name: Build the template APK for Android arm64
+        runs-on: ubuntu-latest
+        timeout-minutes: 90
+        steps:
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+            - name: Log in to registry
+              shell: bash
+              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: setup-castor
+              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false
+
+            # The cargo registry and Gradle live in the home of the containers
+            # (.home/), the build in the target directory of the builder
+            - name: "Cache the Rust, Gradle and PHP downloads and builds"
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      .home/.cargo/git
+                      .home/.cargo/registry
+                      .home/.gradle/caches
+                      .home/.gradle/wrapper
+                      mobile/php/dist
+                      target/docker
+                  key: android-release-${{ hashFiles('Cargo.lock', 'infrastructure/docker/services/php/Dockerfile', '.castor/mobile.php') }}
+                  restore-keys: android-release-
+
+            # Unzips the PHP of the phone
+            - name: "Build the builder"
+              run: "castor docker:build --service=builder"
+
+            # Builds the android image first
+            - name: "Build the template APK"
+              run: "castor mobile:android-template --release --output=release/nativella-android-template-arm64.apk"
+
+            - name: "Upload the template APK"
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: nativella-android-arm64
+                  path: release/
+                  if-no-files-found: error
+
     publish:
         name: Publish the release
         if: github.ref_type == 'tag'
-        needs: [linux, macos]
+        needs: [linux, macos, android]
         runs-on: ubuntu-latest
         permissions:
             contents: write
@@ -190,6 +242,10 @@ jobs:
                   macOS arm64: they need nothing installed. They are not signed: downloaded
                   with a browser, remove the quarantine first, with
                   `xattr -d com.apple.quarantine <file>`.
+
+                  Android arm64: `nativella android <project-dir> --template
+                  nativella-android-template-arm64.apk` makes the APK of a PHP project of
+                  this template, with the `nativella` command of the same release.
                   EOF
 
                   if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then

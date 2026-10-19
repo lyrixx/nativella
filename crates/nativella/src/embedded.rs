@@ -8,7 +8,9 @@
 //!
 //! - `nativella build` appends it to a copy of the `nativella` executable: a
 //!   standalone desktop application.
-//! - `nativella bundle` writes it alone, for a mobile build to compile it into
+//! - `nativella android` adds it to an APK, as the asset [`ANDROID_ASSET`]
+//!   (see apk/mod.rs).
+//! - `nativella bundle` writes it alone, for an iOS build to compile it into
 //!   the application library (`NATIVELLA_BUNDLE`, see build.rs).
 //!
 //! At startup, the application extracts its project once per build, in a
@@ -16,7 +18,9 @@
 
 use std::env;
 use std::fs::{self, File};
-use std::io::{self, Cursor, Read, Seek, SeekFrom, Write};
+#[cfg(any(test, target_os = "ios"))]
+use std::io::Cursor;
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -30,8 +34,13 @@ use crate::project::{Manifest, Project};
 const MAGIC: &[u8; 8] = b"NTVLLA01";
 const TRAILER_LENGTH: u64 = 8 + 8 + 8;
 
-/// The bundle compiled into the library for mobile builds, empty otherwise.
+/// The bundle compiled into the library for iOS builds, empty otherwise.
+#[cfg(target_os = "ios")]
 static COMPILED_BUNDLE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/bundle.bin"));
+
+/// The bundle of an Android application: an asset of its APK, which the
+/// application library reads in place.
+pub const ANDROID_ASSET: &str = "nativella.bundle";
 
 /// Paths of the project that never ship: version control, editors, tests.
 /// Relative to the project, with `/`. Local overrides (`.env.local`, every
@@ -86,8 +95,26 @@ pub fn is_standalone() -> bool {
         .is_ok_and(|bundle| bundle.is_some())
 }
 
-/// The bundle compiled into the library, for mobile builds.
-pub fn compiled() -> io::Result<Option<Bundle<Cursor<&'static [u8]>>>> {
+/// The bundle of a phone application, read where its platform keeps it.
+#[cfg(target_os = "android")]
+pub type Packaged = Bundle<asset::Asset>;
+#[cfg(target_os = "ios")]
+pub type Packaged = Bundle<Cursor<&'static [u8]>>;
+
+/// The bundle the phone application carries: the asset [`ANDROID_ASSET`] of
+/// its APK, or the one compiled into the library on iOS.
+#[cfg(target_os = "android")]
+pub fn packaged() -> io::Result<Option<Packaged>> {
+    match asset::open(ANDROID_ASSET)? {
+        Some(asset) => Bundle::read(asset),
+        None => Ok(None),
+    }
+}
+
+/// The bundle the phone application carries: the asset [`ANDROID_ASSET`] of
+/// its APK, or the one compiled into the library on iOS.
+#[cfg(target_os = "ios")]
+pub fn packaged() -> io::Result<Option<Packaged>> {
     Bundle::read(Cursor::new(COMPILED_BUNDLE))
 }
 
@@ -104,7 +131,7 @@ pub fn build(project: &Project, output: &Path) -> io::Result<Vec<String>> {
 
     let mut target = create(output)?;
     io::copy(&mut base, &mut target)?;
-    let local_overrides = write_bundle(project, &mut target, output)?;
+    let local_overrides = write_bundle(project, &mut target, &[output])?;
 
     #[cfg(unix)]
     {
@@ -115,10 +142,10 @@ pub fn build(project: &Project, output: &Path) -> io::Result<Vec<String>> {
     Ok(local_overrides)
 }
 
-/// Writes the bundle of `project` alone, for a mobile build. Returns the
-/// local overrides it left out, relative to the project.
+/// Writes the bundle of `project` alone, for an iOS build. Returns the local
+/// overrides it left out, relative to the project.
 pub fn bundle(project: &Project, output: &Path) -> io::Result<Vec<String>> {
-    write_bundle(project, &mut create(output)?, output)
+    write_bundle(project, &mut create(output)?, &[output])
 }
 
 impl<R: Read + Seek> Bundle<R> {
@@ -264,25 +291,36 @@ fn create(output: &Path) -> io::Result<File> {
     File::create(output)
 }
 
-/// `output` is left out, should it be inside the project. Returns the local
-/// overrides left out.
-fn write_bundle(project: &Project, target: &mut File, output: &Path) -> io::Result<Vec<String>> {
-    let output = output.canonicalize()?;
-    let archive_offset = target.stream_position()?;
+/// Writes the bundle of `project` to `target`, as it goes. The `excluded`
+/// files, which must exist, are left out, should they be inside the project:
+/// what the packaging writes, or reads. Returns the local overrides left out.
+pub(crate) fn write_bundle(
+    project: &Project,
+    target: &mut dyn Write,
+    excluded: &[&Path],
+) -> io::Result<Vec<String>> {
+    let excluded = excluded
+        .iter()
+        .map(|path| path.canonicalize())
+        .collect::<io::Result<Vec<_>>>()?;
 
-    let mut archive = tar::Builder::new(GzEncoder::new(&mut *target, Compression::default()));
+    let mut archive = Counted {
+        inner: &mut *target,
+        length: 0,
+    };
+    let mut builder = tar::Builder::new(GzEncoder::new(&mut archive, Compression::default()));
     // Composer path repositories symlink packages: ship what they point to.
-    archive.follow_symlinks(true);
+    builder.follow_symlinks(true);
     let mut local_overrides = Vec::new();
     append_dir(
-        &mut archive,
+        &mut builder,
         &project.dir,
         Path::new(""),
-        &output,
+        &excluded,
         &mut local_overrides,
     )?;
-    archive.into_inner()?.finish()?;
-    let archive_length = target.stream_position()? - archive_offset;
+    builder.into_inner()?.finish()?;
+    let archive_length = archive.length;
 
     let build = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -302,11 +340,30 @@ fn write_bundle(project: &Project, target: &mut File, output: &Path) -> io::Resu
     Ok(local_overrides)
 }
 
+/// A writer that counts what it writes.
+struct Counted<W> {
+    inner: W,
+    length: u64,
+}
+
+impl<W: Write> Write for Counted<W> {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        let written = self.inner.write(buffer)?;
+        self.length += written as u64;
+
+        Ok(written)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
+}
+
 fn append_dir<W: Write>(
     archive: &mut tar::Builder<W>,
     root: &Path,
     relative: &Path,
-    output: &Path,
+    excluded: &[PathBuf],
     local_overrides: &mut Vec<String>,
 ) -> io::Result<()> {
     let mut entries = fs::read_dir(root.join(relative))?.collect::<Result<Vec<_>, _>>()?;
@@ -321,7 +378,10 @@ fn append_dir<W: Write>(
             continue;
         }
         if EXCLUDED.contains(&normalized.as_str())
-            || entry.path().canonicalize().is_ok_and(|path| path == output)
+            || entry
+                .path()
+                .canonicalize()
+                .is_ok_and(|path| excluded.contains(&path))
         {
             continue;
         }
@@ -333,13 +393,86 @@ fn append_dir<W: Write>(
                 archive.append_dir(&path, entry.path())?;
             }
         } else if metadata.is_dir() {
-            append_dir(archive, root, &path, output, local_overrides)?;
+            append_dir(archive, root, &path, excluded, local_overrides)?;
         } else {
             archive.append_path_with_name(entry.path(), &path)?;
         }
     }
 
     Ok(())
+}
+
+/// The assets of an APK, read in place through the asset manager of the
+/// application.
+#[cfg(target_os = "android")]
+mod asset {
+    use std::ffi::CString;
+    use std::io::{self, Read, Seek, SeekFrom};
+    use std::ptr::NonNull;
+
+    use jni::JavaVM;
+    use jni::objects::{GlobalRef, JObject};
+
+    /// An asset of the APK.
+    pub struct Asset {
+        asset: ndk::asset::Asset,
+        /// The Java asset manager behind the native one, which lives as long
+        /// as it does.
+        _manager: GlobalRef,
+    }
+
+    // SAFETY: an AAsset may move to another thread, as long as two threads do
+    // not use it at once: Asset is not Sync, and reading and seeking take
+    // &mut self.
+    unsafe impl Send for Asset {}
+
+    /// Opens the asset `name` of the APK, `None` if it has none.
+    pub fn open(name: &str) -> io::Result<Option<Asset>> {
+        let context = ndk_context::android_context();
+        // SAFETY: tao initializes the context with the VM of the process and
+        // the context of the application, before the entry point runs.
+        let vm = unsafe { JavaVM::from_raw(context.vm().cast()) }.map_err(io::Error::other)?;
+        let mut env = vm.attach_current_thread().map_err(io::Error::other)?;
+        // SAFETY: a global reference, which tao keeps for the whole process.
+        let application = unsafe { JObject::from_raw(context.context().cast()) };
+        let manager = env
+            .call_method(
+                &application,
+                "getAssets",
+                "()Landroid/content/res/AssetManager;",
+                &[],
+            )
+            .and_then(|manager| manager.l())
+            .and_then(|manager| env.new_global_ref(manager))
+            .map_err(io::Error::other)?;
+
+        // SAFETY: a live JNI environment, and a reference to an AssetManager.
+        let native = unsafe {
+            ndk_sys::AAssetManager_fromJava(env.get_raw().cast(), manager.as_obj().as_raw().cast())
+        };
+        let native = NonNull::new(native)
+            .ok_or_else(|| io::Error::other("The application has no asset manager."))?;
+        // SAFETY: the native asset manager of `manager`, which Asset keeps.
+        let native = unsafe { ndk::asset::AssetManager::from_ptr(native) };
+        let name = CString::new(name).map_err(io::Error::other)?;
+
+        Ok(native.open(&name).map(|asset| Asset {
+            asset,
+            _manager: manager,
+        }))
+    }
+
+    impl Read for Asset {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            self.asset.read(buffer)
+        }
+    }
+
+    impl Seek for Asset {
+        fn seek(&mut self, position: SeekFrom) -> io::Result<u64> {
+            self.asset.seek(position)
+        }
+    }
 }
 
 /// The per-user cache directory of the desktop platform.

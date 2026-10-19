@@ -9,8 +9,8 @@ Nativella builds Android and iOS applications from the same PHP project as the d
 
 On a phone there is no `nativella` executable to append the project to: the application is a library that Android or iOS loads. So:
 
-- `nativella bundle` packs the project, the same way `nativella build` does, into a file that the build compiles **into** the library (the `NATIVELLA_BUNDLE` variable). The application extracts it once per build, in its cache directory, at first launch.
-- PHP is linked statically: phones have no PHP to share. The build downloads a static `libphp.a` built for the phone, with its headers (see [PHP for the phone](#php-for-the-phone)).
+- On Android, the library is built once per release, without any project, into a template APK: `nativella android` adds the project to it, packed the same way `nativella build` does, as an asset of the APK. On iOS, `nativella bundle` packs it into a file that the build compiles **into** the library (the `NATIVELLA_BUNDLE` variable). Either way, the application extracts it once per build, in its cache directory, at first launch.
+- PHP is linked statically: phones have no PHP to share. The build of the library downloads a static `libphp.a` built for the phone, with its headers (see [PHP for the phone](#php-for-the-phone)).
 - Pages are served from `http://php.localhost/`, as Tauri does for custom schemes on Android. PHP sees that origin too.
 - Android's WebView drops the body of the requests it hands to the application: Nativella injects a script that sends the body of forms, `fetch()` and `XMLHttpRequest` to the runtime first, through Tauri's IPC. Synchronous `XMLHttpRequest` bodies cannot be captured.
 - What PHP writes to stderr goes to logcat, under the `nativella` tag.
@@ -41,7 +41,38 @@ Pages are drawn under the status and navigation bars: add `viewport-fit=cover` t
 
 ## Building an APK
 
-The build is a [Castor](https://castor.jolicode.com) task of the repository, written for its projects: the demos, whose path repositories point to `packages/`. It runs in Docker, in the `android` image of [the stack](development.md): the builder, plus a JDK, the Android SDK with an NDK, the Android target of Rust and the Tauri command. Docker is all it needs on your machine. The image is x86_64 only, as Google ships no NDK for Linux on ARM: on an ARM machine, Docker has to emulate it.
+`nativella android` makes the APK of a project from the template APK of its release, `nativella-android-template-arm64.apk`, without any Android tool: no JDK, no Android SDK, no Rust. Take both from the same [release](https://github.com/lyrixx/nativella/releases), and [prepare the project](building.md#preparing-the-project) as for a standalone executable:
+
+```bash
+nativella android path/to/project --template nativella-android-template-arm64.apk -o dist/notes.apk
+adb install dist/notes.apk
+```
+
+> [!NOTE]
+> The command and the template must come from the same version of Nativella: `nativella android` warns when they do not. Nativella 0.1.1 and older have neither: until a release has them, build both from the repository, `castor nativella:build` for the command (see [Developing Nativella](development.md#static-php)) and `castor mobile:android-template --release` for the template (see [below](#from-the-repository)).
+
+The APK is the template, with:
+
+- the bundle of the project, as the asset `nativella.bundle`, which the application reads in place at startup: what [ships](building.md#what-ships) in a standalone executable, the local overrides left out and listed;
+- the identity of the project, from the `extra.nativella` section of its `composer.json`, in its manifest: its application ID, what Android knows the application by, made of the `identifier`; the `name` under the icon; the `version` as the version name, and as the version code, `major × 1,000,000 + minor × 1,000 + patch`, which Android compares to accept an update;
+- the Android permissions of the [phone APIs](phone-apis.md) the application asks for (`permissions`), and of them only: the template has them all, and the application only registers the ones it asks for.
+
+It is aligned, then signed with APK Signature Scheme v2, which Android checks from API level 24, by `--key`: an EC P-256 private key, in PKCS #8 PEM.
+
+```bash
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out notes-key.pem
+nativella android path/to/project --template nativella-android-template-arm64.apk --key notes-key.pem
+```
+
+Without `--key`, `nativella` signs with the debug key of the computer, which it makes at its first use, in the configuration directory of the user (`~/.config/nativella/android-debug-key.pem` on Linux): enough to try the application, not to publish it. Android installs an update only if it is signed with the same key as the installed application: keep yours.
+
+The application ID is the `identifier` with its dashes as underscores, as Android accepts no dash: `dev.nativella.note-taker` becomes `dev.nativella.note_taker`. Android also wants two segments at least, each starting with a letter: `nativella android` refuses an identifier that cannot make one, such as `com.acme.2048`, and says what to put in `extra.nativella.identifier`.
+
+The classes of the template keep their package, `dev.nativella.runtime`, which the library names in its JNI functions: only the application ID changes, as when the `applicationId` of a Gradle build differs from its `namespace`.
+
+### From the repository
+
+`castor mobile:android symfony` does the same for a demo, with a template built from the repository. It runs in Docker, in the `android` image of [the stack](development.md): the builder, plus a JDK, the Android SDK with an NDK, the Android target of Rust and the Tauri command. Docker is all it needs on your machine. The image is x86_64 only, as Google ships no NDK for Linux on ARM: on an ARM machine, Docker has to emulate it.
 
 ```bash
 castor mobile:android symfony
@@ -49,11 +80,11 @@ castor mobile:android symfony
 
 The task builds the `android` image first, a few gigabytes, once. Then it:
 
-1. copies the demo to `target/nativella/stage/`, without `vendor/`, `var/`, `tests/` and the local `.env` files, and prepares it for production there: Composer without the dev dependencies, the production environment (`composer dump-env prod` for Symfony, `APP_ENV=production` and `APP_DEBUG=false` for Laravel);
-2. bundles it with `nativella bundle`, into `target/nativella/app.bundle`;
-3. generates the Android project in `crates/nativella/gen/android` for the identifier of the application (the `extra.nativella` section of its `composer.json`), and runs `cargo tauri android build`, with the features of the [phone APIs](phone-apis.md) it asks for.
+1. builds the template, as `castor mobile:android-template` does: it generates the Android project of `crates/nativella/tauri.conf.json` in `crates/nativella/gen/android`, runs `cargo tauri android build` with every phone API, and copies the APK to `target/nativella/android-template-debug.apk`;
+2. copies the demo to `target/nativella/stage/`, without `vendor/`, `var/`, `tests/` and the local `.env` files, and prepares it for production there: Composer without the dev dependencies, the production environment (`composer dump-env prod` for Symfony, `APP_ENV=production` and `APP_DEBUG=false` for Laravel);
+3. makes its APK with `nativella android`, in the builder, which has no Android tool: `target/nativella/android/symfony.apk`.
 
-It prints the path of the APK. `--release` builds a release APK, which still has to be signed.
+`--release` makes it from a release template instead, `target/nativella/android-template-release.apk`, whose library has no debug symbols: the one a release publishes (`castor mobile:android-template --release`).
 
 ```bash
 castor mobile:android-emulator symfony
@@ -71,14 +102,14 @@ Without Docker, `castor --context=host mobile:android symfony` runs the same bui
 
 | | The CI | By hand |
 |---|---|---|
-| Android | Builds the APK of the Symfony demo (arm64), on every change to the crates, the packages, the Symfony demo or the Docker stack, and opens it in an Android 16 emulator: PHP must answer a page. The APK, the screenshot and the logcat output are artifacts of the run. | The three demos, on an Android 16 emulator (x86_64, which runs arm64 through its ARM translation): pages, forms, the database, dialogs, the file picker, the clipboard and the [phone APIs](phone-apis.md). |
+| Android | Builds the template APK (arm64) and makes the APK of the Symfony demo of it with `nativella android`, on every change to the crates, the packages, the Symfony demo or the Docker stack, and opens it in an Android 16 emulator: PHP must answer a page. The APK, the screenshot and the logcat output are artifacts of the run. | The three demos, on an Android 16 emulator (x86_64, which runs arm64 through its ARM translation): pages, forms, the database, dialogs, the file picker, the clipboard and the [phone APIs](phone-apis.md). Their three APKs, made from one template, installed side by side. |
 | iOS | Builds the Symfony demo for the simulator (arm64) on a macOS runner, and opens it in a simulator: PHP must answer a page. The screenshot and the output of the app are artifacts of the run. | Nothing more: no device, no phone API. |
 
 PHP answers a page when the runtime writes `[php] GET <url> 200`: the framework booted, migrated its database and rendered the page. The [Mobile workflow](development.md#continuous-integration) runs these jobs.
 
 ## PHP for the phone
 
-The build downloads the static PHP builds that [NativePHP](https://github.com/NativePHP) publishes for its own mobile runtime (MIT, built with static-php-cli and the NDK) into `mobile/php/dist/`, until Nativella builds its own:
+The build of the library downloads the static PHP builds that [NativePHP](https://github.com/NativePHP) publishes for its own mobile runtime (MIT, built with static-php-cli and the NDK) into `mobile/php/dist/`, until Nativella builds its own:
 
 - PHP 8.5, thread safe, arm64 only: x86_64 emulators run it through their ARM translation;
 - the extensions a Symfony or Laravel application needs: ctype, curl, dom, fileinfo, filter, iconv, mbstring, opcache, openssl, pdo_sqlite, session, sodium, sqlite3, tokenizer, xml, zlib… but not intl, which [the desktop PHP](building.md#the-php-inside) has;
@@ -89,8 +120,9 @@ ext-php-rs reads `php -i` and `php-config` to generate its bindings, which the P
 ## Limitations
 
 - **First launch is slow**: the project is extracted, then the framework builds its cache on the phone (about 5 seconds for the Symfony demo on an emulator). The following requests take a few hundred milliseconds in a debug build.
-- **Debug APKs are big** (about 220 MB): the library is not stripped. Release builds are much smaller.
+- **Debug templates are big** (about 220 MB), and so are the APKs made of them: the library is not stripped. A release template weighs about 36 MB, the APK of the Symfony demo made of it 40 MB.
 - **25 seconds per page**: Android's webview, through wry, gives up on a page after 30 seconds and shows an error in its place. So when PHP takes longer, because the user left a dialog, the file picker or a fingerprint prompt open, Nativella answers first with a page that waits: it loads the same page again for a `GET`, the page of the form for a `POST`, once PHP is done. The response PHP gives at last is dropped, so a redirect after a form is lost, not the form's work. A `fetch()` or an XHR gets a 504 instead, even one that asks for HTML, as Turbo does.
-- **One identifier at a time**: the Android project in `crates/nativella/gen/android` is generated for one application; the build generates it again when the identifier changes.
+- **The icon is the template's**: the `icon` of `extra.nativella` does not reach the APK yet.
+- **No Google Play bundle**: `nativella android` writes APKs, to install with `adb` or to open on the phone; Google Play asks for an Android App Bundle (AAB), which a Gradle build, in a Docker image, will make. Its keys are EC P-256 ones, in PEM files, not Java keystores yet.
 - **Few phone APIs**: [haptics, geolocation and biometrics](phone-apis.md). No camera, sharing or push notifications yet.
 - **iOS** is experimental: [`castor mobile:ios`](#building-an-ios-app) builds for the simulator only. There, the Symfony demo shows its first page, but the webview leaves the bottom of the screen black. What the app writes reaches the log of the system in debug builds only. No phone API, nor any device, has been tried.

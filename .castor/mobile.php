@@ -21,6 +21,7 @@ use function docker\builder_path;
 use function docker\docker_compose_run;
 use function docker\run_in_builder;
 use function nativella\bundle;
+use function nativella\stage;
 use function project\demo;
 
 /** The release of NativePHP's builds of PHP for phones: see fetch_php() */
@@ -32,19 +33,52 @@ const PHP_BRANCH = '8.5';
 const PHP_ANSWERED = '/\[php\] GET \S+ 200 /';
 
 /**
- * In the android service, the builder with the Android SDK, which this task
- * builds first; or on the host, with its SDK, JDK and tools, in the host
- * context. The demo is staged for production and bundled in the builder, then
- * compiled into the application (see docs/mobile.md).
+ * What a phone application may ask for, each one a feature of the nativella
+ * crate: the template APK has them all. Keep in sync with the features of
+ * crates/nativella/Cargo.toml.
  */
-#[AsTask(description: 'Builds an Android APK (arm64) of a demo')]
+const PHONE_APIS = ['biometrics', 'geolocation', 'haptics'];
+
+/**
+ * The template APK first (mobile:android-template), then `nativella
+ * android`, in the builder, makes the APK of the demo from it, staged for
+ * production (see docs/mobile.md).
+ */
+#[AsTask(description: 'Builds an Android APK (arm64) of a demo, from the template APK')]
 function android(
     #[AsArgument(description: 'The demo to build, e.g. symfony', autocomplete: 'project\complete_demo_names')]
     string $demo,
-    #[AsOption(description: 'Build a release APK, still to be signed, instead of a debug one')]
+    #[AsOption(description: 'Make it from a release template, smaller, instead of a debug one')]
     bool $release = false,
 ): void {
     $project = demo($demo);
+    $template = android_template($release);
+
+    io()->title("Making the APK of {$project->path}");
+
+    $apk = android_apk($demo);
+    run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--', 'android', stage($project), '--template', builder_path($template), '-o', builder_path($apk)]);
+
+    io()->success("The APK: {$apk}");
+}
+
+/**
+ * The application library, PHP linked in, and the Java side of Tauri and of
+ * its plugins, with every phone API, for the package of
+ * crates/nativella/tauri.conf.json: what `nativella android` makes an
+ * application of, with a PHP project. In the android service, the builder
+ * with the Android SDK, which this task builds first; or on the host, with
+ * its SDK, JDK and tools, in the host context.
+ *
+ * @return string the template, from the root of the repository
+ */
+#[AsTask(name: 'android-template', description: 'Builds the template APK (arm64) that "nativella android" makes applications of')]
+function android_template(
+    #[AsOption(description: 'Build a release template, without debug symbols, instead of a debug one')]
+    bool $release = false,
+    #[AsOption(description: 'Where to copy it, from the root of the repository, with its checksum in SHA256SUMS-android next to it')]
+    ?string $output = null,
+): string {
     $onHost = context()['run_on_host'];
 
     if ($onHost && $missing = missing_android_prerequisites()) {
@@ -56,16 +90,15 @@ function android(
         \docker\build(service: 'android');
     }
 
-    io()->title("Building an APK of {$project->path}");
+    io()->title('Building the template APK');
 
-    $bundle = bundle($project);
     $php = fetch_php('android');
     $ndk = ndk_home();
     $service = $onHost ? null : 'android';
     $workDir = builder_path('crates/nativella');
+    $root = variable('root_dir');
 
     $environment = [
-        'NATIVELLA_BUNDLE' => builder_path($bundle),
         // PHP for Android: libphp.a and its headers, which the stand-ins of
         // mobile/php describe to ext-php-rs
         'NATIVELLA_PHP_DIR' => builder_path($php),
@@ -80,24 +113,39 @@ function android(
         'CFLAGS_aarch64_linux_android' => '-D_GNU_SOURCE',
     ];
 
-    $config = tauri_config($project);
-    // The Android project names its package after the identifier, and holds
-    // the path of the SDK
-    $generation = $config['identifier'].' '.($onHost ? getenv('ANDROID_HOME') : 'docker');
+    // The Android project names its package, and so the JNI functions of the
+    // library, after the identifier of tauri.conf.json, and holds the path of
+    // the SDK
+    $identifier = json_decode((string) file_get_contents("{$root}/crates/nativella/tauri.conf.json"), true, flags: \JSON_THROW_ON_ERROR)['identifier'];
+    $generation = $identifier.' '.($onHost ? getenv('ANDROID_HOME') : 'docker');
     if (generated('android') !== $generation) {
-        fs()->remove(variable('root_dir').'/crates/nativella/gen/android');
-        run_in_builder(['cargo', 'tauri', 'android', 'init', '--ci', '--config', json_encode($config, \JSON_THROW_ON_ERROR)], $workDir, $environment, $service);
-        fs()->dumpFile(variable('root_dir').'/crates/nativella/gen/android/.nativella-generation', $generation);
+        fs()->remove("{$root}/crates/nativella/gen/android");
+        run_in_builder(['cargo', 'tauri', 'android', 'init', '--ci'], $workDir, $environment, $service);
+        fs()->dumpFile("{$root}/crates/nativella/gen/android/.nativella-generation", $generation);
     }
 
+    $variant = $release ? 'release' : 'debug';
     run_in_builder([
         'cargo', 'tauri', 'android', 'build', '--ci', '--target', 'aarch64', '--apk',
         ...($release ? [] : ['--debug']),
-        '--config', json_encode($config, \JSON_THROW_ON_ERROR),
-        ...features($project),
+        '--features', implode(',', PHONE_APIS),
     ], $workDir, $environment, $service);
 
-    io()->success('The APK: '.built(variable('root_dir').'/crates/nativella/gen/android/app/build/outputs/apk', '*.apk', $bundle));
+    // Gradle leaves it as it is when nothing changed. Unsigned in release:
+    // `nativella android` signs the applications.
+    $dir = "{$root}/crates/nativella/gen/android/app/build/outputs/apk/universal/{$variant}";
+    $apks = iterator_to_array(finder()->in($dir)->files()->name('*.apk')->sortByModifiedTime(), false);
+    $built = end($apks) ?: throw new \RuntimeException(\sprintf('The build wrote no APK in %s.', $dir));
+    $template = $output ?? "target/nativella/android-template-{$variant}.apk";
+    fs()->copy($built->getPathname(), "{$root}/{$template}", overwriteNewerFiles: true);
+    // As the release publishes it, with the files of the other platforms
+    if (null !== $output) {
+        fs()->dumpFile(\dirname("{$root}/{$output}").'/SHA256SUMS-android', hash_file('sha256', "{$root}/{$output}").'  '.basename($output)."\n");
+    }
+
+    io()->success("The template: {$template}");
+
+    return $template;
 }
 
 /**
@@ -121,12 +169,15 @@ function android_emulator(
     ?string $apk = null,
 ): void {
     $project = demo($demo);
-    $identifier = tauri_config($project)['identifier'];
+    // The application ID of the APK: the identifier, its dashes as
+    // underscores. Keep in sync with application_id() in
+    // crates/nativella/src/apk/mod.rs
+    $applicationId = str_replace('-', '_', tauri_config($project)['identifier']);
     $root = variable('root_dir');
 
-    $apk = null === $apk ? last_apk($project, $demo) : "{$root}/{$apk}";
+    $apk = "{$root}/".($apk ?? android_apk($demo));
     if (!is_file($apk)) {
-        throw new \RuntimeException(\sprintf('There is no APK in %s.', $apk));
+        throw new \RuntimeException(\sprintf('There is no APK in %s: run "castor mobile:android %s" first.', $apk, $demo));
     }
 
     $adb = adb();
@@ -148,13 +199,16 @@ function android_emulator(
 
     // Afresh, as on a new phone: a previous install may be signed with another
     // debug key, and its data would hide a first launch
-    run([$adb, 'uninstall', $identifier], context: context()->withQuiet()->withAllowFailure());
+    run([$adb, 'uninstall', $applicationId], context: context()->withQuiet()->withAllowFailure());
     run([$adb, 'install', $apk]);
     run([$adb, 'logcat', '-c']);
-    run([$adb, 'shell', 'am', 'start', '-W', '-n', "{$identifier}/.MainActivity"]);
+    // The activity of the launcher: its class is in the package of the
+    // template, not of the application
+    $resolved = explode("\n", trim(capture([$adb, 'shell', 'cmd', 'package', 'resolve-activity', '--brief', '-c', 'android.intent.category.LAUNCHER', $applicationId])));
+    run([$adb, 'shell', 'am', 'start', '-W', '-n', end($resolved)]);
 
     $output = static fn (): string => capture([$adb, 'logcat', '-d', '-s', 'nativella']);
-    $running = static fn (): bool => '' !== trim(run([$adb, 'shell', 'pidof', $identifier], context: context()->withQuiet()->withAllowFailure())->getOutput());
+    $running = static fn (): bool => '' !== trim(run([$adb, 'shell', 'pidof', $applicationId], context: context()->withQuiet()->withAllowFailure())->getOutput());
 
     io()->comment("Waiting up to {$wait} seconds for PHP to answer a page...");
     $log = wait_for_a_page($wait, $output, $running);
@@ -327,19 +381,13 @@ function ios_simulator(
 }
 
 /**
- * The APK "castor mobile:android" built last, for the demo.
+ * The APK "castor mobile:android" makes of a demo.
+ *
+ * @return string from the root of the repository
  */
-function last_apk(Project $project, string $demo): string
+function android_apk(string $demo): string
 {
-    // "<identifier> <where the SDK is>"
-    if (!str_starts_with(generated('android') ?? '', tauri_config($project)['identifier'].' ')) {
-        throw new \RuntimeException(\sprintf('There is no APK of %s: run "castor mobile:android %s" first.', $project->path, $demo));
-    }
-
-    $apks = iterator_to_array(finder()->in(variable('root_dir').'/crates/nativella/gen/android/app/build/outputs/apk')->files()->name('*.apk')->sortByModifiedTime(), false);
-    $apk = end($apks) ?: throw new \RuntimeException(\sprintf('There is no APK of %s: run "castor mobile:android %s" first.', $project->path, $demo));
-
-    return $apk->getPathname();
+    return "target/nativella/android/{$demo}.apk";
 }
 
 /**
