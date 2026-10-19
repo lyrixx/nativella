@@ -176,15 +176,15 @@ pub(crate) fn call(app: &AppHandle, call: NativeCall<'_>) -> Result<Value, Strin
         #[cfg(desktop)]
         "childProcess" => child_process::call(&call, method),
         #[cfg(all(mobile, feature = "biometrics"))]
-        "biometrics" => biometrics::call(&call, method),
+        "biometrics" if biometrics::registered(app) => biometrics::call(&call, method),
         "clipboard" => clipboard::call(&call, method),
         "dialog" => dialog::call(&call, method),
         #[cfg(all(mobile, feature = "geolocation"))]
-        "geolocation" => geolocation::call(&call, method),
+        "geolocation" if geolocation::registered(app) => geolocation::call(&call, method),
         #[cfg(desktop)]
         "globalShortcut" => global_shortcut::call(&call, method),
         #[cfg(all(mobile, feature = "haptics"))]
-        "haptics" => haptics::call(&call, method),
+        "haptics" if haptics::registered(app) => haptics::call(&call, method),
         #[cfg(desktop)]
         "menu" => menu::call(&call, method),
         "notification" => notification::call(&call, method),

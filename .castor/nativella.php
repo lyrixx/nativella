@@ -243,10 +243,10 @@ function smoke(
 }
 
 /**
- * What mobile:android and mobile:ios compile into the application: for the
- * Mobile workflow, whose macOS runners have no Docker to make it.
+ * What mobile:ios compiles into the application: for the Mobile workflow,
+ * whose macOS runners have no Docker to make it.
  */
-#[AsTask(name: 'bundle', description: 'Bundles a demo for a phone, staged for production, into target/nativella/app.bundle')]
+#[AsTask(name: 'bundle', description: 'Bundles a demo for an iOS build, staged for production, into target/nativella/app.bundle')]
 function bundle_demo(
     #[AsArgument(description: 'The demo to bundle, e.g. symfony', autocomplete: 'project\complete_demo_names')]
     string $demo,
@@ -308,9 +308,9 @@ function stage(Project $project): string
 }
 
 /**
- * Bundles a project for a phone (`nativella bundle`), staged for production,
- * into target/nativella/app.bundle: the build compiles it into the
- * application.
+ * Bundles a project for an iOS build (`nativella bundle`), staged for
+ * production, into target/nativella/app.bundle: the build compiles it into
+ * the application.
  *
  * @return string the bundle, from the root of the repository
  */

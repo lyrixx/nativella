@@ -1,5 +1,6 @@
-//! `NATIVELLA_BUNDLE` names a bundle written by `nativella bundle`: mobile
-//! builds compile it into the library (see src/embedded.rs).
+//! `NATIVELLA_BUNDLE` names a bundle written by `nativella bundle`: iOS
+//! builds compile it into the library (see src/embedded.rs). Android ones
+//! carry it in their APK instead.
 
 use std::path::Path;
 use std::{env, fs};

@@ -8,9 +8,16 @@ use std::time::Duration;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tauri::plugin::PermissionState;
-use tauri_plugin_geolocation::{GeolocationExt, PermissionType, PositionOptions};
+use tauri::{AppHandle, Manager, Wry};
+use tauri_plugin_geolocation::{Geolocation, GeolocationExt, PermissionType, PositionOptions};
 
 use super::{Call, failed};
+
+/// Whether the application asks for `geolocation`: only then does lib.rs
+/// register the plugin.
+pub(crate) fn registered(app: &AppHandle) -> bool {
+    app.try_state::<Geolocation<Wry>>().is_some()
+}
 
 /// Under the 30 seconds Android's webview waits for a page (wry): a phone that
 /// cannot find itself fails the request, not the page. Android's own search

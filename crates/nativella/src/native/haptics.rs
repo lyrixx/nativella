@@ -3,9 +3,16 @@
 
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tauri_plugin_haptics::{HapticsExt, ImpactFeedbackStyle, NotificationFeedbackType};
+use tauri::{AppHandle, Manager, Wry};
+use tauri_plugin_haptics::{Haptics, HapticsExt, ImpactFeedbackStyle, NotificationFeedbackType};
 
 use super::{Call, failed};
+
+/// Whether the application asks for `haptics`: only then does lib.rs
+/// register the plugin.
+pub(crate) fn registered(app: &AppHandle) -> bool {
+    app.try_state::<Haptics<Wry>>().is_some()
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

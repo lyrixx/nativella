@@ -4,9 +4,16 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tauri::plugin::mobile::PluginInvokeError;
-use tauri_plugin_biometric::{AuthOptions, BiometricExt, Error};
+use tauri::{AppHandle, Manager, Wry};
+use tauri_plugin_biometric::{AuthOptions, Biometric, BiometricExt, Error};
 
 use super::{Call, failed};
+
+/// Whether the application asks for `biometrics`: only then does lib.rs
+/// register the plugin.
+pub(crate) fn registered(app: &AppHandle) -> bool {
+    app.try_state::<Biometric<Wry>>().is_some()
+}
 
 /// The answers that mean "not authenticated", rather than a failure: the
 /// user cancelled, did not match, or tried too often (Android and iOS codes).
