@@ -57,13 +57,30 @@ pub struct Manifest {
     pub permissions: Vec<Permission>,
 }
 
-/// An API of phones, which brings permissions to the Android manifest.
-///
-/// Keep in sync with the features of Cargo.toml, PHONE_DOMAINS in
-/// native/mod.rs and the build scripts of mobile/.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Permission {
+/// The enum of the APIs of phones, and the list of them all, from the same
+/// names: none can be missing from the list.
+macro_rules! permissions {
+    ($(#[$attribute:meta])* $($permission:ident,)+) => {
+        $(#[$attribute])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        pub enum Permission {
+            $($permission,)+
+        }
+
+        impl Permission {
+            /// Every API of phones.
+            pub const ALL: &[Self] = &[$(Self::$permission,)+];
+        }
+    };
+}
+
+permissions! {
+    /// An API of phones, which brings permissions to the Android manifest.
+    ///
+    /// Keep in sync with the features of Cargo.toml, PHONE_DOMAINS in
+    /// native/mod.rs, android_permissions() in apk/mod.rs and PHONE_APIS in
+    /// .castor/mobile.php.
     Biometrics,
     Geolocation,
     Haptics,

@@ -8,6 +8,8 @@
 //!
 //! - `nativella build` appends it to a copy of the `nativella` executable: a
 //!   standalone desktop application.
+//! - `nativella android` adds it to an APK, as the asset [`ANDROID_ASSET`]
+//!   (see apk/mod.rs).
 //! - `nativella bundle` writes it alone, for a mobile build to compile it into
 //!   the application library (`NATIVELLA_BUNDLE`, see build.rs).
 //!
@@ -32,6 +34,9 @@ const TRAILER_LENGTH: u64 = 8 + 8 + 8;
 
 /// The bundle compiled into the library for mobile builds, empty otherwise.
 static COMPILED_BUNDLE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/bundle.bin"));
+
+/// The bundle of an Android application: an asset of its APK.
+pub const ANDROID_ASSET: &str = "nativella.bundle";
 
 /// Paths of the project that never ship: version control, editors, tests.
 /// Relative to the project, with `/`. Local overrides (`.env.local`, every
@@ -104,7 +109,7 @@ pub fn build(project: &Project, output: &Path) -> io::Result<Vec<String>> {
 
     let mut target = create(output)?;
     io::copy(&mut base, &mut target)?;
-    let local_overrides = write_bundle(project, &mut target, output)?;
+    let local_overrides = write_bundle(project, &mut target, &[output])?;
 
     #[cfg(unix)]
     {
@@ -118,7 +123,7 @@ pub fn build(project: &Project, output: &Path) -> io::Result<Vec<String>> {
 /// Writes the bundle of `project` alone, for a mobile build. Returns the
 /// local overrides it left out, relative to the project.
 pub fn bundle(project: &Project, output: &Path) -> io::Result<Vec<String>> {
-    write_bundle(project, &mut create(output)?, output)
+    write_bundle(project, &mut create(output)?, &[output])
 }
 
 impl<R: Read + Seek> Bundle<R> {
@@ -264,25 +269,36 @@ fn create(output: &Path) -> io::Result<File> {
     File::create(output)
 }
 
-/// `output` is left out, should it be inside the project. Returns the local
-/// overrides left out.
-fn write_bundle(project: &Project, target: &mut File, output: &Path) -> io::Result<Vec<String>> {
-    let output = output.canonicalize()?;
-    let archive_offset = target.stream_position()?;
+/// Writes the bundle of `project` to `target`, as it goes. The `excluded`
+/// files, which must exist, are left out, should they be inside the project:
+/// what the packaging writes, or reads. Returns the local overrides left out.
+pub(crate) fn write_bundle(
+    project: &Project,
+    target: &mut dyn Write,
+    excluded: &[&Path],
+) -> io::Result<Vec<String>> {
+    let excluded = excluded
+        .iter()
+        .map(|path| path.canonicalize())
+        .collect::<io::Result<Vec<_>>>()?;
 
-    let mut archive = tar::Builder::new(GzEncoder::new(&mut *target, Compression::default()));
+    let mut archive = Counted {
+        inner: &mut *target,
+        length: 0,
+    };
+    let mut builder = tar::Builder::new(GzEncoder::new(&mut archive, Compression::default()));
     // Composer path repositories symlink packages: ship what they point to.
-    archive.follow_symlinks(true);
+    builder.follow_symlinks(true);
     let mut local_overrides = Vec::new();
     append_dir(
-        &mut archive,
+        &mut builder,
         &project.dir,
         Path::new(""),
-        &output,
+        &excluded,
         &mut local_overrides,
     )?;
-    archive.into_inner()?.finish()?;
-    let archive_length = target.stream_position()? - archive_offset;
+    builder.into_inner()?.finish()?;
+    let archive_length = archive.length;
 
     let build = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -302,11 +318,30 @@ fn write_bundle(project: &Project, target: &mut File, output: &Path) -> io::Resu
     Ok(local_overrides)
 }
 
+/// A writer that counts what it writes.
+struct Counted<W> {
+    inner: W,
+    length: u64,
+}
+
+impl<W: Write> Write for Counted<W> {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        let written = self.inner.write(buffer)?;
+        self.length += written as u64;
+
+        Ok(written)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
+}
+
 fn append_dir<W: Write>(
     archive: &mut tar::Builder<W>,
     root: &Path,
     relative: &Path,
-    output: &Path,
+    excluded: &[PathBuf],
     local_overrides: &mut Vec<String>,
 ) -> io::Result<()> {
     let mut entries = fs::read_dir(root.join(relative))?.collect::<Result<Vec<_>, _>>()?;
@@ -321,7 +356,10 @@ fn append_dir<W: Write>(
             continue;
         }
         if EXCLUDED.contains(&normalized.as_str())
-            || entry.path().canonicalize().is_ok_and(|path| path == output)
+            || entry
+                .path()
+                .canonicalize()
+                .is_ok_and(|path| excluded.contains(&path))
         {
             continue;
         }
@@ -333,7 +371,7 @@ fn append_dir<W: Write>(
                 archive.append_dir(&path, entry.path())?;
             }
         } else if metadata.is_dir() {
-            append_dir(archive, root, &path, output, local_overrides)?;
+            append_dir(archive, root, &path, excluded, local_overrides)?;
         } else {
             archive.append_path_with_name(entry.path(), &path)?;
         }

@@ -1,15 +1,19 @@
 //! The `nativella` command, and the entry point of standalone applications.
 
 use std::env;
-use std::path::PathBuf;
+use std::io;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use nativella_lib::apk::{self, Key};
 use nativella_lib::{Project, embedded};
 
 const USAGE: &str = "Usage:
   nativella [run] [<project-dir>]                  Run a PHP project as a desktop application
   nativella build [<project-dir>] [-o <output>]    Build a standalone executable of the project
-  nativella bundle [<project-dir>] [-o <output>]   Bundle the project for a mobile build (NATIVELLA_BUNDLE)
+  nativella android [<project-dir>] --template <apk> [--key <pem>] [-o <output>]
+                                                   Make an Android application (APK) of the project
+  nativella bundle [<project-dir>] [-o <output>]   Bundle the project for an iOS build (NATIVELLA_BUNDLE)
   nativella --version";
 
 fn main() -> ExitCode {
@@ -28,6 +32,7 @@ fn main() -> ExitCode {
         None => load(None).map_or_else(|error| fail(&error), run),
         Some("run") => load(args.next()).map_or_else(|error| fail(&error), run),
         Some("build") => package(args, Package::Executable),
+        Some("android") => package(args, Package::Android),
         Some("bundle") => package(args, Package::Bundle),
         Some("-V" | "--version") => {
             println!("nativella {}", env!("CARGO_PKG_VERSION"));
@@ -61,21 +66,31 @@ fn run(project: Project) -> ExitCode {
 enum Package {
     /// A standalone executable: this one, with the project appended.
     Executable,
-    /// The project alone, for a mobile build to compile in.
+    /// An Android application: the template APK, with the project.
+    Android,
+    /// The project alone, for an iOS build to compile in.
     Bundle,
 }
 
 fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode {
     let mut dir = None;
     let mut output = None;
+    let mut template = None;
+    let mut key = None;
     while let Some(arg) = args.next() {
-        match arg.as_str() {
-            "-o" | "--output" => match args.next() {
-                Some(path) => output = Some(PathBuf::from(path)),
-                None => return fail(&format!("{arg} takes a path.\n\n{USAGE}")),
-            },
-            _ if dir.is_none() && !arg.starts_with('-') => dir = Some(arg),
+        let path = match arg.as_str() {
+            "-o" | "--output" => &mut output,
+            "--template" if matches!(package, Package::Android) => &mut template,
+            "--key" if matches!(package, Package::Android) => &mut key,
+            _ if dir.is_none() && !arg.starts_with('-') => {
+                dir = Some(arg);
+                continue;
+            }
             _ => return fail(&format!("Unexpected argument \"{arg}\".\n\n{USAGE}")),
+        };
+        match args.next() {
+            Some(value) => *path = Some(PathBuf::from(value)),
+            None => return fail(&format!("{arg} takes a path.\n\n{USAGE}")),
         }
     }
 
@@ -88,6 +103,7 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
         PathBuf::from("dist").join(match package {
             Package::Executable if cfg!(windows) => format!("{name}.exe"),
             Package::Executable => name,
+            Package::Android => format!("{name}.apk"),
             Package::Bundle => format!("{name}.bundle"),
         })
     });
@@ -100,6 +116,7 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
     );
     let result = match package {
         Package::Executable => embedded::build(&project, &output),
+        Package::Android => android(&project, template.as_deref(), key.as_deref(), &output),
         Package::Bundle => embedded::bundle(&project, &output),
     };
 
@@ -116,6 +133,35 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
         }
         Err(error) => fail(&format!("The packaging failed: {error}")),
     }
+}
+
+/// The APK of `project`, signed with the key in `key`, or the debug key.
+/// Returns the local overrides it left out.
+fn android(
+    project: &Project,
+    template: Option<&Path>,
+    key: Option<&Path>,
+    output: &Path,
+) -> io::Result<Vec<String>> {
+    let template = template.ok_or_else(|| {
+        io::Error::other(format!(
+            "--template is missing: the template APK of Nativella {}, from its release.",
+            env!("CARGO_PKG_VERSION")
+        ))
+    })?;
+    let key = match key {
+        Some(key) => Key::load(key)?,
+        None => {
+            let key = Key::debug()?;
+            eprintln!(
+                "Signing with the debug key of this computer, {}: to publish the application, sign it with a key of your own (--key).",
+                key.path().display()
+            );
+            key
+        }
+    };
+
+    apk::package(project, template, output, &key)
 }
 
 fn fail(message: &str) -> ExitCode {

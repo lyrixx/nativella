@@ -7,6 +7,8 @@
 
 #[cfg(not(any(windows, target_os = "android")))]
 mod absolute_urls;
+#[cfg(desktop)]
+pub mod apk;
 #[cfg(any(test, target_os = "android"))]
 mod deadline;
 pub mod embedded;
