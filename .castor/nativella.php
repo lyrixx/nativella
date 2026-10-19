@@ -112,8 +112,8 @@ function build_demos(
 /**
  * What a GitHub release publishes: nativella-<platform> and
  * nativella-demo-<demo>-<platform>, with SHA256SUMS-<platform>. On Linux,
- * only executables that run on the glibc of the static service, built
- * against the static PHP.
+ * only executables that run on the glibc and the libstdc++ of the static
+ * service, built against the static PHP.
  */
 #[AsTask(description: 'Copies the executables of dist/ into release/, named after the platform, with their checksums')]
 function package(): void
@@ -126,7 +126,7 @@ function package(): void
     $checksums = '';
     foreach (finder()->in("{$root}/dist")->files()->depth(0)->sortByName() as $file) {
         if (str_starts_with($platform, 'linux-')) {
-            check_glibc("dist/{$file->getFilename()}");
+            check_symbol_versions("dist/{$file->getFilename()}");
         }
 
         $name = 'nativella' === $file->getFilename() ? "nativella-{$platform}" : "nativella-demo-{$file->getFilename()}-{$platform}";
@@ -140,29 +140,46 @@ function package(): void
 }
 
 /**
- * Fails if the executable needs a glibc newer than the one of the static
- * service: the distributions that have an older one could not run it.
+ * Fails if the executable needs a glibc, or a libstdc++, newer than the one of
+ * the static service: the distributions that have an older one could not run
+ * it.
  */
-function check_glibc(string $executable): void
+function check_symbol_versions(string $executable): void
 {
     $symbols = docker_compose_run(['objdump', '-T', $executable], context()->withQuiet(), \static_php\SERVICE, workDir: builder_path());
     if (!$symbols->isSuccessful()) {
         throw new \RuntimeException(\sprintf('Cannot read the symbols of %s (%s).', $executable, trim($symbols->getErrorOutput())));
     }
 
-    preg_match_all('/\bGLIBC_(\d+(?:\.\d+)+)\b/', $symbols->getOutput(), $matches);
-    $versions = $matches[1];
-    usort($versions, static fn (string $a, string $b): int => version_compare($a, $b));
-    $required = end($versions);
-    if (false === $required) {
+    $glibc = newest_symbol_version($symbols->getOutput(), 'GLIBC');
+    if (null === $glibc) {
         throw new \RuntimeException(\sprintf('%s does not link the glibc: is it an executable for Linux?', $executable));
     }
 
-    if (version_compare($required, \static_php\GLIBC_VERSION, '>')) {
-        throw new \RuntimeException(\sprintf('%s needs glibc %s, newer than the %s of the static service: build it against the static PHP, with "castor nativella:build", without --no-static.', $executable, $required, \static_php\GLIBC_VERSION));
+    if (version_compare($glibc, \static_php\GLIBC_VERSION, '>')) {
+        throw new \RuntimeException(\sprintf('%s needs glibc %s, newer than the %s of the static service: build it against the static PHP, with "castor nativella:build", without --no-static.', $executable, $glibc, \static_php\GLIBC_VERSION));
     }
 
-    io()->writeln(\sprintf('<info>✔</info> %s runs on glibc %s.', $executable, $required));
+    // For intl and ICU, which are C++: without them, no libstdc++
+    $glibcxx = newest_symbol_version($symbols->getOutput(), 'GLIBCXX');
+    if (null !== $glibcxx && version_compare($glibcxx, \static_php\GLIBCXX_VERSION, '>')) {
+        throw new \RuntimeException(\sprintf('%s needs the GLIBCXX_%s of libstdc++, newer than the GLIBCXX_%s of the static service: build it in the static service, with "castor nativella:build".', $executable, $glibcxx, \static_php\GLIBCXX_VERSION));
+    }
+
+    io()->writeln(\sprintf('<info>✔</info> %s runs on glibc %s%s.', $executable, $glibc, null === $glibcxx ? '' : ", with the GLIBCXX_{$glibcxx} of libstdc++"));
+}
+
+/**
+ * The newest version of a library that symbols ask for, in the output of
+ * `objdump -T`: 2.35 for "GLIBC" when the newest is GLIBC_2.35.
+ */
+function newest_symbol_version(string $symbols, string $library): ?string
+{
+    preg_match_all('/\b'.$library.'_(\d+(?:\.\d+)+)\b/', $symbols, $matches);
+    $versions = $matches[1];
+    usort($versions, static fn (string $a, string $b): int => version_compare($a, $b));
+
+    return array_pop($versions);
 }
 
 /**

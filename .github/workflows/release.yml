@@ -88,7 +88,8 @@ jobs:
             - name: "Build the executables"
               run: "castor nativella:build"
 
-            # And checks that they run on the glibc of Ubuntu 22.04
+            # And checks that they run on the glibc and the libstdc++ of
+            # Ubuntu 22.04
             - name: "Name the executables after the platform"
               run: "castor nativella:package"
 

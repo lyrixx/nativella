@@ -209,8 +209,8 @@ jobs:
             - name: "Build the executables"
               run: "castor nativella:build"
 
-            # Fails if an executable needs a glibc newer than the one of
-            # Ubuntu 22.04
+            # Fails if an executable needs a glibc, or a libstdc++, newer than
+            # the one of Ubuntu 22.04
             - name: "Check the executables as the release does"
               run: "castor nativella:package"
 
