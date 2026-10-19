@@ -1,14 +1,12 @@
 #!/bin/sh
-# Stands in for the PHP of a mobile target in ext-php-rs's build script, which
-# reads `php -i`: the PHP of the host cannot describe a cross-compiled one.
-# NATIVELLA_PHP_DIR is a PHP build without a php binary: one for a phone
-# (fetch_php() in .castor/mobile.php), or the static PHP of
-# `castor static-php:build`.
+# Stands in for the PHP of a static build in ext-php-rs's build script, which
+# reads `php -i`: an embed-only PHP has no php binary, and the PHP of the host
+# cannot describe a cross-compiled one. NATIVELLA_PHP_DIR is the buildroot of
+# `castor static-php:build`, for the desktop, or of `castor
+# static-php:android` or `static-php:ios`, for a phone.
 set -eu
-dir=${NATIVELLA_PHP_DIR:?Set NATIVELLA_PHP_DIR to a PHP build: see the castor tasks mobile:android and static-php:build.}
-# Android builds have include/, iOS ones Include/.
+dir=${NATIVELLA_PHP_DIR:?Set NATIVELLA_PHP_DIR to a PHP build: see the castor tasks static-php:build, static-php:android and static-php:ios.}
 include="$dir/include/php"
-[ -d "$include" ] || include="$dir/Include/php"
 config="$include/main/php_config.h"
 
 if [ "${1:-}" != "-i" ]; then

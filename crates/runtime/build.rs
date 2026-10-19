@@ -55,9 +55,10 @@ fn main() {
 
     // The libraries of the system that PHP is linked with (spc-config, on the
     // desktop). The C++ library too, for intl and ICU, which are C++:
-    // libstdc++ on Linux, which WebKitGTK loads anyway, libc++ on macOS, the
-    // one of the NDK on Android. On Linux, the linker drops it when nothing
-    // uses it (--as-needed).
+    // libstdc++ on Linux, which WebKitGTK loads anyway, libc++ on macOS and
+    // iOS, the one of the NDK on Android. On Linux, the linker drops it when
+    // nothing uses it (--as-needed). On iOS, Xcode links the app: the Xcode
+    // project names them too (IOS_SYSTEM_LIBRARIES in .castor/mobile.php).
     let system: &[&str] = match target_os.as_str() {
         "android" => {
             link_android_cpp();
@@ -66,7 +67,7 @@ fn main() {
         "linux" => &["dl", "m", "pthread", "resolv", "rt", "stdc++", "util"],
         "ios" => {
             link_apple_frameworks();
-            &["resolv"]
+            &["c++", "resolv"]
         }
         "macos" => {
             link_apple_frameworks();
