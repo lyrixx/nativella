@@ -247,7 +247,7 @@ A new package needs its entry in `.gitsplit.yml`, a `LICENSE`, a `README.md` and
 
 The workflows of `.github/workflows/` run Castor tasks in the same stack. On a pull request, each one runs only on the changes that can break it, listed in the `paths` of its `pull_request` trigger. A new directory, or a new file at the root of the repository, goes in the `paths` of the workflows it can break, or they skip it. No check is required to merge into `main`, so a skipped workflow blocks nothing.
 
-On `main`, they all run on every push, whatever the paths, but `cache.yml` and `release.yml`: `main` catches a path missing from a filter, and pull requests that break only together, before a release is tagged from it. The caches the jobs write there (the static PHP, the Rust builds) are the ones every pull request can restore, as those of a pull request are its own, and GitHub evicts a cache unused for 7 days. The weekly runs ignore the `paths` too.
+On `main`, they all run on every push, whatever the paths, but `cache.yml` and `release.yml`: `main` catches a path missing from a filter, and pull requests that break only together, before a release is tagged from it. And `main` saves the [caches](#caches) every run restores. The weekly runs ignore the `paths` too.
 
 | Workflow | When | What |
 |---|---|---|
@@ -261,3 +261,24 @@ On `main`, they all run on every push, whatever the paths, but `cache.yml` and `
 | `release.yml` | `v*` tags, manually | `castor nativella:build` and `castor nativella:package`: the Linux x86_64 executables, in the `static` image, and the macOS arm64 ones; `castor mobile:android-template --release`: the template APK of Android, in the `android` image; as artifacts and, for a tag, on the GitHub release, with their checksums. |
 | `cache.yml` | Changes to `infrastructure/docker/` on `main` | `castor docker:push`: pushes the build cache of the images to `ghcr.io/lyrixx/nativella`, which the other workflows build from. |
 | `gitsplit.yml` | `main`, `v*` tags, manually | Not a Castor task: [docker-gitsplit](https://github.com/jderusse/docker-gitsplit) pushes each package of `packages/` to its [repository](#split-repositories). Each run splits `main` and the release tags as they are when it starts. |
+
+The iOS job installs XcodeGen from its release, pinned, rather than with Homebrew, as `cargo tauri ios init` would. That command also looks for libimobiledevice (`idevicesyslog`), for the logs of a phone, and CocoaPods (`pod`), for the pods of an application that has some: a simulator build uses neither, so the job puts stand-ins, which fail if run, in the place of those the runner lacks.
+
+### Caches
+
+Only `main` saves caches, on its pushes and its weekly runs; pull requests and tags restore them, and save none. A cache belongs to the branch that saves it: the caches of a pull request would serve that pull request only, and would fill the 10 GB that GitHub gives a repository, evicting those of `main`, the only ones every run can restore. GitHub evicts a cache unused for 7 days too.
+
+| Cache | Saved by | What | Keyed on |
+|---|---|---|---|
+| `cargo-debug-…` | `rust.yml` | The cargo registry and `target/docker/`; the Bundle job of `mobile.yml` restores it too | The Dockerfile, then `Cargo.lock` |
+| `cargo-static-…` | `static.yml` | The cargo registry and `target/docker-static/` | The Dockerfile, then `Cargo.lock` |
+| `static-php-<os>-<arch>-…` | `static.yml`, `macos.yml` | `static-php/buildroot/` | `.castor/static-php.php` |
+| `cargo-macOS-ARM64-…` | `macos.yml` | The cargo registry and `target/static/` | The Rust of the runner, then `Cargo.lock` |
+| `android-…` | `mobile.yml` | The cargo registry, the dependencies of Gradle (`.home/.gradle/caches/`, not its distribution, downloaded as fast), the PHP of Android and `target/docker/` | The Dockerfile, then `Cargo.lock` and `.castor/mobile.php` |
+| `ios-…` | `mobile.yml` | The cargo registry, the PHP of iOS and `target/`, but `target/nativella/` | The Rust of the runner, then `Cargo.lock` and `.castor/mobile.php` |
+
+A job restores the cache of its key, or else the latest one of `main` with the same first part. For the Rust builds, that is the same image, for its Rust, or on macOS the same Rust: a pull request then falls back to the latest one, whatever its Rust, for the downloads at least, while `main` starts afresh, so that its caches never carry the build of a Rust no longer used. `release.yml` restores the caches of `main` too, and falls back as a pull request does.
+
+`main` saves a cache only when its key changed, and only from a job that succeeded: a saved cache stays as it is until its key changes, a broken build would stay with it. The static PHP is saved as soon as it is built, whatever fails next. Before it saves the build of the crates, `castor nativella:prune-target` removes from `target/` what cargo built of the crates of the workspace: a checkout makes their sources newer than their build, cargo builds them again anyway. Only their dependencies stay.
+
+The cargo commands of the CI build without incremental compilation and without debug info: `CARGO_INCREMENTAL=0` and `CARGO_PROFILE_DEV_DEBUG=0`, in the `env` of the workflows, which `infrastructure/docker/docker-compose.yml` passes to the containers when they are set. Neither helps a build from a fresh checkout, and they made most of the caches: without them, the build of `rust.yml` weighs a third of what it did, and takes less time. A panic still gives its file and its line; a backtrace, with `RUST_BACKTRACE=1`, its functions only. The iOS job keeps the line tables (`CARGO_PROFILE_DEV_DEBUG=line-tables-only`): without debug info, cargo tells build scripts that the build is not a debug one (`DEBUG=false`), swift-rs then builds the Swift of Tauri in release, and only a debug build of it sends what the app writes to the log of the system, where `mobile:ios-simulator` reads that PHP answered.

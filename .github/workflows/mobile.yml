@@ -6,11 +6,15 @@ name: Mobile
 # experimentally. Both fail if PHP answers no page: their screenshot and the
 # output of the app are artifacts. The two platforms build side by side: iOS
 # waits only for the bundle of the demo.
+#
+# Its caches, the downloads and the build of the dependencies, are the ones of
+# main: main saves them, a pull request and the release restore them (see
+# docs/development.md#caches).
 
 "on":
     # Every push to main, whatever the paths: main catches a path missing
     # below, and pull requests that break only together, before a release is
-    # tagged from it. And its caches are the ones every pull request restores,
+    # tagged from it. And it saves the caches every pull request restores,
     # which GitHub evicts after 7 days unused
     push:
         branches: ["main"]
@@ -41,6 +45,11 @@ permissions:
 env:
     # Fix for symfony/color detection. We know GitHub Actions can handle it
     ANSICON: 1
+    # As in rust.yml: no incremental compilation, no debug info, but line
+    # tables for the iOS job (see there). The Bundle job restores the build of
+    # rust.yml: built with them, it is of use only with them too
+    CARGO_INCREMENTAL: 0
+    CARGO_PROFILE_DEV_DEBUG: 0
     CASTOR_CONTEXT: ci
     # The images build from the cache that .github/workflows/cache.yml pushes
     REGISTRY: "ghcr.io/lyrixx/nativella"
@@ -67,20 +76,26 @@ jobs:
               with:
                 persist-credentials: false
 
-            # The cargo registry and Gradle live in the home of the containers
-            # (.home/), the build in the target directory of the builder
-            - name: "Cache the Rust, Gradle and PHP downloads and builds"
-              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+            # The cargo registry and the dependencies of Gradle live in the
+            # home of the containers (.home/), the build in the target
+            # directory of the builder. Not the distribution of Gradle
+            # (.home/.gradle/wrapper/): downloaded as fast as restored. Keyed
+            # on the image, for its Rust and its Tauri command, as in rust.yml.
+            # release.yml restores it too: keep the paths and the key in sync
+            - name: "Restore the Rust, Gradle and PHP downloads and builds"
+              id: android
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: |
                       .home/.cargo/git
                       .home/.cargo/registry
                       .home/.gradle/caches
-                      .home/.gradle/wrapper
                       mobile/php/dist
                       target/docker
-                  key: android-${{ hashFiles('Cargo.lock', 'infrastructure/docker/services/php/Dockerfile', '.castor/mobile.php') }}
-                  restore-keys: android-
+                  key: android-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock', '.castor/mobile.php') }}
+                  restore-keys: |
+                      android-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      ${{ github.ref != 'refs/heads/main' && 'android-' || '' }}
 
             # Stages and bundles the demo in the builder
             - name: "Build the builder"
@@ -98,6 +113,23 @@ jobs:
                   path: target/nativella/android/symfony.apk
                   if-no-files-found: error
                   retention-days: 1 # Only carries the APK to the emulator job
+
+            # Main only, once all built, as in rust.yml
+            - name: "Prune the Rust build"
+              if: github.ref == 'refs/heads/main' && steps.android.outputs.cache-hit != 'true'
+              run: "castor nativella:prune-target"
+
+            - name: "Save the Rust, Gradle and PHP downloads and builds"
+              if: github.ref == 'refs/heads/main' && steps.android.outputs.cache-hit != 'true'
+              uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      .home/.cargo/git
+                      .home/.cargo/registry
+                      .home/.gradle/caches
+                      mobile/php/dist
+                      target/docker
+                  key: ${{ steps.android.outputs.cache-primary-key }}
 
     # For the iOS job: a bundle is the same on every platform, and the macOS
     # runners have no Docker to make it. The Android job makes its own, rather
@@ -123,8 +155,9 @@ jobs:
               with:
                 persist-credentials: false
 
-            # The build of the Rust job of the CI, read only: its dependencies
-            # are the ones of the nativella command, which bundles
+            # The build of rust.yml, read only: its dependencies are the ones
+            # of the nativella command, which bundles. Its paths and its key
+            # are the ones of rust.yml
             - name: "Restore the Rust build"
               uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
@@ -132,8 +165,10 @@ jobs:
                       .home/.cargo/git
                       .home/.cargo/registry
                       target/docker
-                  key: cargo-debug-${{ hashFiles('Cargo.lock', 'infrastructure/docker/services/php/Dockerfile') }}
-                  restore-keys: cargo-debug-
+                  key: cargo-debug-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock') }}
+                  restore-keys: |
+                      cargo-debug-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      cargo-debug-
 
             - name: "Build the builder"
               run: "castor docker:build --service=builder"
@@ -203,6 +238,12 @@ jobs:
         runs-on: macos-latest
         timeout-minutes: 60
         env:
+            # Line tables, not no debug info: swift-rs builds the Swift of
+            # Tauri in debug only when cargo builds with debug info (its DEBUG
+            # variable), and only a debug build of it sends what the app
+            # writes to the log of the system, where mobile:ios-simulator reads
+            # that PHP answered
+            CARGO_PROFILE_DEV_DEBUG: line-tables-only
             # No Docker on macOS runners: the tasks run on the runner itself
             CASTOR_CONTEXT: host
         steps:
@@ -219,14 +260,36 @@ jobs:
               shell: bash
               run: nohup castor mobile:ios-boot > "${RUNNER_TEMP}/ios-boot.log" 2>&1 &
 
-            # cargo tauri ios init installs those it does not find otherwise,
-            # with a `brew reinstall` that waits for a yes at the prompt:
-            # XcodeGen generates the Xcode project. The runners have CocoaPods
-            # already, as a gem: its bottle and Ruby took 2 minutes for nothing
-            - name: "Install XcodeGen and libimobiledevice, and CocoaPods if missing"
+            # cargo tauri ios init installs with brew what it does not find:
+            # XcodeGen, which generates the Xcode project, from its release
+            # here, pinned, in seconds rather than minutes
+            - name: "Install XcodeGen"
+              shell: bash
               run: |
-                  brew install libimobiledevice xcodegen
-                  command -v pod > /dev/null || brew install cocoapods
+                  set -e
+
+                  curl -sSfL -o "${RUNNER_TEMP}/xcodegen.zip" https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
+                  echo "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806  ${RUNNER_TEMP}/xcodegen.zip" | shasum -a 256 -c -
+                  unzip -q -o -d "${RUNNER_TEMP}" "${RUNNER_TEMP}/xcodegen.zip"
+                  echo "${RUNNER_TEMP}/xcodegen/bin" >> "${GITHUB_PATH}"
+
+            # And what a simulator build does not use, but cargo tauri ios init
+            # looks for: libimobiledevice (idevicesyslog), for the logs of a
+            # phone, and CocoaPods (pod), for the pods of an app that has some.
+            # Stand-ins, which fail if run, in the place of what is missing
+            - name: "Stand in for libimobiledevice and CocoaPods"
+              shell: bash
+              run: |
+                  set -e
+
+                  mkdir -p "${RUNNER_TEMP}/stand-ins"
+                  for command in idevicesyslog pod; do
+                      if ! command -v "${command}" > /dev/null; then
+                          printf '#!/bin/sh\necho "%s: a stand-in of the CI, for cargo tauri ios init." >&2\nexit 1\n' "${command}" > "${RUNNER_TEMP}/stand-ins/${command}"
+                          chmod +x "${RUNNER_TEMP}/stand-ins/${command}"
+                      fi
+                  done
+                  echo "${RUNNER_TEMP}/stand-ins" >> "${GITHUB_PATH}"
 
             - name: "Add the iOS simulator target of Rust"
               run: "rustup target add aarch64-apple-ios-sim"
@@ -241,19 +304,29 @@ jobs:
                   unzip -o -d "${HOME}/.local/bin" "${RUNNER_TEMP}/cargo-tauri.zip" cargo-tauri
                   echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
 
-            - name: "Cache the Rust and PHP downloads and builds"
-              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+            # The Rust of the runner, which its image updates
+            - name: "Read the version of Rust"
+              id: rust
+              run: echo "version=$(rustc --version | cut -d ' ' -f 2)" >> "${GITHUB_OUTPUT}"
+
+            # Keyed on the Rust of the runner, then on what builds, as
+            # macos.yml. Not target/nativella/, where the bundle of the demo
+            # goes
+            - name: "Restore the Rust and PHP downloads and builds"
+              id: ios
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: |
                       ~/.cargo/git
                       ~/.cargo/registry
                       mobile/php/dist
-                      target
+                      target/*
                       !target/nativella
-                  key: ios-${{ hashFiles('Cargo.lock', '.castor/mobile.php') }}
-                  restore-keys: ios-
+                  key: ios-${{ steps.rust.outputs.version }}-${{ hashFiles('Cargo.lock', '.castor/mobile.php') }}
+                  restore-keys: |
+                      ios-${{ steps.rust.outputs.version }}-
+                      ${{ github.ref != 'refs/heads/main' && 'ios-' || '' }}
 
-            # After the cache, which held the bundle of a previous run
             - name: "Download the bundle of the demo"
               uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
               with:
@@ -262,6 +335,23 @@ jobs:
 
             - name: "Build the simulator app"
               run: "castor mobile:ios symfony --bundle=target/nativella/app.bundle"
+
+            # Main only, once built, whatever fails next, as in rust.yml
+            - name: "Prune the Rust build"
+              if: github.ref == 'refs/heads/main' && steps.ios.outputs.cache-hit != 'true'
+              run: "castor nativella:prune-target"
+
+            - name: "Save the Rust and PHP downloads and builds"
+              if: github.ref == 'refs/heads/main' && steps.ios.outputs.cache-hit != 'true'
+              uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      ~/.cargo/git
+                      ~/.cargo/registry
+                      mobile/php/dist
+                      target/*
+                      !target/nativella
+                  key: ${{ steps.ios.outputs.cache-primary-key }}
 
             - name: "Upload the simulator app"
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -8,11 +8,15 @@ name: Rust
 # tests, which they do not load; and the Castor tasks and the Docker stack,
 # which every task goes through. Not on the documentation alone. Weekly too:
 # the builder installs Rust stable.
+#
+# Its cache, the cargo registry and the build of the dependencies, is the one
+# of main: main saves it, a pull request restores it (see
+# docs/development.md#caches).
 
 "on":
     # Every push to main, whatever the paths: main catches a path missing
     # below, and pull requests that break only together, before a release is
-    # tagged from it. And its caches are the ones every pull request restores,
+    # tagged from it. And it saves the cache every pull request restores,
     # which GitHub evicts after 7 days unused
     push:
         branches: ["main"]
@@ -46,6 +50,12 @@ permissions:
 env:
     # Fix for symfony/color detection. We know GitHub Actions can handle it
     ANSICON: 1
+    # No incremental compilation, no debug info: of no use to a build from a
+    # fresh checkout, they would make most of its cache. docker-compose.yml
+    # passes them to the containers. Keep in sync with static.yml, macos.yml
+    # and mobile.yml
+    CARGO_INCREMENTAL: 0
+    CARGO_PROFILE_DEV_DEBUG: 0
     CASTOR_CONTEXT: ci
     # The images build from the cache that .github/workflows/cache.yml pushes
     REGISTRY: "ghcr.io/lyrixx/nativella"
@@ -73,16 +83,24 @@ jobs:
                 persist-credentials: false
 
             # The cargo registry and the target directory of the builder (see
-            # its CARGO_HOME and CARGO_TARGET_DIR), keyed on what they build with
-            - name: "Cache the Rust build"
-              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+            # its CARGO_HOME and CARGO_TARGET_DIR), keyed on the image, for its
+            # Rust, then on Cargo.lock. Else the latest of main for the same
+            # image; for a pull request, for any image. Main starts afresh on a
+            # new image: the build of another Rust is of no use, and would stay
+            # in its cache for good. The Bundle job of mobile.yml restores it
+            # too: keep the paths and the key in sync
+            - name: "Restore the Rust build"
+              id: cargo
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: |
                       .home/.cargo/git
                       .home/.cargo/registry
                       target/docker
-                  key: cargo-debug-${{ hashFiles('Cargo.lock', 'infrastructure/docker/services/php/Dockerfile') }}
-                  restore-keys: cargo-debug-
+                  key: cargo-debug-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock') }}
+                  restore-keys: |
+                      cargo-debug-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      ${{ github.ref != 'refs/heads/main' && 'cargo-debug-' || '' }}
 
             - name: "Build the builder"
               run: "castor docker:build --service=builder"
@@ -96,3 +114,20 @@ jobs:
 
             - name: "Smoke test the demos through the runtime"
               run: "castor nativella:smoke"
+
+            # Main only, once all built: the key stays until the image or
+            # Cargo.lock change, with what it holds. Without the crates of the
+            # workspace, which a checkout makes cargo build again anyway
+            - name: "Prune the Rust build"
+              if: github.ref == 'refs/heads/main' && steps.cargo.outputs.cache-hit != 'true'
+              run: "castor nativella:prune-target"
+
+            - name: "Save the Rust build"
+              if: github.ref == 'refs/heads/main' && steps.cargo.outputs.cache-hit != 'true'
+              uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      .home/.cargo/git
+                      .home/.cargo/registry
+                      target/docker
+                  key: ${{ steps.cargo.outputs.cache-primary-key }}

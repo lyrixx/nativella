@@ -8,6 +8,7 @@ use Castor\Attribute\AsTask;
 use project\Project;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Finder\Finder;
+use Symfony\Component\Finder\SplFileInfo;
 
 use function Castor\context;
 use function Castor\finder;
@@ -254,6 +255,54 @@ function bundle_demo(
     io()->title("Bundling demos/{$demo}");
 
     io()->success('The bundle: '.bundle(demo($demo)));
+}
+
+/**
+ * What the CI caches of a Rust build: the dependencies, built once for a
+ * Cargo.lock. Not the crates of the workspace: a checkout makes their sources
+ * newer than their build, which cargo then builds again anyway. Removes them
+ * from every profile directory of target/ (target/debug/,
+ * target/docker/aarch64-linux-android/debug/...).
+ */
+#[AsTask(name: 'prune-target', description: 'Removes the build of the crates of the workspace from target/, but not of their dependencies (what the CI caches)')]
+function prune_target(): void
+{
+    $root = variable('root_dir');
+
+    // Each one has its .fingerprint/
+    $profiles = !is_dir("{$root}/target") ? [] : array_map(
+        static fn (SplFileInfo $fingerprints): string => $fingerprints->getPath(),
+        iterator_to_array(finder()->in("{$root}/target")->directories()->ignoreDotFiles(false)->depth('< 4')->name('.fingerprint'), false),
+    );
+
+    if (!$profiles) {
+        io()->comment('Nothing built yet.');
+
+        return;
+    }
+
+    $metadata = docker_compose_run(['cargo', 'metadata', '--no-deps', '--format-version', '1'], context()->withQuiet(), workDir: builder_path());
+    if (!$metadata->isSuccessful()) {
+        throw new \RuntimeException(\sprintf('Cannot list the crates of the workspace (%s).', trim($metadata->getErrorOutput())));
+    }
+
+    /** @var list<array{name: string, targets: list<array{name: string}>}> $packages */
+    $packages = json_decode($metadata->getOutput(), true, flags: \JSON_THROW_ON_ERROR)['packages'];
+    $alternatives = static fn (array $names): string => implode('|', array_map(static fn (string $name): string => preg_quote($name, '/'), $names));
+    // The files of a target (lib, binary, example, test): <name>,
+    // <name>-<hash>, lib<name>.rlib..., its dashes as underscores. The
+    // directories of a package: <name>-<hash>, its build script and its
+    // fingerprints.
+    $targetFiles = '/^(lib)?('.$alternatives(array_map(static fn (array $target): string => str_replace('-', '_', $target['name']), array_merge(...array_column($packages, 'targets')))).')([-.]|$)/';
+    $packageDirectories = '/^('.$alternatives(array_column($packages, 'name')).')-[0-9a-f]+$/';
+
+    fs()->remove(finder()->in($profiles)->ignoreDotFiles(false)->depth('< 2')->filter(static fn (SplFileInfo $file): bool => match ($file->getRelativePath()) {
+        '', 'deps', 'examples', 'incremental' => 1 === preg_match($targetFiles, $file->getFilename()),
+        '.fingerprint', 'build' => 1 === preg_match($packageDirectories, $file->getFilename()),
+        default => false,
+    }));
+
+    io()->success(\sprintf('Removed the crates of the workspace from %s.', implode(', ', array_map(static fn (string $profile): string => substr($profile, \strlen($root) + 1), $profiles))));
 }
 
 /**

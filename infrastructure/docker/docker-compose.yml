@@ -29,6 +29,10 @@ services:
         init: true
         user: "${USER_ID}:${USER_ID}"
         environment:
+            # How the CI builds the crates (.github/workflows/): unset, cargo
+            # keeps its defaults
+            - CARGO_INCREMENTAL
+            - CARGO_PROFILE_DEV_DEBUG
             # static-php-cli asks the GitHub API for its downloads (castor
             # static-php:build): a token raises its rate limit
             - GITHUB_TOKEN
@@ -60,6 +64,9 @@ services:
         init: true
         user: "${USER_ID}:${USER_ID}"
         environment:
+            # How the CI builds the crates, as in the builder
+            - CARGO_INCREMENTAL
+            - CARGO_PROFILE_DEV_DEBUG
             - CI
             - GITHUB_ACTIONS
         volumes:
@@ -81,6 +88,9 @@ services:
         init: true
         user: "${USER_ID}:${USER_ID}"
         environment:
+            # How the CI builds the crates, as in the builder
+            - CARGO_INCREMENTAL
+            - CARGO_PROFILE_DEV_DEBUG
             # static-php-cli asks the GitHub API for its downloads: a token
             # raises its rate limit
             - GITHUB_TOKEN
