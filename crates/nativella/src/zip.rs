@@ -1,8 +1,9 @@
-//! The ZIP archive of an APK: its entries, read from the template, and
-//! written again, aligned as zipalign does.
+//! ZIP archives: the APK of `nativella android`, its entries read from the
+//! template and written again, aligned as zipalign does; the template and the
+//! IPA of `nativella ios`, whose entries carry their Unix permissions.
 //!
-//! Only what Android writes and reads: no ZIP64 (an APK stays under 4 GB),
-//! no encryption, no comment.
+//! Only what Android and iOS write and read: no ZIP64 (an application stays
+//! under 4 GB), no encryption, no comment.
 
 use std::fs::File;
 use std::io::{self, BufWriter, Read, Seek, SeekFrom, Write};
@@ -32,6 +33,15 @@ const ALIGNMENT_FIELD: u16 = 0xd935;
 /// their entries, for reproducible archives.
 const DOS_DATE: u16 = (1 << 5) | 1;
 
+/// The version of the specification an entry is made by: 2.0, on Unix, whose
+/// file type and permissions are in the high half of its external attributes.
+const MADE_BY_UNIX: u16 = (3 << 8) | 20;
+const UNIX_TYPE: u32 = 0o170_000;
+const UNIX_FILE: u32 = 0o100_000;
+const UNIX_DIRECTORY: u32 = 0o040_000;
+/// The attribute of directories, in MS-DOS format, in the low half.
+const DOS_DIRECTORY: u32 = 0x10;
+
 /// An entry, as the central directory of the template describes it.
 pub struct Entry {
     pub name: String,
@@ -49,11 +59,37 @@ pub struct Entry {
     local_header_offset: u32,
 }
 
+impl Entry {
+    pub fn is_dir(&self) -> bool {
+        self.name.ends_with('/')
+    }
+
+    /// Its Unix permissions, when an archiver on Unix made it.
+    pub fn unix_permissions(&self) -> Option<u32> {
+        self.made_on_unix()
+            .then_some((self.external_attributes >> 16) & 0o777)
+    }
+
+    /// Whether it is a symbolic link, or another file neither regular nor a
+    /// directory, which only an archiver on Unix records.
+    pub fn is_special(&self) -> bool {
+        self.made_on_unix()
+            && !matches!(
+                (self.external_attributes >> 16) & UNIX_TYPE,
+                0 | UNIX_FILE | UNIX_DIRECTORY
+            )
+    }
+
+    fn made_on_unix(&self) -> bool {
+        self.version_made_by >> 8 == MADE_BY_UNIX >> 8
+    }
+}
+
 /// The entries of the archive `file`, in the order of its central directory.
 pub fn entries(file: &mut File) -> io::Result<Vec<Entry>> {
     let length = file.seek(SeekFrom::End(0))?;
     if length < END_OF_CENTRAL_DIRECTORY_LENGTH as u64 {
-        return Err(not_an_apk());
+        return Err(not_an_archive());
     }
     // The end of central directory record closes the archive, after a comment
     // of up to 64 KiB.
@@ -65,14 +101,14 @@ pub fn entries(file: &mut File) -> io::Result<Vec<Entry>> {
     let end = (0..=tail.len() - END_OF_CENTRAL_DIRECTORY_LENGTH)
         .rev()
         .find(|&offset| u32_at(&tail, offset) == END_OF_CENTRAL_DIRECTORY)
-        .ok_or_else(not_an_apk)?;
+        .ok_or_else(not_an_archive)?;
     let end = &tail[end..];
     let count = u16_at(end, 10);
     let central_directory_size = u32_at(end, 12);
     let central_directory_offset = u32_at(end, 16);
     if count == u16::MAX || central_directory_offset == u32::MAX {
         return Err(invalid(
-            "The template is a ZIP64 archive, which an APK is not.",
+            "The template is a ZIP64 archive, which an application is not.",
         ));
     }
 
@@ -124,15 +160,29 @@ pub fn read(file: &mut File, entry: &Entry) -> io::Result<Vec<u8>> {
     match entry.method {
         STORED => compressed.take(entry.size.into()).read_to_end(&mut data)?,
         DEFLATED => DeflateDecoder::new(compressed).read_to_end(&mut data)?,
-        method => {
-            return Err(invalid(&format!(
-                "{} is compressed with the method {method}, which APKs do not use.",
-                entry.name
-            )));
-        }
+        method => return Err(unknown_method(entry, method)),
     };
 
     Ok(data)
+}
+
+/// Writes the content of `entry`, uncompressed, to `out`, as it goes.
+pub fn extract(file: &mut File, entry: &Entry, out: &mut dyn Write) -> io::Result<()> {
+    let compressed = data_of(file, entry)?;
+
+    let extracted = match entry.method {
+        STORED => io::copy(&mut compressed.take(entry.size.into()), out)?,
+        DEFLATED => io::copy(&mut DeflateDecoder::new(compressed), out)?,
+        method => return Err(unknown_method(entry, method)),
+    };
+    if extracted != u64::from(entry.size) {
+        return Err(invalid(&format!(
+            "The data of {} is truncated.",
+            entry.name
+        )));
+    }
+
+    Ok(())
 }
 
 /// The compressed data of `entry`, after its local header.
@@ -215,7 +265,59 @@ impl<'a> Writer<'a> {
         entry.size = size(data.length)?;
         entry.compressed_size = entry.size;
         self.offset += data.length;
+        self.patch_header(&entry, offset)?;
 
+        self.add_central(&entry, offset)
+    }
+
+    /// Adds a file, compressed, with the Unix `permissions`, as `write` writes
+    /// it: its CRC and sizes go into its header once written.
+    pub fn add_deflated_with(
+        &mut self,
+        name: &str,
+        permissions: u32,
+        write: impl FnOnce(&mut dyn Write) -> io::Result<()>,
+    ) -> io::Result<()> {
+        let mut entry = new_entry(name, DEFLATED);
+        entry.version_made_by = MADE_BY_UNIX;
+        entry.external_attributes = (UNIX_FILE | permissions) << 16;
+        let offset = self.write_header(&entry)?;
+
+        let mut compressed = Hashed {
+            inner: &mut self.out,
+            crc: flate2::Crc::new(),
+            length: 0,
+        };
+        let mut encoder = DeflateEncoder::new(&mut compressed, Compression::default());
+        let mut data = Hashed {
+            inner: &mut encoder,
+            crc: flate2::Crc::new(),
+            length: 0,
+        };
+        write(&mut data)?;
+        entry.crc32 = data.crc.sum();
+        entry.size = size(data.length)?;
+        encoder.finish()?;
+        entry.compressed_size = size(compressed.length)?;
+        self.offset += compressed.length;
+        self.patch_header(&entry, offset)?;
+
+        self.add_central(&entry, offset)
+    }
+
+    /// Adds a directory, with Unix permissions.
+    pub fn add_directory(&mut self, name: &str) -> io::Result<()> {
+        let mut entry = new_entry(&format!("{}/", name.trim_end_matches('/')), STORED);
+        entry.version_made_by = MADE_BY_UNIX;
+        entry.external_attributes = ((UNIX_DIRECTORY | 0o755) << 16) | DOS_DIRECTORY;
+        let offset = self.write_header(&entry)?;
+
+        self.add_central(&entry, offset)
+    }
+
+    /// Writes the CRC and the sizes of `entry`, known once its data is
+    /// written, into its local header, which starts at `offset`.
+    fn patch_header(&mut self, entry: &Entry, offset: u32) -> io::Result<()> {
         // The CRC, then the compressed and uncompressed sizes, from the 14th
         // byte of the header.
         self.out.seek(SeekFrom::Start(u64::from(offset) + 14))?;
@@ -224,7 +326,7 @@ impl<'a> Writer<'a> {
         self.out.write_all(&entry.size.to_le_bytes())?;
         self.out.seek(SeekFrom::Start(self.offset))?;
 
-        self.add_central(&entry, offset)
+        Ok(())
     }
 
     /// Adds an entry, compressed.
@@ -247,15 +349,15 @@ impl<'a> Writer<'a> {
     }
 
     /// Writes the local header of `entry`, padded so that the data of a
-    /// stored entry is aligned: on 4 bytes, on 16 KiB for native libraries,
+    /// stored file is aligned: on 4 bytes, on 16 KiB for native libraries,
     /// which Android maps from the APK, whatever the size of the memory
-    /// pages. Returns where it starts.
+    /// pages. A directory has no data to align. Returns where it starts.
     fn write_header(&mut self, entry: &Entry) -> io::Result<u32> {
         let offset = size(self.offset)?;
         let name = entry.name.as_bytes();
         let flags = entry.flags & !DATA_DESCRIPTOR_FLAG;
 
-        let extra = if entry.method == STORED {
+        let extra = if entry.method == STORED && !entry.is_dir() {
             let alignment: u64 = if entry.name.ends_with(".so") {
                 16384
             } else {
@@ -323,7 +425,7 @@ impl<'a> Writer<'a> {
         self.count = self
             .count
             .checked_add(1)
-            .ok_or_else(|| invalid("An APK holds 65535 entries at most."))?;
+            .ok_or_else(|| invalid("A ZIP archive without ZIP64 holds 65535 entries at most."))?;
 
         Ok(())
     }
@@ -337,6 +439,18 @@ impl<'a> Writer<'a> {
             count: self.count,
         })
     }
+}
+
+/// Ends the archive whose entries are written in `file`: its central
+/// directory, then its end record, right after the entries.
+pub fn close(file: &mut File, unfinished: &Unfinished) -> io::Result<()> {
+    let end = end_of_central_directory(unfinished, unfinished.entries_length)?;
+    file.seek(SeekFrom::Start(unfinished.entries_length))?;
+    file.write_all(&unfinished.central_directory)?;
+    file.write_all(&end)?;
+    let length = file.stream_position()?;
+
+    file.set_len(length)
 }
 
 /// The end of central directory record of an archive whose central
@@ -399,12 +513,19 @@ impl<W: Write> Write for Hashed<W> {
 
 fn size(length: u64) -> io::Result<u32> {
     u32::try_from(length).map_err(|_| {
-        invalid("The APK would exceed 4 GB, which a ZIP archive without ZIP64 cannot.")
+        invalid("The application would exceed 4 GB, which a ZIP archive without ZIP64 cannot.")
     })
 }
 
-fn not_an_apk() -> io::Error {
-    invalid("The template is not an APK, which is a ZIP archive.")
+fn not_an_archive() -> io::Error {
+    invalid("The template is not a ZIP archive, as an APK or an IPA is.")
+}
+
+fn unknown_method(entry: &Entry, method: u16) -> io::Error {
+    invalid(&format!(
+        "{} is compressed with the method {method}, which applications do not use.",
+        entry.name
+    ))
 }
 
 fn invalid(message: &str) -> io::Error {
@@ -481,7 +602,59 @@ mod tests {
     }
 
     #[test]
-    fn what_is_too_short_is_not_an_apk() {
+    fn unix_files_round_trip_streamed() {
+        let path = Path::new(env!("OUT_DIR")).join(format!("zip-test-{}.ipa", std::process::id()));
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .unwrap();
+        // More than a buffer of the encoder, and compressible.
+        let executable: Vec<u8> = (0..100_000_u32).map(|byte| (byte % 7) as u8).collect();
+
+        let mut writer = Writer::new(&mut file);
+        writer.add_directory("Payload/Notes.app").unwrap();
+        writer
+            .add_deflated_with("Payload/Notes.app/Notes", 0o755, |out| {
+                out.write_all(&executable)
+            })
+            .unwrap();
+        writer
+            .add_deflated_with("Payload/Notes.app/Info.plist", 0o644, |out| {
+                out.write_all(b"<plist/>")
+            })
+            .unwrap();
+        let unfinished = writer.finish().unwrap();
+        close(&mut file, &unfinished).unwrap();
+
+        let entries = entries(&mut file).unwrap();
+        let names: Vec<_> = entries.iter().map(|entry| entry.name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "Payload/Notes.app/",
+                "Payload/Notes.app/Notes",
+                "Payload/Notes.app/Info.plist"
+            ]
+        );
+        assert!(entries[0].is_dir());
+        assert_eq!(entries[0].unix_permissions(), Some(0o755));
+        assert_eq!(entries[1].unix_permissions(), Some(0o755));
+        assert_eq!(entries[2].unix_permissions(), Some(0o644));
+        assert!(entries.iter().all(|entry| !entry.is_special()));
+        assert!(u64::from(entries[1].compressed_size) < executable.len() as u64);
+        let mut extracted = Vec::new();
+        extract(&mut file, &entries[1], &mut extracted).unwrap();
+        assert_eq!(extracted, executable);
+        assert_eq!(read(&mut file, &entries[2]).unwrap(), b"<plist/>");
+
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn what_is_too_short_is_not_an_archive() {
         let path =
             Path::new(env!("OUT_DIR")).join(format!("zip-test-{}.empty", std::process::id()));
         for content in [&b""[..], b"PK\x05\x06"] {

@@ -13,6 +13,8 @@ pub mod apk;
 mod deadline;
 pub mod embedded;
 mod events;
+#[cfg(desktop)]
+pub mod ios;
 #[cfg(target_os = "android")]
 mod logcat;
 mod native;
@@ -21,6 +23,8 @@ pub mod project;
 #[cfg(target_os = "android")]
 mod request_bodies;
 mod secret;
+#[cfg(desktop)]
+mod zip;
 
 use std::env;
 use std::fs;

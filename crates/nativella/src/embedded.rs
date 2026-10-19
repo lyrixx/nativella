@@ -8,8 +8,10 @@
 //!
 //! - `nativella build` appends it to a copy of the `nativella` executable: a
 //!   standalone desktop application.
-//! - `nativella android` adds it to an APK, as the asset [`ANDROID_ASSET`]
+//! - `nativella android` adds it to an APK, as the asset [`PACKAGED_BUNDLE`]
 //!   (see apk/mod.rs).
+//! - `nativella ios` adds it to an iOS app, as the file [`PACKAGED_BUNDLE`]
+//!   next to its executable (see ios/mod.rs).
 //! - `nativella bundle` writes it alone, for an iOS build to compile it into
 //!   the application library (`NATIVELLA_BUNDLE`, see build.rs).
 //!
@@ -38,9 +40,9 @@ const TRAILER_LENGTH: u64 = 8 + 8 + 8;
 #[cfg(target_os = "ios")]
 static COMPILED_BUNDLE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/bundle.bin"));
 
-/// The bundle of an Android application: an asset of its APK, which the
-/// application library reads in place.
-pub const ANDROID_ASSET: &str = "nativella.bundle";
+/// The bundle of a phone application, which it reads in place: an asset of
+/// its APK on Android, a file of its app on iOS, next to the executable.
+pub const PACKAGED_BUNDLE: &str = "nativella.bundle";
 
 /// Paths of the project that never ship: version control, editors, tests.
 /// Relative to the project, with `/`. Local overrides (`.env.local`, every
@@ -101,17 +103,17 @@ pub type Packaged = Bundle<asset::Asset>;
 #[cfg(target_os = "ios")]
 pub type Packaged = Bundle<Cursor<&'static [u8]>>;
 
-/// The bundle the phone application carries: the asset [`ANDROID_ASSET`] of
+/// The bundle the phone application carries: the asset [`PACKAGED_BUNDLE`] of
 /// its APK, or the one compiled into the library on iOS.
 #[cfg(target_os = "android")]
 pub fn packaged() -> io::Result<Option<Packaged>> {
-    match asset::open(ANDROID_ASSET)? {
+    match asset::open(PACKAGED_BUNDLE)? {
         Some(asset) => Bundle::read(asset),
         None => Ok(None),
     }
 }
 
-/// The bundle the phone application carries: the asset [`ANDROID_ASSET`] of
+/// The bundle the phone application carries: the asset [`PACKAGED_BUNDLE`] of
 /// its APK, or the one compiled into the library on iOS.
 #[cfg(target_os = "ios")]
 pub fn packaged() -> io::Result<Option<Packaged>> {
