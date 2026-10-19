@@ -83,9 +83,10 @@ tauri-plugin-geolocation = { version = "2", optional = true }
 tauri-plugin-haptics = { version = "2", optional = true }
 
 # What tao already uses, to read the assets of the APK: the bundle of the
-# application is one (see src/embedded.rs).
+# application is one (see src/embedded.rs). jni in the version of tao's, which
+# .github/dependabot.yml holds back.
 [target.'cfg(target_os = "android")'.dependencies]
-jni = "0.22"
+jni = "0.21"
 ndk = { version = "0.9", default-features = false }
 ndk-context = "0.1"
 ndk-sys = "0.6"

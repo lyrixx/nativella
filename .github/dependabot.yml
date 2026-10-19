@@ -18,6 +18,15 @@ updates:
               applies-to: security-updates
               patterns:
                   - '*'
+      ignore:
+          # The jni of tao, wry and tauri, which crates/nativella reads the
+          # assets of the APK with (src/embedded.rs): another one would be a
+          # second jni in the Android build. Raise this bound when Tauri moves
+          # to the next one. Not update-types: to Dependabot, 0.21 to 0.22 is
+          # a minor update.
+          - dependency-name: 'jni'
+            versions:
+                - '>= 0.22'
       cooldown:
           default-days: 7
 
