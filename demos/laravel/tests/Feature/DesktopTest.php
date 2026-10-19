@@ -49,7 +49,9 @@ final class DesktopTest extends TestCase
 
         $this->postJson('/_nativella/event', ['name' => 'app.booted', 'payload' => []])->assertNoContent();
 
-        $this->assertSame(['menu.set', 'tray.set', 'globalShortcut.register'], array_column($native->calls(), 'method'));
+        // In any order: Laravel discovers the listeners in the order of the
+        // filesystem, which differs from one machine to another.
+        $this->assertEqualsCanonicalizing(['menu.set', 'tray.set', 'globalShortcut.register'], array_column($native->calls(), 'method'));
     }
 
     public function testTheMenuHasAFileMenu(): void
