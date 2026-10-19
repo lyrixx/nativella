@@ -101,6 +101,7 @@ jobs:
                   name: nativella-demo-symfony-android-arm64-debug
                   path: crates/nativella/gen/android/app/build/outputs/apk/**/*.apk
                   if-no-files-found: error
+                  retention-days: 1 # Only carries the APK to the emulator job
 
     # For the iOS job: a bundle is the same on every platform, and the macOS
     # runners have no Docker to make it. The Android job makes its own, rather
@@ -150,6 +151,7 @@ jobs:
                   name: nativella-demo-symfony-bundle
                   path: target/nativella/app.bundle
                   if-no-files-found: error
+                  retention-days: 1 # Only carries the bundle to the iOS job
 
     android-emulator:
         name: Android emulator, with the APK of the Symfony demo
