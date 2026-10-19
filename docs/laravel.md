@@ -6,13 +6,11 @@ The [Tasks demo](../demos/laravel) is a complete Laravel application built with 
 
 ## Installation
 
-With the path repository of [Installation](installation.md#the-php-package) in your `composer.json`:
-
 ```bash
-composer require nativella/nativella:^0.1@dev nativella/laravel:^0.1@dev
+composer require nativella/laravel
 ```
 
-Package discovery registers `Nativella\Laravel\NativellaServiceProvider`. Then run the application:
+It brings `nativella/nativella`, the native APIs. Package discovery registers `Nativella\Laravel\NativellaServiceProvider`. Then run the application, with the [`nativella` command](installation.md):
 
 ```bash
 nativella run .

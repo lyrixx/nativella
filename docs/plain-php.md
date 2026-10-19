@@ -4,10 +4,8 @@ No framework is needed. `nativella/nativella` works on its own: one object for t
 
 ## Installation
 
-With the path repository of [Installation](installation.md#the-php-package) in your `composer.json`:
-
 ```bash
-composer require nativella/nativella:^0.1@dev
+composer require nativella/nativella
 ```
 
 ## The APIs

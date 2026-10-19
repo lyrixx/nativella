@@ -339,14 +339,15 @@
                 <li>
                     <div class="start-text">
                         <h3>Add the package</h3>
-                        <p>From a path repository until it reaches Packagist. Add the Symfony bundle or the Laravel package if you use one.</p>
+                        <p>From Packagist: the Symfony bundle, the Laravel package, or the PHP API on its own.</p>
                     </div>
                     {% apply highlight('bash') %}
-                        composer require nativella/nativella:^0.1@dev
                         # Symfony
-                        composer require nativella/symfony-bundle:^0.1@dev
+                        composer require nativella/symfony-bundle
                         # Laravel
-                        composer require nativella/laravel:^0.1@dev
+                        composer require nativella/laravel
+                        # Plain PHP
+                        composer require nativella/nativella
                     {% endapply %}
                 </li>
                 <li>

@@ -39,7 +39,7 @@ The whole project directory, `vendor/` included, as a compressed archive, except
 
 The caches, logs and sessions of your machine stay behind, but the directories ship: the frameworks expect them to exist.
 
-Symbolic links are followed, so the packages Composer links from [path repositories](installation.md#the-php-package) ship as real files.
+Symbolic links are followed, so the packages Composer links from [path repositories](https://getcomposer.org/doc/05-repositories.md#path) ship as real files.
 
 > [!WARNING]
 > Everything else ships, and anyone who has the executable can read it: `.env` files, keys, credentials. A desktop application has no secrets from its users. Keep out of the project anything they should not see: [Credentials](#credentials) says where each kind goes.

@@ -6,13 +6,11 @@ The [Notes demo](../demos/symfony) is a complete Symfony application built with 
 
 ## Installation
 
-With the path repository of [Installation](installation.md#the-php-package) in your `composer.json`:
-
 ```bash
-composer require nativella/nativella:^0.1@dev nativella/symfony-bundle:^0.1@dev
+composer require nativella/symfony-bundle
 ```
 
-There is no Flex recipe yet: enable the bundle yourself.
+It brings `nativella/nativella`, the native APIs. There is no Flex recipe yet: enable the bundle yourself.
 
 ```php title="config/bundles.php"
 return [
@@ -21,7 +19,7 @@ return [
 ];
 ```
 
-Then run the application:
+Then run the application, with the [`nativella` command](installation.md):
 
 ```bash
 nativella run .
