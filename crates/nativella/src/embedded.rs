@@ -33,9 +33,10 @@ const TRAILER_LENGTH: u64 = 8 + 8 + 8;
 /// The bundle compiled into the library for mobile builds, empty otherwise.
 static COMPILED_BUNDLE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/bundle.bin"));
 
-/// Paths of the project that never ship: version control, local overrides
-/// that may hold secrets, tests. Relative to the project, with `/`.
-const EXCLUDED: &[&str] = &[".env.local", ".git", ".idea", "node_modules", "tests"];
+/// Paths of the project that never ship: version control, editors, tests.
+/// Relative to the project, with `/`. Local overrides (`.env.local`, every
+/// path ending with `.local`), which may hold secrets, don't either.
+const EXCLUDED: &[&str] = &[".git", ".idea", "node_modules", "tests"];
 
 /// Directories that ship empty: caches, logs and sessions of the computer
 /// that built the application, which the framework expects to exist.
@@ -89,8 +90,9 @@ pub fn compiled() -> io::Result<Option<Bundle<Cursor<&'static [u8]>>>> {
     Bundle::read(Cursor::new(COMPILED_BUNDLE))
 }
 
-/// Writes a standalone executable for `project` to `output`.
-pub fn build(project: &Project, output: &Path) -> io::Result<()> {
+/// Writes a standalone executable for `project` to `output`. Returns the
+/// local overrides it left out, relative to the project.
+pub fn build(project: &Project, output: &Path) -> io::Result<Vec<String>> {
     let mut base = File::open(env::current_exe()?)?;
     if Bundle::read(&mut base)?.is_some() {
         return Err(io::Error::other(
@@ -101,7 +103,7 @@ pub fn build(project: &Project, output: &Path) -> io::Result<()> {
 
     let mut target = create(output)?;
     io::copy(&mut base, &mut target)?;
-    write_bundle(project, &mut target, output)?;
+    let local_overrides = write_bundle(project, &mut target, output)?;
 
     #[cfg(unix)]
     {
@@ -109,11 +111,12 @@ pub fn build(project: &Project, output: &Path) -> io::Result<()> {
         fs::set_permissions(output, fs::Permissions::from_mode(0o755))?;
     }
 
-    Ok(())
+    Ok(local_overrides)
 }
 
-/// Writes the bundle of `project` alone, for a mobile build.
-pub fn bundle(project: &Project, output: &Path) -> io::Result<()> {
+/// Writes the bundle of `project` alone, for a mobile build. Returns the
+/// local overrides it left out, relative to the project.
+pub fn bundle(project: &Project, output: &Path) -> io::Result<Vec<String>> {
     write_bundle(project, &mut create(output)?, output)
 }
 
@@ -260,15 +263,23 @@ fn create(output: &Path) -> io::Result<File> {
     File::create(output)
 }
 
-/// `output` is left out, should it be inside the project.
-fn write_bundle(project: &Project, target: &mut File, output: &Path) -> io::Result<()> {
+/// `output` is left out, should it be inside the project. Returns the local
+/// overrides left out.
+fn write_bundle(project: &Project, target: &mut File, output: &Path) -> io::Result<Vec<String>> {
     let output = output.canonicalize()?;
     let archive_offset = target.stream_position()?;
 
     let mut archive = tar::Builder::new(GzEncoder::new(&mut *target, Compression::default()));
     // Composer path repositories symlink packages: ship what they point to.
     archive.follow_symlinks(true);
-    append_dir(&mut archive, &project.dir, Path::new(""), &output)?;
+    let mut local_overrides = Vec::new();
+    append_dir(
+        &mut archive,
+        &project.dir,
+        Path::new(""),
+        &output,
+        &mut local_overrides,
+    )?;
     archive.into_inner()?.finish()?;
     let archive_length = target.stream_position()? - archive_offset;
 
@@ -285,7 +296,9 @@ fn write_bundle(project: &Project, target: &mut File, output: &Path) -> io::Resu
     target.write_all(&archive_length.to_le_bytes())?;
     target.write_all(&(manifest.len() as u64).to_le_bytes())?;
     target.write_all(MAGIC)?;
-    target.flush()
+    target.flush()?;
+
+    Ok(local_overrides)
 }
 
 fn append_dir<W: Write>(
@@ -293,6 +306,7 @@ fn append_dir<W: Write>(
     root: &Path,
     relative: &Path,
     output: &Path,
+    local_overrides: &mut Vec<String>,
 ) -> io::Result<()> {
     let mut entries = fs::read_dir(root.join(relative))?.collect::<Result<Vec<_>, _>>()?;
     // Reproducible order.
@@ -301,8 +315,11 @@ fn append_dir<W: Write>(
     for entry in entries {
         let path = relative.join(entry.file_name());
         let normalized = path.to_string_lossy().replace('\\', "/");
+        if normalized.ends_with(".local") {
+            local_overrides.push(normalized);
+            continue;
+        }
         if EXCLUDED.contains(&normalized.as_str())
-            || normalized.ends_with(".local")
             || entry.path().canonicalize().is_ok_and(|path| path == output)
         {
             continue;
@@ -315,7 +332,7 @@ fn append_dir<W: Write>(
                 archive.append_dir(&path, entry.path())?;
             }
         } else if metadata.is_dir() {
-            append_dir(archive, root, &path, output)?;
+            append_dir(archive, root, &path, output, local_overrides)?;
         } else {
             archive.append_path_with_name(entry.path(), &path)?;
         }
@@ -361,7 +378,10 @@ mod tests {
         fs::write(project_dir.join(".env.local"), "SECRET=1").unwrap();
         let project = Project::load(&project_dir).unwrap();
 
-        bundle(&project, &root.join("app.bundle")).unwrap();
+        assert_eq!(
+            bundle(&project, &root.join("app.bundle")).unwrap(),
+            [".env.local"]
+        );
         let bytes = fs::read(root.join("app.bundle")).unwrap();
         let found = Bundle::read(Cursor::new(bytes)).unwrap().unwrap();
         assert_eq!(found.manifest().identifier, "dev.nativella.project");
