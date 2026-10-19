@@ -322,6 +322,10 @@ function build_php(Build $build, string $archive): void
         // Rust does not link, and opcache's is off by default (opcache.jit)
         '--without-pcre-jit', '--disable-opcache-jit',
         ...array_values(array_unique($options)),
+        // The SDK of iOS has posix_spawn_file_actions_addchdir_np(), which
+        // configure finds, but marks it unavailable: proc_open() changes the
+        // directory of the child process itself, as without it
+        ...($build->target->isAndroid() ? [] : ['ac_cv_func_posix_spawn_file_actions_addchdir_np=no']),
     ]);
 
     if ($build->target->isAndroid()) {
