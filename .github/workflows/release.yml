@@ -3,8 +3,9 @@ name: Release
 # Builds the nativella command and the standalone executables of the demos,
 # linked against a static PHP, for Linux x86_64, in the static image (Ubuntu
 # 22.04, for its glibc), and for macOS arm64; the template APK that
-# nativella android makes Android applications of, in the android image;
-# attaches them to the GitHub release of a v* tag.
+# nativella android makes Android applications of, in the android image; the
+# template apps that nativella ios makes iOS apps of, for the simulator and
+# for devices, on macOS; attaches them to the GitHub release of a v* tag.
 #
 # It restores the caches of main, saved by static.yml, macos.yml and
 # mobile.yml, and saves none: those of a tag would serve no other run (see
@@ -232,10 +233,127 @@ jobs:
                   path: release/
                   if-no-files-found: error
 
+    # Both on one runner, for one SHA256SUMS-ios
+    ios:
+        name: Build the template apps for iOS arm64 (experimental)
+        runs-on: macos-latest
+        # PHP for iOS, when it builds again, takes half an hour
+        timeout-minutes: 150
+        env:
+            # No Docker on macOS runners: the tasks run on the runner itself
+            CASTOR_CONTEXT: host
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false
+
+            - name: setup-castor
+              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+
+            # As in mobile.yml: XcodeGen from its release, pinned, and
+            # stand-ins for what cargo tauri ios init looks for, but neither
+            # build uses
+            - name: "Install XcodeGen"
+              shell: bash
+              run: |
+                  set -e
+
+                  curl -sSfL -o "${RUNNER_TEMP}/xcodegen.zip" https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
+                  echo "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806  ${RUNNER_TEMP}/xcodegen.zip" | shasum -a 256 -c -
+                  unzip -q -o -d "${RUNNER_TEMP}" "${RUNNER_TEMP}/xcodegen.zip"
+                  echo "${RUNNER_TEMP}/xcodegen/bin" >> "${GITHUB_PATH}"
+
+            - name: "Stand in for libimobiledevice and CocoaPods"
+              shell: bash
+              run: |
+                  set -e
+
+                  mkdir -p "${RUNNER_TEMP}/stand-ins"
+                  for command in idevicesyslog pod; do
+                      if ! command -v "${command}" > /dev/null; then
+                          printf '#!/bin/sh\necho "%s: a stand-in of the CI, for cargo tauri ios init." >&2\nexit 1\n' "${command}" > "${RUNNER_TEMP}/stand-ins/${command}"
+                          chmod +x "${RUNNER_TEMP}/stand-ins/${command}"
+                      fi
+                  done
+                  echo "${RUNNER_TEMP}/stand-ins" >> "${GITHUB_PATH}"
+
+            - name: "Add the iOS targets of Rust"
+              run: "rustup target add aarch64-apple-ios aarch64-apple-ios-sim"
+
+            - name: "Install the Tauri command"
+              shell: bash
+              run: |
+                  set -e
+
+                  mkdir -p "${HOME}/.local/bin"
+                  curl -sSfL -o "${RUNNER_TEMP}/cargo-tauri.zip" https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v2.12.2/cargo-tauri-aarch64-apple-darwin.zip
+                  unzip -o -d "${HOME}/.local/bin" "${RUNNER_TEMP}/cargo-tauri.zip" cargo-tauri
+                  echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+
+            - name: "Read the version of Rust"
+              id: rust
+              run: echo "version=$(rustc --version | cut -d ' ' -f 2)" >> "${GITHUB_OUTPUT}"
+
+            # The downloads of the iOS template job of mobile.yml, from main,
+            # its paths and its key. Its build is a debug one, for the
+            # simulator, of little use to these
+            - name: "Restore the Rust downloads"
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      ~/.cargo/git
+                      ~/.cargo/registry
+                      target/*
+                      !target/nativella
+                  key: ios-${{ steps.rust.outputs.version }}-${{ hashFiles('Cargo.lock', '.castor/mobile.php') }}
+                  restore-keys: |
+                      ios-${{ steps.rust.outputs.version }}-
+                      ios-
+
+            - name: "Read the version of Xcode"
+              id: xcode
+              shell: bash
+              run: echo "version=$(xcodebuild -version | awk 'NR == 1 { version = $2 } NR == 2 { build = $3 } END { print version "-" build }')" >> "${GITHUB_OUTPUT}"
+
+            # The one of the iOS template job of mobile.yml, from main: its
+            # paths and its key
+            - name: "Restore PHP for iOS"
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      static-php/ios-arm64/buildroot
+                      static-php/ios-simulator-arm64/buildroot
+                  key: static-php-ios-${{ steps.xcode.outputs.version }}-${{ hashFiles('.castor/static-php.php', '.castor/static-php-mobile.php') }}
+                  # An older one too: static-php:ios builds again only if what
+                  # it is built from changed
+                  restore-keys: |
+                      static-php-ios-${{ steps.xcode.outputs.version }}-
+                      static-php-ios-
+
+            # Then PHP for the target, unless restored. static-php-cli asks the
+            # GitHub API for the sources of PHP: without a token, the runners
+            # share its rate limit
+            - name: "Build the template app for the simulator"
+              run: "castor mobile:ios-template --release --output=release/nativella-ios-template-iphonesimulator-arm64.zip"
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: "Build the template app for devices"
+              run: "castor mobile:ios-template --device --release --output=release/nativella-ios-template-iphoneos-arm64.zip"
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: "Upload the template apps"
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: nativella-ios-arm64
+                  path: release/
+                  if-no-files-found: error
+
     publish:
         name: Publish the release
         if: github.ref_type == 'tag'
-        needs: [linux, macos, android]
+        needs: [linux, macos, android, ios]
         runs-on: ubuntu-latest
         permissions:
             contents: write
@@ -263,8 +381,8 @@ jobs:
                   `THIRD_PARTY_NOTICES-<platform>.txt` holds the licenses of the software they
                   contain: PHP, its libraries, the Rust crates and, on Android, the Java
                   libraries. `nativella licenses` prints them, `nativella build` writes them
-                  next to the applications it builds, and the APKs carry them: distribute them
-                  with your applications.
+                  next to the applications it builds, and the APKs and the iOS apps carry
+                  them: distribute them with your applications.
 
                   They are linked against a static PHP 8.5: they need no PHP on the machine.
 
@@ -282,6 +400,12 @@ jobs:
                   Android arm64: `nativella android <project-dir> --template
                   nativella-android-template-arm64.apk` makes the APK of a PHP project of
                   this template, with the `nativella` command of the same release.
+
+                  iOS arm64, experimental: `nativella ios <project-dir> --template
+                  nativella-ios-template-iphonesimulator-arm64.zip` makes an app of a PHP
+                  project for the simulator; with nativella-ios-template-iphoneos-arm64.zip,
+                  `--certificate` and `--profile`, an IPA for devices, which no device has
+                  run yet.
                   EOF
 
                   if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then

@@ -1,7 +1,6 @@
 /target/
 /crates/nativella/gen/
-# Written by castor mobile:ios, the second one for the time of the build
-/crates/nativella/Info.ios.plist
+# Written by castor mobile:ios-template, for the time of the build
 /crates/nativella/.cargo/
 /.claude/tmp/
 

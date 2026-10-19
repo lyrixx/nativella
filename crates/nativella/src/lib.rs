@@ -102,7 +102,7 @@ fn mobile_main() {
             Err("This APK carries no PHP project: make it with nativella android.".to_owned())
         }
         #[cfg(target_os = "ios")]
-        Ok(None) => Err("No PHP project in this build: build it with NATIVELLA_BUNDLE.".to_owned()),
+        Ok(None) => Err("This app carries no PHP project: make it with nativella ios.".to_owned()),
         Err(error) => Err(format!("The bundled PHP project is unreadable: {error}")),
     };
 
@@ -187,8 +187,9 @@ fn start(
     // Reads the files picked in dialogs (content URIs), see native/dialog.rs.
     #[cfg(mobile)]
     let builder = builder.plugin(tauri_plugin_fs::init());
-    // The APIs of phones the application asks for, and only them: the template
-    // APK of `nativella android` is built with them all.
+    // The APIs of phones the application asks for, and only them: the
+    // templates of `nativella android` and `nativella ios` are built with them
+    // all.
     #[cfg(all(mobile, feature = "biometrics"))]
     let builder = if manifest
         .permissions

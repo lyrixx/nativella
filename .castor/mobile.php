@@ -19,7 +19,6 @@ use function Castor\variable;
 use function docker\builder_path;
 use function docker\docker_compose_run;
 use function docker\run_in_builder;
-use function nativella\bundle;
 use function nativella\stage;
 use function project\demo;
 use function static_php\mobile\android_api_level;
@@ -38,7 +37,7 @@ const PHP_ANSWERED = '/\[php\] GET \S+ 200 /';
 
 /**
  * What a phone application may ask for, each one a feature of the nativella
- * crate: the template APK has them all. Keep in sync with the features of
+ * crate: the templates have them all. Keep in sync with the features of
  * crates/nativella/Cargo.toml.
  */
 const PHONE_APIS = ['biometrics', 'geolocation', 'haptics'];
@@ -253,61 +252,102 @@ function android_emulator(
 }
 
 /**
- * On the Mac, with Xcode, XcodeGen, the aarch64-apple-ios-sim target of Rust
- * and the Tauri command. A simulator build needs no signing.
+ * The template app for the simulator first (mobile:ios-template), on the Mac,
+ * or --template, a template built beforehand, anywhere; then `nativella ios`,
+ * in the builder, makes the app of the demo of it, staged for production (see
+ * docs/mobile.md).
  *
- * EXPERIMENTAL: .github/workflows/mobile.yml runs it on a macOS runner.
+ * EXPERIMENTAL: .github/workflows/mobile.yml runs it on Linux, with the
+ * template its macOS runner built.
  */
-#[AsTask(description: 'Builds an iOS simulator app (arm64) of a demo, on macOS (experimental)')]
+#[AsTask(description: 'Builds an iOS simulator app (arm64) of a demo, from the template app (experimental)')]
 function ios(
     #[AsArgument(description: 'The demo to build, e.g. symfony', autocomplete: 'project\complete_demo_names')]
     string $demo,
-    #[AsOption(description: 'Build a release app instead of a debug one')]
+    #[AsOption(description: 'Make it from a release template, smaller, instead of a debug one')]
     bool $release = false,
-    #[AsOption(description: 'A bundle of the demo made beforehand (nativella bundle), from the root of the repository: by default, the demo is staged and bundled in the builder')]
-    ?string $bundle = null,
+    #[AsOption(description: 'A template for the simulator built beforehand (mobile:ios-template), from the root of the repository: by default, it is built, which needs macOS')]
+    ?string $template = null,
 ): void {
+    $project = demo($demo);
+    $template ??= ios_template(release: $release);
+
+    io()->title("Making the iOS app of {$project->path}");
+
+    $app = ios_app($demo);
+    run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--', 'ios', stage($project), '--template', builder_path($template), '-o', builder_path($app)]);
+
+    io()->success("The app: {$app}");
+}
+
+/**
+ * The app, PHP linked in, and the Swift side of Tauri and of its plugins,
+ * with every phone API, for the package of crates/nativella/tauri.conf.json:
+ * what `nativella ios` makes an app of, with a PHP project. For the
+ * simulator, or for devices, unsigned either way: `nativella ios` signs the
+ * apps. On the Mac, with Xcode, XcodeGen, the iOS targets of Rust and the
+ * Tauri command. Its library carries the third-party notices of what it
+ * contains (notices\ios()).
+ *
+ * EXPERIMENTAL: .github/workflows/mobile.yml builds the one of the simulator
+ * on a macOS runner, release.yml both.
+ *
+ * @return string the template, from the root of the repository
+ */
+#[AsTask(name: 'ios-template', description: 'Builds the template app (arm64) that "nativella ios" makes apps of, for the simulator or for devices, on macOS (experimental)')]
+function ios_template(
+    #[AsOption(description: 'Build the template of devices instead of the simulator\'s')]
+    bool $device = false,
+    #[AsOption(description: 'Build a release template, without debug symbols, instead of a debug one')]
+    bool $release = false,
+    #[AsOption(description: 'Where to copy it, from the root of the repository, with its third-party notices and their checksums in SHA256SUMS-ios next to it')]
+    ?string $output = null,
+): string {
     if (!context()['macos']) {
-        throw new \RuntimeException('An iOS build needs macOS, with Xcode.');
+        throw new \RuntimeException('An iOS build needs macOS, with Xcode: on another machine, take a template of a release, or of the Mobile workflow, with --template.');
     }
 
-    $project = demo($demo);
+    // PHP for the target first, on this Mac
+    $target = $device ? PhpTarget::iphoneos() : PhpTarget::iphonesimulator();
+    $php = php_build($target);
+    $sdk = $target->abi;
     $root = variable('root_dir');
 
-    io()->title("Building an iOS simulator app of {$project->path}");
+    io()->title("Building the template app for {$sdk}");
 
-    $bundle ??= bundle($project);
-    // PHP for the simulator first, on this Mac
-    $php = php_build(PhpTarget::iphonesimulator());
+    // Tauri's names of the targets, then Rust's, then clang's, for the iOS
+    // version PHP is built for, the default bundle.iOS.minimumSystemVersion
+    // of Tauri
+    [$tauriTarget, $rustTarget, $clangTarget] = $device
+        ? ['aarch64', 'aarch64-apple-ios', 'arm64-apple-ios'.IOS_VERSION]
+        : ['aarch64-sim', 'aarch64-apple-ios-sim', 'arm64-apple-ios'.IOS_VERSION.'-simulator'];
+
+    // The third-party notices, which build.rs compresses into the library:
+    // the Rust crates of the target, and the PHP built above
+    $notices = \notices\ios($target, $rustTarget, $php, PHONE_APIS);
 
     $environment = [
-        'NATIVELLA_BUNDLE' => "{$root}/{$bundle}",
-        // PHP for the simulator: libphp.a, the libraries it needs and its
-        // headers, which the stand-in of mobile/php and php-config describe
-        // to ext-php-rs
+        // PHP for iOS: libphp.a, the libraries it needs and its headers,
+        // which the stand-in of mobile/php and php-config describe to
+        // ext-php-rs
         'NATIVELLA_PHP_DIR' => "{$root}/{$php}",
         'NATIVELLA_PHP_LIB_DIR' => "{$root}/{$php}/lib",
         'PHP' => "{$root}/mobile/php/php",
         'PHP_CONFIG' => "{$root}/{$php}/bin/php-config",
-        // bindgen parses PHP's headers for the simulator, with its SDK, and
-        // for the iOS version PHP is built for, the default
-        // bundle.iOS.minimumSystemVersion of Tauri
-        'BINDGEN_EXTRA_CLANG_ARGS_aarch64_apple_ios_sim' => '--target=arm64-apple-ios'.IOS_VERSION.'-simulator -isysroot '.trim(capture(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'])),
+        'NATIVELLA_NOTICES' => "{$root}/{$notices}",
+        // bindgen parses PHP's headers with the SDK of the target
+        'BINDGEN_EXTRA_CLANG_ARGS_'.str_replace('-', '_', $rustTarget) => "--target={$clangTarget} -isysroot ".trim(capture(['xcrun', '--sdk', $sdk, '--show-sdk-path'])),
     ];
 
-    // iOS asks the user for a permission only with a reason, from
-    // Info.plist: Tauri merges this file into it
-    fs()->dumpFile("{$root}/crates/nativella/Info.ios.plist", info_plist($project));
-
     $c = context()->withEnvironment($environment)->withWorkingDirectory("{$root}/crates/nativella");
-    $config = tauri_config($project);
 
-    // The Xcode project is named after the application, and links the
-    // libraries of the system that PHP needs
-    $generation = $config['identifier'].' '.implode(',', IOS_SYSTEM_LIBRARIES);
+    // The Xcode project is named after the application, the template's, of
+    // tauri.conf.json, and links the libraries of the system that PHP needs
+    $identifier = json_decode((string) file_get_contents("{$root}/crates/nativella/tauri.conf.json"), true, flags: \JSON_THROW_ON_ERROR)['identifier'];
+    $generation = $identifier.' '.implode(',', IOS_SYSTEM_LIBRARIES);
     if (generated('apple') !== $generation) {
         fs()->remove("{$root}/crates/nativella/gen/apple");
-        run(['cargo', 'tauri', 'ios', 'init', '--ci', '--config', json_encode($config, \JSON_THROW_ON_ERROR)], context: $c);
+        run(['cargo', 'tauri', 'ios', 'init', '--ci'], context: $c);
         link_system_libraries("{$root}/crates/nativella/gen/apple");
         fs()->dumpFile("{$root}/crates/nativella/gen/apple/.nativella-generation", $generation);
     }
@@ -318,18 +358,45 @@ function ios(
     $cargoConfig = "{$root}/crates/nativella/.cargo/config.toml";
     fs()->dumpFile($cargoConfig, cargo_env($environment));
 
+    $variant = $release ? 'release' : 'debug';
+    $started = time();
     try {
         run([
-            'cargo', 'tauri', 'ios', 'build', '--ci', '--target', 'aarch64-sim', '--no-sign',
+            'cargo', 'tauri', 'ios', 'build', '--ci', '--target', $tauriTarget, '--no-sign',
             ...($release ? [] : ['--debug']),
-            '--config', json_encode($config, \JSON_THROW_ON_ERROR),
-            ...features($project),
+            '--features', implode(',', PHONE_APIS),
         ], context: $c);
     } finally {
         fs()->remove(\dirname($cargoConfig));
     }
 
-    io()->success('The app: '.built("{$root}/crates/nativella/gen/apple/build", '*.app', $bundle));
+    // Tauri exports the app for the simulator, an IPA for devices, unsigned,
+    // in gen/apple/build/<arch>/
+    $template = $output ?? "target/nativella/ios-template-{$sdk}-{$variant}.zip";
+    fs()->mkdir(\dirname("{$root}/{$template}"));
+    $built = built("{$root}/crates/nativella/gen/apple/build/".($device ? 'arm64' : 'arm64-sim'), $device ? '*.ipa' : '*.app', $started);
+    if ($device) {
+        fs()->copy($built, "{$root}/{$template}", overwriteNewerFiles: true);
+    } else {
+        // As an IPA holds it: Payload/<name>.app, with the permissions of its
+        // files
+        $stage = "{$root}/target/nativella/ios-template-stage";
+        fs()->remove([$stage, "{$root}/{$template}"]);
+        fs()->mkdir("{$stage}/Payload");
+        run(['ditto', $built, "{$stage}/Payload/".basename($built)]);
+        run(['zip', '-q', '-r', '-X', "{$root}/{$template}", 'Payload'], context: context()->withWorkingDirectory($stage));
+        fs()->remove($stage);
+    }
+    // As the release publishes it, with the files of the other platforms
+    if (null !== $output) {
+        $published = \dirname($output)."/THIRD_PARTY_NOTICES-ios-{$sdk}.txt";
+        fs()->copy("{$root}/{$notices}", "{$root}/{$published}", overwriteNewerFiles: true);
+        write_checksums([$output, $published], 'SHA256SUMS-ios');
+    }
+
+    io()->success("The template: {$template}");
+
+    return $template;
 }
 
 /**
@@ -352,10 +419,13 @@ function ios_boot(): void
 }
 
 /**
- * Opens the app mobile:ios built in a simulator, the newest iPhone of the
+ * Opens the app mobile:ios made in a simulator, the newest iPhone of the
  * newest iOS, and waits for PHP to answer a page. Tauri sends what the app
  * writes to the log of the system, in debug builds: it goes next to the
  * screenshot.
+ *
+ * codesign checks its signature first: `nativella ios` signs the apps of
+ * devices the same way, but with a certificate, which only a device checks.
  *
  * EXPERIMENTAL: .github/workflows/mobile.yml runs it on a macOS runner.
  */
@@ -367,28 +437,34 @@ function ios_simulator(
     string $screenshot = 'target/nativella/ios-simulator.png',
     #[AsOption(description: 'The time PHP has to answer, in seconds')]
     int $wait = 120,
+    #[AsOption(description: 'An app of the demo made beforehand, from the root of the repository: by default, the last one "castor mobile:ios" made')]
+    ?string $app = null,
 ): void {
     if (!context()['macos']) {
         throw new \RuntimeException('An iOS simulator needs macOS, with Xcode.');
     }
 
     $project = demo($demo);
+    // The bundle ID of the app: the identifier, as it is. Keep in sync with
+    // rewrite_info() in crates/nativella/src/ios/mod.rs
     $identifier = tauri_config($project)['identifier'];
     $root = variable('root_dir');
 
-    if (!str_starts_with((string) generated('apple'), "{$identifier} ")) {
-        throw new \RuntimeException(\sprintf('There is no iOS app of %s: run "castor mobile:ios %s" first.', $project->path, $demo));
+    $app = "{$root}/".($app ?? ios_app($demo));
+    if (!is_dir($app)) {
+        throw new \RuntimeException(\sprintf('There is no iOS app in %s: run "castor mobile:ios %s" first.', $app, $demo));
     }
 
-    $apps = iterator_to_array(finder()->in("{$root}/crates/nativella/gen/apple/build")->directories()->name('*.app')->sortByModifiedTime(), false);
-    $app = end($apps) ?: throw new \RuntimeException(\sprintf('There is no iOS app of %s: run "castor mobile:ios %s" first.', $project->path, $demo));
+    // Its executable, its seal of the other files, its Info.plist, as Apple
+    // checks a signature
+    run(['codesign', '--verify', '--strict', '--verbose=2', $app]);
 
     $device = simulator();
     io()->title("Opening {$project->path} in {$device['name']}");
 
     // -b boots it first, if needed
     run(['xcrun', 'simctl', 'bootstatus', $device['udid'], '-b']);
-    run(['xcrun', 'simctl', 'install', $device['udid'], $app->getPathname()]);
+    run(['xcrun', 'simctl', 'install', $device['udid'], $app]);
 
     // Those of a previous run would pass for this one's
     fs()->remove(["{$root}/{$screenshot}", "{$root}/".log_file($screenshot)]);
@@ -422,6 +498,16 @@ function ios_simulator(
 function android_apk(string $demo, string $abi): string
 {
     return 'target/nativella/android/'.$demo.abi_suffix($abi).'.apk';
+}
+
+/**
+ * The app "castor mobile:ios" makes of a demo.
+ *
+ * @return string from the root of the repository
+ */
+function ios_app(string $demo): string
+{
+    return "target/nativella/ios/{$demo}.app";
 }
 
 /**
@@ -634,49 +720,6 @@ function tauri_config(Project $project): array
 }
 
 /**
- * The APIs of phones the application asks for, and only them: each one is a
- * feature of the nativella crate, which brings its permissions.
- *
- * @return list<string> the options of `cargo tauri … build`
- */
-function features(Project $project): array
-{
-    $permissions = nativella_config($project)['permissions'] ?? [];
-
-    return [] === $permissions ? [] : ['--features', implode(',', $permissions)];
-}
-
-/**
- * The reasons iOS gives the user when the application asks for a permission.
- */
-function info_plist(Project $project): string
-{
-    $nativella = nativella_config($project);
-    $name = $nativella['name'] ?? $project->name();
-    $reasons = [
-        'biometrics' => ['NSFaceIDUsageDescription' => "{$name} uses Face ID to check that it is you."],
-        'geolocation' => ['NSLocationWhenInUseUsageDescription' => "{$name} uses the location of the phone."],
-    ];
-
-    $keys = '';
-    foreach ($nativella['permissions'] ?? [] as $permission) {
-        foreach ($reasons[$permission] ?? [] as $key => $reason) {
-            $keys .= "    <key>{$key}</key>\n    <string>".htmlspecialchars($reason, \ENT_XML1)."</string>\n";
-        }
-    }
-
-    return <<<XML
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-        {$keys}</dict>
-        </plist>
-
-        XML;
-}
-
-/**
  * @return array{identifier?: string, name?: string, version?: string, permissions?: list<string>}
  */
 function nativella_config(Project $project): array
@@ -715,15 +758,36 @@ function generated(string $platform): ?string
 }
 
 /**
- * The application the build has just written: newer than the bundle.
+ * What the build of Tauri has just exported to $dir: newer than $since.
  */
-function built(string $dir, string $name, string $bundle): string
+function built(string $dir, string $name, int $since): string
 {
-    $since = (int) filemtime(variable('root_dir')."/{$bundle}");
-
-    foreach (finder()->in($dir)->name($name)->filter(static fn (\SplFileInfo $file): bool => $file->getMTime() >= $since) as $file) {
-        return substr($file->getPathname(), \strlen(variable('root_dir')) + 1);
+    foreach (finder()->in($dir)->depth(0)->name($name)->filter(static fn (\SplFileInfo $file): bool => $file->getMTime() >= $since) as $file) {
+        return $file->getPathname();
     }
 
-    throw new \RuntimeException(\sprintf('The build wrote no %s in %s.', $name, $dir));
+    throw new \RuntimeException(\sprintf('The build exported no %s to %s.', $name, $dir));
+}
+
+/**
+ * Writes the checksums of $files, from the root of the repository, to the
+ * file $sums next to them, which may list others, as sha256sum does.
+ *
+ * @param list<string> $files
+ */
+function write_checksums(array $files, string $sums): void
+{
+    $root = variable('root_dir');
+    $path = \dirname("{$root}/{$files[0]}")."/{$sums}";
+
+    // "<checksum>  <name>": those of other files stay
+    $names = array_map(basename(...), $files);
+    $lines = is_file($path) ? file($path, \FILE_IGNORE_NEW_LINES | \FILE_SKIP_EMPTY_LINES) : [];
+    $lines = array_values(array_filter($lines ?: [], static fn (string $line): bool => !\in_array(substr($line, 66), $names, true)));
+    foreach ($files as $file) {
+        $lines[] = hash_file('sha256', "{$root}/{$file}").'  '.basename($file);
+    }
+    sort($lines);
+
+    fs()->dumpFile($path, implode("\n", $lines)."\n");
 }

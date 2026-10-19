@@ -87,7 +87,7 @@ jobs:
             # Rust, then on Cargo.lock. Else the latest of main for the same
             # image; for a pull request, for any image. Main starts afresh on a
             # new image: the build of another Rust is of no use, and would stay
-            # in its cache for good. The Bundle job of mobile.yml restores it
+            # in its cache for good. The iOS job of mobile.yml restores it
             # too: keep the paths and the key in sync
             - name: "Restore the Rust build"
               id: cargo
