@@ -158,7 +158,7 @@ castor nativella:build [symfony]
 castor nativella:package
 ```
 
-`nativella:build` builds `dist/nativella`, then the standalone executable of each demo (`dist/symfony`…), in release mode, in the builder. Each demo ships staged for production in `target/nativella/stage/`: without its dev dependencies, in the production environment. The executables link the static PHP below, as the releases do, in the `static` image, and carry it; `--no-static` links [the PHP of the system](#the-php-of-the-system) instead. `nativella:package` copies them to `release/`, named after the platform, with their checksums, as the releases publish them. On Linux, it refuses an executable that needs a glibc newer than the one of Ubuntu 22.04: one built with `--no-static`.
+`nativella:build` builds `dist/nativella`, then the standalone executable of each demo (`dist/symfony`…), in release mode, in the builder. Each demo ships staged for production in `target/nativella/stage/`: without its dev dependencies, in the production environment. The executables link the static PHP below, as the releases do, in the `static` image, and carry it; `--no-static` links [the PHP of the system](#the-php-of-the-system) instead. `nativella:package` copies them to `release/`, named after the platform, with their checksums, as the releases publish them. On Linux, it refuses an executable that needs a glibc, or a libstdc++, newer than the one of Ubuntu 22.04: one built with `--no-static`, or outside the `static` image.
 
 ### Static PHP
 

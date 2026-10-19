@@ -42,6 +42,14 @@ const SERVICE = 'static';
 const GLIBC_VERSION = '2.35';
 
 /**
+ * The newest symbol version of the libstdc++ of the static service (GCC 12):
+ * the Linux executables need it for intl and ICU, which are C++, and run on
+ * the distributions with this one or a newer one. Keep in sync with the
+ * static stage of infrastructure/docker/services/php/Dockerfile.
+ */
+const GLIBCXX_VERSION = '3.4.30';
+
+/**
  * PHP as a static library (embed SAPI), into static-php/buildroot/: lib/
  * with libphp.a and its dependencies, include/php/, bin/php-config. Linked
  * against it (nativella:build, and --static on the other tasks that build
