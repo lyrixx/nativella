@@ -230,6 +230,18 @@ There is no `test` context: each test suite sets its own environment (`phpunit.x
 
 The documents of `docs/` read on GitHub as they are, and `castor website:build` turns them into the documentation of the website, with [Zensical](https://zensical.org). A new document goes in the list of `docs/README.md`, which is the navigation; the build fails on a document left out of it, and on a link to a page, a section or a file that does not exist. [`website/README.md`](../website/README.md) tells what Zensical understands on top of Markdown.
 
+## Split repositories
+
+Each package of `packages/` has a read-only repository of its own, which Composer can install it from. The `gitsplit.yml` workflow pushes the history of each one there with [docker-gitsplit](https://github.com/jderusse/docker-gitsplit), on each push to `main` and each `v*` tag. It splits `main` and the release tags: `vX.Y.Z`, with an optional `-alphaN`, `-betaN` or `-rcN`. Changes, issues and pull requests go to this repository.
+
+| Directory | Package | Repository |
+|---|---|---|
+| `packages/nativella` | `nativella/nativella` | [lyrixx/nativella-php](https://github.com/lyrixx/nativella-php) |
+| `packages/symfony` | `nativella/symfony-bundle` | [lyrixx/nativella-symfony-bundle](https://github.com/lyrixx/nativella-symfony-bundle) |
+| `packages/laravel` | `nativella/laravel` | [lyrixx/nativella-laravel](https://github.com/lyrixx/nativella-laravel) |
+
+A new package needs its entry in `.gitsplit.yml`, a `LICENSE`, a `README.md` and a `.gitattributes` like the others, and its repository: created empty, without issues, pull requests, projects, wiki or Actions. Then run the workflow by hand. The workflow pushes with the `GH_TOKEN_SUBSPLIT` secret: a fine-grained token, with read and write access to the contents of these repositories only.
+
 ## Continuous integration
 
 The workflows of `.github/workflows/` run Castor tasks in the same stack:
@@ -241,3 +253,4 @@ The workflows of `.github/workflows/` run Castor tasks in the same stack:
 | `mobile.yml` | Changes to `crates/`, `mobile/`, `packages/`, `demos/symfony/` or the Docker stack, manually | `castor mobile:android symfony`: the APK as an artifact. Then `castor mobile:android-emulator symfony`, in an Android 16 emulator (x86_64, with KVM); and, experimentally, `castor mobile:ios symfony` on macOS, with the bundle of `castor nativella:bundle symfony`, made by a job of its own so that iOS does not wait for Android, and `castor mobile:ios-simulator symfony`, the simulator booted in the background while the app builds. Their screenshots and the output of the apps as artifacts. |
 | `release.yml` | `v*` tags, manually | `castor nativella:build` and `castor nativella:package`: the Linux x86_64 executables, in the `static` image, and the macOS arm64 ones; as artifacts and, for a tag, on the GitHub release. |
 | `cache.yml` | Changes to `infrastructure/docker/` on `main` | `castor docker:push`: pushes the build cache of the images to `ghcr.io/lyrixx/nativella`, which the other workflows build from. |
+| `gitsplit.yml` | `main`, `v*` tags, manually | Not a Castor task: [docker-gitsplit](https://github.com/jderusse/docker-gitsplit) pushes each package of `packages/` to its [repository](#split-repositories). Each run splits `main` and the release tags as they are when it starts. |

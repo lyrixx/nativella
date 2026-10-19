@@ -1,0 +1,45 @@
+name: Split the packages
+
+# Pushes each package of packages/ to its read-only repository, listed in
+# .gitsplit.yml, with https://github.com/jderusse/docker-gitsplit: main and the
+# release tags. Run it by hand once a new repository exists. The
+# GH_TOKEN_SUBSPLIT secret holds a token that can push to the repositories.
+
+"on":
+    push:
+        branches: ["main"]
+        tags: ["v*"]
+    workflow_dispatch:
+
+# Every run splits main and the release tags as they are when it starts (see
+# the checkout below), so a run waiting in line covers the pushes before it: no
+# need to stop one halfway through its pushes
+concurrency:
+    group: gitsplit
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+jobs:
+    gitsplit:
+        name: Split the packages
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            # gitsplit splits the local branches and tags that .gitsplit.yml
+            # lists: main at its latest commit, whatever the event, and every
+            # tag. On a tag, the default checkout would leave no local main
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  ref: main
+                  fetch-depth: 0
+                  persist-credentials: false
+
+            # Skips the refs a repository already has, force-pushes the others
+            - name: "Split the packages"
+              uses: docker://jderusse/gitsplit@sha256:ca619e08d0608d7ab8067be02db13409ec63a0e241c6308be42593f0c0ac705d # latest, 2020-12-04
+              with:
+                  args: gitsplit
+              env:
+                  GH_TOKEN: ${{ secrets.GH_TOKEN_SUBSPLIT }}

@@ -1,0 +1,18 @@
+# The read-only repository of each package of packages/, which
+# .github/workflows/gitsplit.yml pushes to with
+# https://github.com/jderusse/docker-gitsplit. The workflow sets GH_TOKEN from
+# the GH_TOKEN_SUBSPLIT secret.
+
+splits:
+    - prefix: "packages/laravel"
+      target: "https://${GH_TOKEN}@github.com/lyrixx/nativella-laravel.git"
+    - prefix: "packages/nativella"
+      target: "https://${GH_TOKEN}@github.com/lyrixx/nativella-php.git"
+    - prefix: "packages/symfony"
+      target: "https://${GH_TOKEN}@github.com/lyrixx/nativella-symfony-bundle.git"
+
+# The local branches and tags to split, by their short name: main, and the
+# release tags
+origins:
+    - '^main$'
+    - '^v\d+\.\d+\.\d+(-(alpha|beta|rc)\d+)?$'
