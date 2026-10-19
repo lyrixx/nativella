@@ -262,6 +262,8 @@ On `main`, they all run on every push, whatever the paths, but `cache.yml` and `
 | `cache.yml` | Changes to `infrastructure/docker/` on `main` | `castor docker:push`: pushes the build cache of the images to `ghcr.io/lyrixx/nativella`, which the other workflows build from. |
 | `gitsplit.yml` | `main`, `v*` tags, manually | Not a Castor task: [docker-gitsplit](https://github.com/jderusse/docker-gitsplit) pushes each package of `packages/` to its [repository](#split-repositories). Each run splits `main` and the release tags as they are when it starts. |
 
+The iOS job installs XcodeGen from its release, pinned, rather than with Homebrew, as `cargo tauri ios init` would. That command also looks for libimobiledevice (`idevicesyslog`), for the logs of a phone, and CocoaPods (`pod`), for the pods of an application that has some: a simulator build uses neither, so the job puts stand-ins, which fail if run, in the place of those the runner lacks.
+
 ### Caches
 
 Only `main` saves caches, on its pushes and its weekly runs; pull requests and tags restore them, and save none. A cache belongs to the branch that saves it: the caches of a pull request would serve that pull request only, and would fill the 10 GB that GitHub gives a repository, evicting those of `main`, the only ones every run can restore. GitHub evicts a cache unused for 7 days too.

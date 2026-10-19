@@ -254,14 +254,36 @@ jobs:
               shell: bash
               run: nohup castor mobile:ios-boot > "${RUNNER_TEMP}/ios-boot.log" 2>&1 &
 
-            # cargo tauri ios init installs those it does not find otherwise,
-            # with a `brew reinstall` that waits for a yes at the prompt:
-            # XcodeGen generates the Xcode project. The runners have CocoaPods
-            # already, as a gem: its bottle and Ruby took 2 minutes for nothing
-            - name: "Install XcodeGen and libimobiledevice, and CocoaPods if missing"
+            # cargo tauri ios init installs with brew what it does not find:
+            # XcodeGen, which generates the Xcode project, from its release
+            # here, pinned, in seconds rather than minutes
+            - name: "Install XcodeGen"
+              shell: bash
               run: |
-                  brew install libimobiledevice xcodegen
-                  command -v pod > /dev/null || brew install cocoapods
+                  set -e
+
+                  curl -sSfL -o "${RUNNER_TEMP}/xcodegen.zip" https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
+                  echo "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806  ${RUNNER_TEMP}/xcodegen.zip" | shasum -a 256 -c -
+                  unzip -q -o -d "${RUNNER_TEMP}" "${RUNNER_TEMP}/xcodegen.zip"
+                  echo "${RUNNER_TEMP}/xcodegen/bin" >> "${GITHUB_PATH}"
+
+            # And what a simulator build does not use, but cargo tauri ios init
+            # looks for: libimobiledevice (idevicesyslog), for the logs of a
+            # phone, and CocoaPods (pod), for the pods of an app that has some.
+            # Stand-ins, which fail if run, in the place of what is missing
+            - name: "Stand in for libimobiledevice and CocoaPods"
+              shell: bash
+              run: |
+                  set -e
+
+                  mkdir -p "${RUNNER_TEMP}/stand-ins"
+                  for command in idevicesyslog pod; do
+                      if ! command -v "${command}" > /dev/null; then
+                          printf '#!/bin/sh\necho "%s: a stand-in of the CI, for cargo tauri ios init." >&2\nexit 1\n' "${command}" > "${RUNNER_TEMP}/stand-ins/${command}"
+                          chmod +x "${RUNNER_TEMP}/stand-ins/${command}"
+                      fi
+                  done
+                  echo "${RUNNER_TEMP}/stand-ins" >> "${GITHUB_PATH}"
 
             - name: "Add the iOS simulator target of Rust"
               run: "rustup target add aarch64-apple-ios-sim"
