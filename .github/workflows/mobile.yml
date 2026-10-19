@@ -7,19 +7,12 @@ name: Mobile
 # side by side: iOS waits only for the bundle of the demo.
 
 "on":
+    # Every push to main, whatever the paths: main catches a path missing
+    # below, and pull requests that break only together, before a release is
+    # tagged from it. And its caches are the ones every pull request restores,
+    # which GitHub evicts after 7 days unused
     push:
         branches: ["main"]
-        paths:
-            - ".castor/**"
-            - ".github/workflows/mobile.yml"
-            - "Cargo.lock"
-            - "Cargo.toml"
-            - "castor.php"
-            - "crates/**"
-            - "demos/symfony/**"
-            - "infrastructure/docker/**"
-            - "mobile/**"
-            - "packages/**"
     pull_request:
         branches: ["main"]
         paths:
@@ -33,6 +26,7 @@ name: Mobile
             - "infrastructure/docker/**"
             - "mobile/**"
             - "packages/**"
+            - "!**.md"
     workflow_dispatch:
 
 concurrency:

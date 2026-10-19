@@ -104,6 +104,12 @@ PHPStan runs from the directory of each project, so that it finds its classes th
 `tools/phpstan/project.neon` over its PSR-4 directories; one that needs more (an extension, a
 baseline) adds a `phpstan.dist.neon` that includes it.
 
+The CI runs them in several workflows (`.github/workflows/`). On a pull request, each one runs
+only on the changes that can break it, listed in the `paths` of its `pull_request` trigger: a new
+directory, or a new file at the root of the repository, goes in the `paths` of the workflows it
+can break, or they skip it. On `main`, they all run. See
+[docs/development.md](docs/development.md#continuous-integration).
+
 ## Castor contexts
 
 ```bash
