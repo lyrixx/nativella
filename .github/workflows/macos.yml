@@ -43,6 +43,9 @@ permissions:
 env:
     # Fix for symfony/color detection. We know GitHub Actions can handle it
     ANSICON: 1
+    # As in rust.yml: no incremental compilation, no debug info
+    CARGO_INCREMENTAL: 0
+    CARGO_PROFILE_DEV_DEBUG: 0
 
 jobs:
     macos:

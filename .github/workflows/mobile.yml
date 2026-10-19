@@ -41,6 +41,11 @@ permissions:
 env:
     # Fix for symfony/color detection. We know GitHub Actions can handle it
     ANSICON: 1
+    # As in rust.yml: no incremental compilation, no debug info. The Bundle
+    # job restores the build of rust.yml: built with them, it is of use only
+    # with them too
+    CARGO_INCREMENTAL: 0
+    CARGO_PROFILE_DEV_DEBUG: 0
     CASTOR_CONTEXT: ci
     # The images build from the cache that .github/workflows/cache.yml pushes
     REGISTRY: "ghcr.io/lyrixx/nativella"

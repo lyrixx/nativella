@@ -261,3 +261,7 @@ On `main`, they all run on every push, whatever the paths, but `cache.yml` and `
 | `release.yml` | `v*` tags, manually | `castor nativella:build` and `castor nativella:package`: the Linux x86_64 executables, in the `static` image, and the macOS arm64 ones; `castor mobile:android-template --release`: the template APK of Android, in the `android` image; as artifacts and, for a tag, on the GitHub release, with their checksums. |
 | `cache.yml` | Changes to `infrastructure/docker/` on `main` | `castor docker:push`: pushes the build cache of the images to `ghcr.io/lyrixx/nativella`, which the other workflows build from. |
 | `gitsplit.yml` | `main`, `v*` tags, manually | Not a Castor task: [docker-gitsplit](https://github.com/jderusse/docker-gitsplit) pushes each package of `packages/` to its [repository](#split-repositories). Each run splits `main` and the release tags as they are when it starts. |
+
+### Caches
+
+The cargo commands of the CI build without incremental compilation and without debug info: `CARGO_INCREMENTAL=0` and `CARGO_PROFILE_DEV_DEBUG=0`, in the `env` of the workflows, which `infrastructure/docker/docker-compose.yml` passes to the containers when they are set. Neither helps a build from a fresh checkout, and they made most of the caches: without them, the build of `rust.yml` weighs a third of what it did, and takes less time. A panic still gives its file and its line; a backtrace, with `RUST_BACKTRACE=1`, its functions only.

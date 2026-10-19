@@ -46,6 +46,12 @@ permissions:
 env:
     # Fix for symfony/color detection. We know GitHub Actions can handle it
     ANSICON: 1
+    # No incremental compilation, no debug info: of no use to a build from a
+    # fresh checkout, they would make most of its cache. docker-compose.yml
+    # passes them to the containers. Keep in sync with static.yml, macos.yml
+    # and mobile.yml
+    CARGO_INCREMENTAL: 0
+    CARGO_PROFILE_DEV_DEBUG: 0
     CASTOR_CONTEXT: ci
     # The images build from the cache that .github/workflows/cache.yml pushes
     REGISTRY: "ghcr.io/lyrixx/nativella"
