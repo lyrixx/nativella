@@ -55,7 +55,8 @@ The APK is the template, with:
 
 - the bundle of the project, as the asset `nativella.bundle`, which the application reads in place at startup: what [ships](building.md#what-ships) in a standalone executable, the local overrides left out and listed;
 - the identity of the project, from the `extra.nativella` section of its `composer.json`, in its manifest: its application ID, what Android knows the application by, made of the `identifier`; the `name` under the icon; the `version` as the version name, and as the version code, `major × 1,000,000 + minor × 1,000 + patch`, which Android compares to accept an update;
-- the Android permissions of the [phone APIs](phone-apis.md) the application asks for (`permissions`), and of them only: the template has them all, and the application only registers the ones it asks for.
+- the Android permissions of the [phone APIs](phone-apis.md) the application asks for (`permissions`), and of them only: the template has them all, and the application only registers the ones it asks for;
+- the [`icon`](configuration.md#icon) of the project as its launcher icon, or the Nativella icon without one: drawn for each screen density, from 48 to 192 pixels, inside a margin, its corners rounded, as `tauri icon` draws the launcher icons of Android.
 
 It is aligned, then signed with APK Signature Scheme v2, which Android checks from API level 24, by `--key`: an EC P-256 private key, in PKCS #8 PEM.
 
@@ -122,7 +123,7 @@ ext-php-rs reads `php -i` and `php-config` to generate its bindings, which the P
 - **First launch is slow**: the project is extracted, then the framework builds its cache on the phone (about 5 seconds for the Symfony demo on an emulator). The following requests take a few hundred milliseconds in a debug build.
 - **Debug templates are big** (about 220 MB), and so are the APKs made of them: the library is not stripped. A release template weighs about 36 MB, the APK of the Symfony demo made of it 40 MB.
 - **25 seconds per page**: Android's webview, through wry, gives up on a page after 30 seconds and shows an error in its place. So when PHP takes longer, because the user left a dialog, the file picker or a fingerprint prompt open, Nativella answers first with a page that waits: it loads the same page again for a `GET`, the page of the form for a `POST`, once PHP is done. The response PHP gives at last is dropped, so a redirect after a form is lost, not the form's work. A `fetch()` or an XHR gets a 504 instead, even one that asks for HTML, as Turbo does.
-- **The icon is the template's**: the `icon` of `extra.nativella` does not reach the APK yet.
+- **No adaptive icon**: the launcher icon is a plain one, which launchers that shape icons, such as the Pixel one, shrink onto a white shape. No round icon, nor a monochrome one for themed icons.
 - **No Google Play bundle**: `nativella android` writes APKs, to install with `adb` or to open on the phone; Google Play asks for an Android App Bundle (AAB), which a Gradle build, in a Docker image, will make. Its keys are EC P-256 ones, in PEM files, not Java keystores yet.
 - **Few phone APIs**: [haptics, geolocation and biometrics](phone-apis.md). No camera, sharing or push notifications yet.
 - **iOS** is experimental: [`castor mobile:ios`](#building-an-ios-app) builds for the simulator only. There, the Symfony demo shows its first page, but the webview leaves the bottom of the screen black. What the app writes reaches the log of the system in debug builds only. No phone API, nor any device, has been tried.

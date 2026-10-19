@@ -18,14 +18,17 @@ const RESOURCE_MAP: u16 = 0x0180;
 const START_ELEMENT: u16 = 0x0102;
 const END_ELEMENT: u16 = 0x0103;
 
-/// The attributes of the android namespace this module changes, by ID.
+/// The attributes of the android namespace this module reads or changes, by
+/// ID.
 const LABEL: u32 = 0x0101_0001;
+const ICON: u32 = 0x0101_0002;
 const NAME: u32 = 0x0101_0003;
 const AUTHORITIES: u32 = 0x0101_0018;
 const VERSION_CODE: u32 = 0x0101_021b;
 const VERSION_NAME: u32 = 0x0101_021c;
 
-/// The types of attribute values this module writes.
+/// The types of attribute values this module reads or writes.
+const TYPE_REFERENCE: u8 = 0x01;
 const TYPE_STRING: u8 = 0x03;
 const TYPE_INT_DEC: u8 = 0x10;
 
@@ -205,6 +208,32 @@ pub fn version_name(xml: &[u8]) -> io::Result<Option<String>> {
         .find(|attribute| document.attribute_id(attribute.name) == Some(VERSION_NAME))
         .map(|attribute| document.string(attribute.raw_value).map(str::to_owned))
         .transpose()
+}
+
+/// The launcher icon of the manifest `xml`: the resource ID of the icon of
+/// its application. Tauri's Android project gives no other: no round icon,
+/// and none of its own to the main activity.
+pub fn icon(xml: &[u8]) -> io::Result<u32> {
+    let document = Document::parse(xml)?;
+    for chunk in &document.chunks {
+        if u16_at(chunk, 0) != START_ELEMENT {
+            continue;
+        }
+        let (name, attributes) = element(chunk)?;
+        if document.string(name)? != "application" {
+            continue;
+        }
+        if let Some(icon) = attributes
+            .iter()
+            .find(|attribute| document.attribute_id(attribute.name) == Some(ICON))
+            .filter(|icon| chunk[icon.offset + 15] == TYPE_REFERENCE)
+        {
+            return Ok(u32_at(chunk, icon.offset + 16));
+        }
+        break;
+    }
+
+    Err(invalid("The application of the template has no icon."))
 }
 
 struct Document {
@@ -414,7 +443,7 @@ fn invalid(message: &str) -> io::Error {
 pub(super) mod tests {
     use super::*;
 
-    const ANDROID: u32 = 5;
+    const ANDROID: u32 = 6;
 
     /// A start element: its name, then its attributes (namespace, name, raw
     /// value, type, data).
@@ -462,6 +491,7 @@ pub(super) mod tests {
             "name",
             "label",
             "authorities",
+            "icon",
             "http://schemas.android.com/apk/res/android",
             "package",
             "manifest",
@@ -479,7 +509,7 @@ pub(super) mod tests {
             "provider",
             "dev.nativella.runtime.fileprovider;dev.nativella.runtimes",
         ];
-        let ids = [VERSION_CODE, VERSION_NAME, NAME, LABEL, AUTHORITIES];
+        let ids = [VERSION_CODE, VERSION_NAME, NAME, LABEL, AUTHORITIES, ICON];
         let mut resource_map = Vec::new();
         resource_map.extend(RESOURCE_MAP.to_le_bytes());
         resource_map.extend(8_u16.to_le_bytes());
@@ -489,34 +519,35 @@ pub(super) mod tests {
         }
 
         let string = |index: u32| (ANDROID, 2, index, TYPE_STRING, index);
-        let reference = (ANDROID, 3, NO_STRING, 0x01, 0x7f0f_001c);
+        let reference = (ANDROID, 3, NO_STRING, TYPE_REFERENCE, 0x7f0f_001c);
+        let icon = (ANDROID, 5, NO_STRING, TYPE_REFERENCE, 0x7f0e_0000);
         let chunks = vec![
             resource_map,
             start(
-                7,
+                8,
                 &[
                     (ANDROID, 0, NO_STRING, TYPE_INT_DEC, 1001),
-                    (ANDROID, 1, 9, TYPE_STRING, 9),
-                    (NO_STRING, 6, 8, TYPE_STRING, 8),
+                    (ANDROID, 1, 10, TYPE_STRING, 10),
+                    (NO_STRING, 7, 9, TYPE_STRING, 9),
                 ],
             ),
-            start(10, &[string(11)]),
-            end(10),
-            start(10, &[string(12)]),
-            end(10),
-            start(13, &[string(14)]),
-            end(13),
-            start(10, &[string(14)]),
-            end(10),
-            start(15, &[reference]),
-            start(16, &[reference, string(17)]),
+            start(11, &[string(12)]),
+            end(11),
+            start(11, &[string(13)]),
+            end(11),
+            start(14, &[string(15)]),
+            end(14),
+            start(11, &[string(15)]),
+            end(11),
+            start(16, &[reference, icon]),
+            start(17, &[reference, string(18)]),
+            end(17),
+            start(17, &[reference, string(19)]),
+            end(17),
+            start(20, &[(ANDROID, 4, 21, TYPE_STRING, 21)]),
+            end(20),
             end(16),
-            start(16, &[reference, string(18)]),
-            end(16),
-            start(19, &[(ANDROID, 4, 20, TYPE_STRING, 20)]),
-            end(19),
-            end(15),
-            end(7),
+            end(8),
         ];
 
         Document {
@@ -605,7 +636,10 @@ pub(super) mod tests {
                             "com.acme.notes.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
                         )])
                     ),
-                    ("application".to_owned(), pairs(&[("label", "Acme Notes")])),
+                    (
+                        "application".to_owned(),
+                        pairs(&[("label", "Acme Notes"), ("icon", "@2131623936")])
+                    ),
                     (
                         "activity".to_owned(),
                         pairs(&[
@@ -630,6 +664,13 @@ pub(super) mod tests {
                 ],
                 "UTF-8: {utf8}"
             );
+        }
+    }
+
+    #[test]
+    fn the_icon_of_the_application() {
+        for utf8 in [false, true] {
+            assert_eq!(icon(&template(utf8)).unwrap(), 0x7f0e_0000, "UTF-8: {utf8}");
         }
     }
 

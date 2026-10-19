@@ -2928,6 +2928,7 @@ dependencies = [
  "getrandom 0.4.3",
  "gtk",
  "iana-time-zone",
+ "image",
  "jni",
  "keyring",
  "libc",
