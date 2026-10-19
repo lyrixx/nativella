@@ -22,7 +22,7 @@ An application asks for the APIs it uses in the `permissions` of its [configurat
 }
 ```
 
-The mobile build scripts turn them into features of the `nativella` crate (`--features geolocation,haptics`): only these plugins go into the application, and with them the permissions they declare to Android, location for `geolocation`. An application that never locates the phone does not ask for it.
+On Android, every application has the plugins of the three, from the template APK, but registers only those it asks for, and keeps only the permissions they declare to Android, location for `geolocation`: an application that never locates the phone does not ask for it. iOS builds turn them into features of the `nativella` crate (`--features geolocation,haptics`): only these plugins go into the application.
 
 Where the user must agree, they are asked on the first call, not at install: location, on Android.
 

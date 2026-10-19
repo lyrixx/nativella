@@ -1,6 +1,6 @@
 # Mobile builds
 
-What the mobile builds need besides their Castor tasks, `castor mobile:android` and `castor mobile:ios` (`.castor/mobile.php`). How they work and how to use them: [docs/mobile.md](../docs/mobile.md).
+What the mobile builds need besides their Castor tasks, `castor mobile:android-template` and `castor mobile:ios` (`.castor/mobile.php`). How they work and how to use them: [docs/mobile.md](../docs/mobile.md).
 
 | Path | What |
 |---|---|

@@ -83,4 +83,4 @@ The releases are built from the repository, with its Docker stack: `castor stati
 
 On macOS, the CI builds Nativella and runs its tests and the demos, without a window: nobody has opened one there yet. Windows is untested: the code has the platform switches Tauri needs (pages are served from `http://php.localhost/` instead of `php://localhost/`), but nobody has built Nativella there yet. It would need PHP for Windows, static or as a library, and WebView2, which ships with Windows 11. Reports and patches are welcome.
 
-Phones are a separate build, from the repository: Android, and iOS in the simulator. See [Mobile](mobile.md).
+On Android, `nativella android` makes the APK of a project from the template APK of its release. iOS is a build from the repository, for the simulator. See [Mobile](mobile.md).
