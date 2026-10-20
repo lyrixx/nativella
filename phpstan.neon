@@ -1,12 +1,11 @@
-# The Castor tasks, and the script they run with the PHP of the builder. The
-# projects (packages/*, demos/*, website) are analysed one by one, from their
-# own directory: see the qa:phpstan task and tools/phpstan/project.neon.
+# The Castor tasks. The projects (packages/*, demos/*, website) are analysed
+# one by one, from their own directory: see the qa:phpstan task and
+# tools/phpstan/project.neon.
 parameters:
     level: 8
     paths:
         - castor.php
         - .castor/
-        - mobile/pom-licenses.php
     scanFiles:
         - .castor.stub.php
     tmpDir: tools/phpstan/var/castor

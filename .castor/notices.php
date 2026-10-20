@@ -376,9 +376,7 @@ function php_sections(string $version, string $licenses, string $builtBy): array
 
 /**
  * The Java and Kotlin libraries, with the licenses their POM declares, from
- * the cache of Gradle: read by mobile/pom-licenses.php, with the PHP of the
- * builder, as the static binary of Castor, which the CI runs, has no XML
- * extension.
+ * the cache of Gradle.
  *
  * @param list<string> $libraries "<group>:<artifact>:<version>"
  *
@@ -386,12 +384,7 @@ function php_sections(string $version, string $licenses, string $builtBy): array
  */
 function java_section(array $libraries, bool $apacheTextAbove): array
 {
-    $process = docker_compose_run(['php', builder_path('mobile/pom-licenses.php'), ...$libraries], context()->withQuiet(), workDir: builder_path());
-    if (!$process->isSuccessful()) {
-        throw new \RuntimeException(\sprintf("The licenses of the Java libraries cannot be read:\n%s", $process->getErrorOutput().$process->getOutput()));
-    }
-    /** @var array<string, list<string>> $licenses */
-    $licenses = json_decode($process->getOutput(), true, flags: \JSON_THROW_ON_ERROR);
+    $cache = (context()['run_on_host'] ? (getenv('GRADLE_USER_HOME') ?: getenv('HOME').'/.gradle') : variable('root_dir').'/.home/.gradle').'/caches/modules-2/files-2.1';
 
     $intro = 'The Android project of Tauri, and its plugins, use the libraries below, from the Maven repositories '
         .'of Google and Maven Central, under the licenses their POM declares, or the one of their parent POM'
@@ -399,10 +392,49 @@ function java_section(array $libraries, bool $apacheTextAbove): array
     $text = wordwrap($intro, 79)."\n\n";
 
     foreach ($libraries as $library) {
-        $text .= "{$library}: ".([] === $licenses[$library] ? 'no license in its POM' : implode('; ', $licenses[$library]))."\n";
+        [$group, $artifact, $version] = explode(':', $library, 3);
+        $licenses = pom_licenses($cache, $group, $artifact, $version);
+
+        $text .= "{$library}: ".([] === $licenses ? 'no license in its POM' : implode('; ', $licenses))."\n";
     }
 
     return ['title' => 'The Java and Kotlin libraries', 'text' => $text];
+}
+
+/**
+ * The licenses the POM of a library declares, or its parent POM, from the
+ * cache of Gradle.
+ *
+ * @return list<string> "<name> (<url>)"
+ */
+function pom_licenses(string $cache, string $group, string $artifact, string $version): array
+{
+    $poms = glob("{$cache}/{$group}/{$artifact}/{$version}/*/{$artifact}-{$version}.pom") ?: [];
+    if ([] === $poms) {
+        return [];
+    }
+
+    $document = new \DOMDocument();
+    if (!@$document->load($poms[0])) {
+        throw new \RuntimeException(\sprintf('%s is not valid XML.', $poms[0]));
+    }
+
+    // A POM has <license> elements in <licenses> only
+    $licenses = [];
+    foreach ($document->getElementsByTagName('license') as $license) {
+        $name = trim($license->getElementsByTagName('name')->item(0)->textContent ?? '');
+        $url = trim($license->getElementsByTagName('url')->item(0)->textContent ?? '');
+        $licenses[] = '' === $url ? $name : "{$name} ({$url})";
+    }
+
+    $parent = $document->getElementsByTagName('parent')->item(0);
+    if ([] === $licenses && null !== $parent) {
+        $coordinate = static fn (string $name): string => trim($parent->getElementsByTagName($name)->item(0)->textContent ?? '');
+
+        return pom_licenses($cache, $coordinate('groupId'), $coordinate('artifactId'), $coordinate('version'));
+    }
+
+    return $licenses;
 }
 
 /**

@@ -7,7 +7,7 @@ Only the desktop application itself runs on your machine by default: a window ne
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/engine/install/), with Compose v2.
-- [Castor](https://castor.jolicode.com/getting-started/installation/) 1.8 or later.
+- [Castor](https://castor.jolicode.com/getting-started/installation/) 1.9 or later.
 - Optionally, [mkcert](https://github.com/FiloSottile/mkcert#installation), for HTTPS certificates that your browser trusts (run `mkcert -install` once). Without it, the certificates are self-signed.
 - To run the desktop application on your machine: Rust and the [system packages](#on-your-machine). Without them, `--docker` runs it in a container (see [below](#the-desktop-application)).
 
