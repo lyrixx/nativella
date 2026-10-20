@@ -21,8 +21,9 @@ use function docker\run_in_builder;
 const SPC_VERSION = '2.8.5';
 
 /**
- * The extensions Symfony, Laravel and Doctrine applications need. Keep in
- * sync with docs/building.md.
+ * The extensions Symfony, Laravel and Doctrine applications need, on the
+ * desktop and on the phones (.castor/static-php-mobile.php, which says how to
+ * build each one there). Keep in sync with docs/building.md and docs/mobile.md.
  */
 const EXTENSIONS = 'bcmath,ctype,curl,dom,fileinfo,filter,iconv,intl,mbstring,opcache,openssl,pdo,pdo_sqlite,phar,session,simplexml,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zlib';
 

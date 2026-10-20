@@ -9,7 +9,7 @@ Nativella is experimental. This page lists what does not work, what is untested 
 | Linux | Developed and tested on Ubuntu 26.04, with WebKitGTK 2.52. The executables of the releases run on Ubuntu 22.04 and 24.04, Debian 12 and 13 too. |
 | macOS | Built and tested by the CI (arm64), without a window: nobody has opened one there yet. |
 | Windows | Untested. Pages would be served from `http://php.localhost/`, as Tauri does for custom schemes there. |
-| Android | Experimental: the three demos run on an Android 16 emulator (arm64 builds). The CI opens the Symfony demo in an emulator. See [Mobile](mobile.md#what-is-tested). |
+| Android | Experimental: the three demos run on an Android 16 emulator (arm64 builds, and the Symfony demo built for x86_64). The CI opens the Symfony demo in an emulator. See [Mobile](mobile.md#what-is-tested). |
 | iOS | Experimental: the CI builds the Symfony demo for the simulator and opens it there. No device yet. See [Mobile](mobile.md#what-is-tested). |
 
 ### Linux
@@ -44,7 +44,7 @@ Nativella is experimental. This page lists what does not work, what is untested 
 
 ## Distribution
 
-- **A fixed PHP.** The executable carries [the PHP of the `nativella` command](building.md#the-php-inside): its extensions are those of the build, and it has no `php.ini`.
+- **A fixed PHP.** The executable carries [the PHP of the `nativella` command](building.md#the-php-inside), and an Android application the one of its template, with the same extensions: those of the build. It has no `php.ini`.
 - **No installers.** No `.deb`, `.dmg` or `.msi`, no code signing, no updates.
 - **No secrets.** Everything in the project ships, readable by anyone who has the executable.
 
@@ -57,6 +57,6 @@ Next:
 - **macOS and Windows**: build, test, fix.
 - **Extensions and `php.ini`**: let an application pick the extensions of its PHP, to add one or to leave intl and the data of ICU out of a smaller executable, and its settings.
 - **Installers**: bundle with `tauri build`.
-- **Mobile**: more [phone APIs](phone-apis.md) (camera, sharing, push notifications), PHP builds of Nativella's own, iOS on a device. See [Mobile](mobile.md).
+- **Mobile**: more [phone APIs](phone-apis.md) (camera, sharing, push notifications), iOS on a device, the JIT of PCRE on Android. See [Mobile](mobile.md).
 
 Found something that is not on this page? [Open an issue](https://github.com/lyrixx/nativella/issues).

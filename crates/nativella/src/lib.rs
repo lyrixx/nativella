@@ -279,7 +279,8 @@ fn start(
             eprintln!("[nativella] Data directory: {}", data_dir.display());
 
             // PHP's defaults point to system directories: an application
-            // has its own, and phones have no /tmp.
+            // has its own, and phones have no /tmp. Opcache locks its shared
+            // memory with a file there, without thread safety.
             let cache_dir = app.path().app_cache_dir()?;
             let session_dir = cache_dir.join("sessions");
             fs::create_dir_all(&session_dir)?;
@@ -287,7 +288,8 @@ fn start(
             if cfg!(mobile) {
                 php_app = php_app
                     .with_ini("sys_temp_dir", cache_dir.to_string_lossy())
-                    .with_ini("upload_tmp_dir", cache_dir.to_string_lossy());
+                    .with_ini("upload_tmp_dir", cache_dir.to_string_lossy())
+                    .with_ini("opcache.lockfile_path", cache_dir.to_string_lossy());
             }
             // Dates in the user's time zone, not UTC.
             match iana_time_zone::get_timezone() {
