@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8621a574799f468a5bf51f8681991efa",
+    "content-hash": "ed0738e8a8609c2f778fe35bf7d1fe67",
     "packages": [
         {
             "name": "doctrine/dbal",
@@ -166,7 +166,7 @@
             "dist": {
                 "type": "path",
                 "url": "../../packages/nativella",
-                "reference": "eda28ab6a882d99b8d6a2fb7dbb69b0e6023e5d5"
+                "reference": "a42d82f05cb9d530c295e78e118e4828656a66b3"
             },
             "require": {
                 "php": ">=8.4"
@@ -177,7 +177,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "0.2.x-dev"
+                    "dev-main": "0.3.x-dev"
                 }
             },
             "autoload": {

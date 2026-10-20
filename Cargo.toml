@@ -6,7 +6,7 @@ members = ["crates/nativella", "crates/runtime"]
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/lyrixx/nativella"
-version = "0.2.0"
+version = "0.3.0"
 
 [profile.release]
 # Standalone executables ship to users: no symbol tables.

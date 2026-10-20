@@ -114,7 +114,7 @@ Take the command and the template from the same [release](https://github.com/lyr
 > iOS support is experimental: the CI makes the app of the Symfony demo for the simulator, and opens it there. No app made for devices has run on one yet. See [what is tested](#what-is-tested).
 
 > [!NOTE]
-> The command and the template must come from the same version of Nativella: `nativella ios` warns when they do not. Nativella 0.2.0 and older have neither: until a release has them, build the command from the repository (see [Developing Nativella](development.md#static-php)), and take the template of the simulator from a run of the [Mobile workflow](development.md#continuous-integration), or build one on a Mac (see [below](#from-the-repository-on-a-mac)).
+> The command and the template must come from the same version of Nativella: `nativella ios` warns when they do not. Both come with Nativella 0.3.0 and later.
 
 ### For the simulator
 
