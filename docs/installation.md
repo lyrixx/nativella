@@ -6,16 +6,24 @@ The `nativella` command opens a PHP project in a window, and builds it into a st
 
 ### Linux x86_64
 
-Ubuntu 22.04 or later, Debian 12 or later: the executable needs glibc 2.35 or later, and the webview of the system, WebKitGTK.
+The executable needs glibc 2.35 or later, and the webview of the system, WebKitGTK 4.1, which it loads when it starts: a library to run it, not to build anything. The standalone executables it builds need the same. Install the webview of your distribution:
+
+| Distribution | The webview | For a [tray](tray.md) icon |
+|---|---|---|
+| Ubuntu 22.04 and later, Debian 12 and later | `sudo apt install libwebkit2gtk-4.1-0` | `libayatana-appindicator3-1`, which Ubuntu desktops have |
+| Fedora | `sudo dnf install webkit2gtk4.1` | `libayatana-appindicator-gtk3` |
+| RHEL, AlmaLinux, Rocky Linux 10 | `sudo dnf install webkit2gtk4.1`, from [EPEL](https://docs.fedoraproject.org/en-US/epel/) | |
+| Arch Linux | `sudo pacman -S webkit2gtk-4.1` | `libayatana-appindicator` |
+
+Elsewhere, install the WebKitGTK 4.1 package of the distribution. RHEL, AlmaLinux and Rocky Linux 9 have glibc 2.34: the releases do not run there. Without the library of the tray, an application stops when it shows its tray icon.
+
+Then the command:
 
 ```bash
-sudo apt install libwebkit2gtk-4.1-0
 curl -fLo nativella https://github.com/lyrixx/nativella/releases/latest/download/nativella-linux-x86_64
 chmod +x nativella
 sudo mv nativella /usr/local/bin/
 ```
-
-An application with a [tray](tray.md) icon needs `libayatana-appindicator3-1` too, which Ubuntu desktops have: without it, the application stops when it shows the icon.
 
 ### macOS arm64
 

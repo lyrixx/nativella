@@ -328,10 +328,10 @@
                 <li>
                     <div class="start-text">
                         <h3>Download the runtime</h3>
-                        <p>Once. One executable, with PHP inside: on Linux, it runs on Ubuntu 22.04 or Debian 12 and later, and only needs the webview of the system. For macOS, take <code>nativella-macos-aarch64</code>, or <a href="docs/installation/#build-from-source">build it from source</a>.</p>
+                        <p>Once. One executable, with PHP inside: on Linux, it only needs glibc 2.35 and the webview of the system, WebKitGTK: <a href="docs/installation/#linux-x86_64">its package</a> on Ubuntu, Debian, Fedora, Arch… For macOS, take <code>nativella-macos-aarch64</code>, or <a href="docs/installation/#build-from-source">build it from source</a>.</p>
                     </div>
                     {% apply highlight('bash') %}
-                        sudo apt install libwebkit2gtk-4.1-0
+                        sudo apt install libwebkit2gtk-4.1-0   # Fedora: dnf install webkit2gtk4.1, Arch: pacman -S webkit2gtk-4.1
                         curl -fLo nativella https://github.com/lyrixx/nativella/releases/latest/download/nativella-linux-x86_64
                         chmod +x nativella && sudo mv nativella /usr/local/bin/
                     {% endapply %}

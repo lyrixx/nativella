@@ -246,10 +246,12 @@ jobs:
 
                   They are linked against a static PHP 8.5: they need no PHP on the machine.
 
-                  Linux x86_64: Ubuntu 22.04 or later, Debian 12 or later (glibc 2.35).
-                  They need the webview of the system, WebKitGTK 4.1:
-                  `sudo apt install libwebkit2gtk-4.1-0`. An application with a tray icon
-                  needs `libayatana-appindicator3-1` too, which Ubuntu desktops have.
+                  Linux x86_64: glibc 2.35 or later (Ubuntu 22.04, Debian 12, Fedora,
+                  RHEL 10, Arch…), and the webview of the system, WebKitGTK 4.1, to run:
+                  `sudo apt install libwebkit2gtk-4.1-0`, `sudo dnf install webkit2gtk4.1`
+                  or `sudo pacman -S webkit2gtk-4.1`. An application with a tray icon needs
+                  the library of the tray too. The packages of each distribution:
+                  https://lyrixx.github.io/nativella/docs/installation/#linux-x86_64
 
                   macOS arm64: they need nothing installed. They are not signed: downloaded
                   with a browser, remove the quarantine first, with
