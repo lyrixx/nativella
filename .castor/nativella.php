@@ -80,6 +80,10 @@ function run_demo(
  * ships staged for production: without its dev dependencies, in the
  * production environment.
  *
+ * The nativella command embeds the third-party notices of what it contains
+ * (notices\desktop()), which it writes next to the executables it builds:
+ * dist/THIRD_PARTY_NOTICES.txt.
+ *
  * @param list<string> $demos
  */
 #[AsTask(name: 'build', description: 'Builds the nativella command and the standalone executables of the demos into dist/')]
@@ -93,6 +97,11 @@ function build_demos(
     $projects = array_map(demo(...), $demos ?: demo_names());
     $environment = $static ? \static_php\environment() : \static_php\system_php_environment();
     $service = $static ? \static_php\SERVICE : null;
+
+    io()->title('Gathering the third-party notices');
+
+    $notices = \notices\desktop($static);
+    $environment['NATIVELLA_NOTICES'] = builder_path($notices);
 
     io()->title('Building the nativella command');
 
@@ -112,7 +121,8 @@ function build_demos(
 
 /**
  * What a GitHub release publishes: nativella-<platform> and
- * nativella-demo-<demo>-<platform>, with SHA256SUMS-<platform>. On Linux,
+ * nativella-demo-<demo>-<platform>, their third-party notices,
+ * THIRD_PARTY_NOTICES-<platform>.txt, with SHA256SUMS-<platform>. On Linux,
  * only executables that run on the glibc and the libstdc++ of the static
  * service, built against the static PHP.
  */
@@ -124,13 +134,22 @@ function package(): void
 
     fs()->remove("{$root}/release");
 
+    if (!is_file("{$root}/dist/".\notices\FILE)) {
+        throw new \RuntimeException('There are no third-party notices in dist/: build the executables with "castor nativella:build".');
+    }
+
     $checksums = '';
     foreach (finder()->in("{$root}/dist")->files()->depth(0)->sortByName() as $file) {
-        if (str_starts_with($platform, 'linux-')) {
-            check_symbol_versions("dist/{$file->getFilename()}");
+        if (\notices\FILE === $file->getFilename()) {
+            $name = "THIRD_PARTY_NOTICES-{$platform}.txt";
+        } else {
+            if (str_starts_with($platform, 'linux-')) {
+                check_symbol_versions("dist/{$file->getFilename()}");
+            }
+
+            $name = 'nativella' === $file->getFilename() ? "nativella-{$platform}" : "nativella-demo-{$file->getFilename()}-{$platform}";
         }
 
-        $name = 'nativella' === $file->getFilename() ? "nativella-{$platform}" : "nativella-demo-{$file->getFilename()}-{$platform}";
         fs()->copy($file->getPathname(), "{$root}/release/{$name}");
         $checksums .= hash_file('sha256', $file->getPathname())."  {$name}\n";
     }

@@ -16,6 +16,7 @@ mod events;
 #[cfg(target_os = "android")]
 mod logcat;
 mod native;
+pub mod notices;
 pub mod project;
 #[cfg(target_os = "android")]
 mod request_bodies;

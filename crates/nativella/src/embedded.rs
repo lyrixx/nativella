@@ -405,7 +405,7 @@ fn append_dir<W: Write>(
 /// The assets of an APK, read in place through the asset manager of the
 /// application.
 #[cfg(target_os = "android")]
-mod asset {
+pub(crate) mod asset {
     use std::ffi::CString;
     use std::io::{self, Read, Seek, SeekFrom};
     use std::ptr::NonNull;

@@ -102,9 +102,13 @@ jobs:
               run: "castor docker:build --service=builder"
 
             # Builds the android image, then the template APK, then the APK of
-            # the demo from it
+            # the demo from it. static-php-cli asks the GitHub API for the
+            # sources of the licenses of the PHP of the phone: without a
+            # token, the runners share its rate limit
             - name: "Build the APK"
               run: "castor mobile:android symfony"
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: "Upload the APK"
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

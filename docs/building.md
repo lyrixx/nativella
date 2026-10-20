@@ -92,3 +92,25 @@ It has the extensions a Symfony, Laravel or Doctrine application needs (bcmath, 
 
 > [!NOTE]
 > Installers (`.deb`, `.dmg`, `.msi`), code signing and updates are not there yet. See [Limitations and roadmap](limitations.md#distribution).
+
+## Licenses
+
+The executable contains the software of others, under their licenses: PHP, the libraries it is linked with (OpenSSL, curl, ICU, libxml2, GNU libiconv, libsodium, libzip, SQLite, zlib) and the ones php-src bundles (PCRE2, libmagic, lexbor, uriparser…), and the Rust crates of Nativella (Tauri, wry, tao, ext-php-rs…). Most of these licenses ask that their copyright notices and texts go with every copy, and the PHP License that it says "This product includes PHP software, freely available from <http://www.php.net/software/>".
+
+The `nativella` command of the [releases](https://github.com/lyrixx/nativella/releases) carries these third-party notices, gathered when it is built: `nativella licenses` prints them, and `nativella build` writes them next to the executable it builds.
+
+```text
+Packaging Notes 1.2.0 into dist/notes…
+Wrote the licenses of the software the application contains to dist/THIRD_PARTY_NOTICES.txt: distribute them with it.
+Done: dist/notes
+```
+
+To distribute the application:
+
+- ship `THIRD_PARTY_NOTICES.txt` with the executable, in the same archive or installer, or show it in the application, in an "about" page: [`App::thirdPartyNotices()`](app.md#methods) returns it;
+- add the licenses of what your project ships: the Composer packages of `vendor/` (`composer licenses` lists them), the front-end libraries.
+
+The libraries of the system the executable loads are not part of it, and need no notice: glibc, libstdc++ and WebKitGTK on Linux, the frameworks of macOS. The releases attach the notices of each platform too, `THIRD_PARTY_NOTICES-<platform>.txt`. A `nativella` built without them, by `cargo build` rather than [`castor nativella:build`](development.md#standalone-executables), says so, and `nativella build` warns.
+
+> [!IMPORTANT]
+> Some of the static PHP is under the [GNU Lesser General Public License 2.1](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html), linked statically: GNU libiconv, which the iconv extension and libxml2 use, and, inside php-src, libbcmath (bcmath) and libmbfl (mbstring). The notices give the version of each, and the URL of the source archive it was built from. Among other things, the LGPL asks that whoever gets the application can use it with a modified version of these libraries. What Nativella offers for that: it is open source, and builds from source, PHP included ([`castor static-php:build`, then `castor nativella:build`](development.md#standalone-executables)); the project of an application is an archive appended to that executable, which it [extracts](#at-startup) in clear, and `nativella build` packs again. Nativella cannot tell you what your distribution needs: ask someone who knows these licenses.

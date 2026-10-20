@@ -74,7 +74,11 @@ function build(
         $build .= ' gcc glibc '.GLIBC_VERSION;
     }
 
-    if (!$force && is_file($stamp) && file_get_contents($stamp) === $build) {
+    // A build of Nativella 0.2.0 or older lacks the licenses of what php-src
+    // bundles: the third-party notices need them
+    $notices = is_file("{$buildroot}/license/php-src/README.REDIST.BINS");
+
+    if (!$force && $notices && is_file($stamp) && file_get_contents($stamp) === $build) {
         io()->comment('Static PHP is up to date: --force builds it again.');
     } else {
         // static-php-cli keeps the libraries it finds built: they may have
@@ -188,22 +192,39 @@ function spc_environment(): array
 
 function build_php(): void
 {
-    $dir = variable('root_dir').'/static-php';
     $workDir = builder_path('static-php');
 
     if (!context()['run_on_host']) {
         build_image(service: SERVICE);
     }
 
-    if (!is_file("{$dir}/spc")) {
-        http_download(\sprintf('https://github.com/crazywhalecc/static-php-cli/releases/download/%s/spc-%s.tar.gz', SPC_VERSION, builder_platform()), "{$dir}/spc.tar.gz");
-        run_in_builder(['tar', 'xzf', 'spc.tar.gz'], $workDir, service: SERVICE);
-        fs()->remove("{$dir}/spc.tar.gz");
-    }
-
+    spc(SERVICE);
     $environment = spc_environment();
 
     run_in_builder(['./spc', 'doctor', '--auto-fix'], $workDir, $environment, SERVICE);
     run_in_builder(['./spc', 'download', '--for-extensions='.EXTENSIONS, '--with-php='.PHP_BRANCH, '--prefer-pre-built'], $workDir, $environment, SERVICE);
+    // It dumps the licenses of PHP and of the libraries it builds into
+    // buildroot/license/, for the third-party notices (notices\desktop())
     run_in_builder(['./spc', 'build', EXTENSIONS, '--build-embed'], $workDir, $environment, SERVICE);
+    \notices\copy_php_src_licenses('static-php/source/php-src', 'static-php/buildroot/license/php-src');
+}
+
+/**
+ * static-php-cli, for the platform of the builder, downloaded once.
+ *
+ * @param ?string $service the service that unpacks it: the builder by default
+ *
+ * @return string from the root of the repository
+ */
+function spc(?string $service = null): string
+{
+    $dir = variable('root_dir').'/static-php';
+
+    if (!is_file("{$dir}/spc")) {
+        http_download(\sprintf('https://github.com/crazywhalecc/static-php-cli/releases/download/%s/spc-%s.tar.gz', SPC_VERSION, builder_platform()), "{$dir}/spc.tar.gz");
+        run_in_builder(['tar', 'xzf', 'spc.tar.gz'], builder_path('static-php'), service: $service);
+        fs()->remove("{$dir}/spc.tar.gz");
+    }
+
+    return 'static-php/spc';
 }

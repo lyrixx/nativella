@@ -76,7 +76,7 @@ function android(
 function android_template(
     #[AsOption(description: 'Build a release template, without debug symbols, instead of a debug one')]
     bool $release = false,
-    #[AsOption(description: 'Where to copy it, from the root of the repository, with its checksum in SHA256SUMS-android next to it')]
+    #[AsOption(description: 'Where to copy it, from the root of the repository, with its third-party notices and their checksums next to it')]
     ?string $output = null,
 ): string {
     $onHost = context()['run_on_host'];
@@ -125,11 +125,24 @@ function android_template(
     }
 
     $variant = $release ? 'release' : 'debug';
-    run_in_builder([
+    $build = static fn () => run_in_builder([
         'cargo', 'tauri', 'android', 'build', '--ci', '--target', 'aarch64', '--apk',
         ...($release ? [] : ['--debug']),
         '--features', implode(',', PHONE_APIS),
     ], $workDir, $environment, $service);
+    $build();
+
+    // The third-party notices, an asset of the template, and so of every
+    // application made of it. Gradle lists the Java libraries once the build
+    // of the library generated the settings of the plugins: when the
+    // notices change, Gradle packages the template again, the library being
+    // built already.
+    $notices = \notices\android($php, PHONE_APIS, \notices\gradle_libraries('crates/nativella/gen/android', 'universal'.ucfirst($variant).'RuntimeClasspath', $environment, $service));
+    $asset = "{$root}/crates/nativella/gen/android/app/src/main/assets/".\notices\FILE;
+    if (!is_file($asset) || file_get_contents($asset) !== file_get_contents("{$root}/{$notices}")) {
+        fs()->copy("{$root}/{$notices}", $asset, overwriteNewerFiles: true);
+        $build();
+    }
 
     // Gradle leaves it as it is when nothing changed. Unsigned in release:
     // `nativella android` signs the applications.
@@ -140,7 +153,13 @@ function android_template(
     fs()->copy($built->getPathname(), "{$root}/{$template}", overwriteNewerFiles: true);
     // As the release publishes it, with the files of the other platforms
     if (null !== $output) {
-        fs()->dumpFile(\dirname("{$root}/{$output}").'/SHA256SUMS-android', hash_file('sha256', "{$root}/{$output}").'  '.basename($output)."\n");
+        $dir = \dirname("{$root}/{$output}");
+        fs()->copy("{$root}/{$notices}", "{$dir}/THIRD_PARTY_NOTICES-android.txt", overwriteNewerFiles: true);
+        $checksums = '';
+        foreach ([basename($output), 'THIRD_PARTY_NOTICES-android.txt'] as $file) {
+            $checksums .= hash_file('sha256', "{$dir}/{$file}")."  {$file}\n";
+        }
+        fs()->dumpFile("{$dir}/SHA256SUMS-android", $checksums);
     }
 
     io()->success("The template: {$template}");

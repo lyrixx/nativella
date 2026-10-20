@@ -71,6 +71,12 @@ The application ID is the `identifier` with its dashes as underscores, as Androi
 
 The classes of the template keep their package, `dev.nativella.runtime`, which the library names in its JNI functions: only the application ID changes, as when the `applicationId` of a Gradle build differs from its `namespace`.
 
+### Licenses
+
+As a [standalone executable](building.md#licenses), an APK contains the software of others, under their licenses: the PHP of the phone and its libraries, the Rust crates of the library, and the Java and Kotlin libraries of the Android project of Tauri (AndroidX, Kotlin, Google Play services for geolocation, under Google's terms). The template carries their third-party notices, and so does every APK made of it: the asset `THIRD_PARTY_NOTICES.txt`, which [`App::thirdPartyNotices()`](app.md#methods) returns, for an "about" page, since an application has no other place to show them. The releases attach them too, `THIRD_PARTY_NOTICES-android.txt`. Add the licenses of what your project ships, as on the desktop.
+
+The Rust crates and the Java libraries come from the build of the template: cargo-about, and the dependencies Gradle resolves, with the license their POM declares. NativePHP's build of PHP ships no license: the template takes the ones of the sources of PHP, in its version, and of its libraries, in their current one, as static-php-cli dumps them. Like the desktop one, that PHP links [LGPL](building.md#licenses) code statically: libbcmath and libmbfl, from the sources of its version of PHP, and GNU libiconv, whose version NativePHP does not publish. The notices give their sources, and `nativella android` packs an application again.
+
 ### From the repository
 
 `castor mobile:android symfony` does the same for a demo, with a template built from the repository. It runs in Docker, in the `android` image of [the stack](development.md): the builder, plus a JDK, the Android SDK with an NDK, the Android target of Rust and the Tauri command. Docker is all it needs on your machine. The image is x86_64 only, as Google ships no NDK for Linux on ARM: on an ARM machine, Docker has to emulate it.
