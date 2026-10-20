@@ -76,10 +76,12 @@ macro_rules! permissions {
 }
 
 permissions! {
-    /// An API of phones, which brings permissions to the Android manifest.
+    /// An API of phones, which brings permissions to the Android manifest,
+    /// the reason iOS gives the user to the Info.plist of iOS apps.
     ///
     /// Keep in sync with the features of Cargo.toml, PHONE_DOMAINS in
-    /// native/mod.rs, android_permissions() in apk/mod.rs and PHONE_APIS in
+    /// native/mod.rs, android_permissions() in apk/mod.rs,
+    /// usage_description() in ios/mod.rs and PHONE_APIS in
     /// .castor/mobile.php.
     Biometrics,
     Geolocation,

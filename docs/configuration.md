@@ -43,6 +43,8 @@ Defaults to `dev.nativella.` followed by the package name: `acme/note-taker` bec
 
 On Android, the application ID, what Android knows the application by, is the identifier with its dashes as underscores, as Android accepts no dash: `dev.nativella.note_taker`. It needs two segments at least, each starting with a letter: `com.acme.2048` cannot make one. See [Mobile](mobile.md#building-an-apk).
 
+On iOS, the bundle ID is the identifier as it is: Apple accepts letters, digits, dashes and dots there. The provisioning profile of an app for devices must be for it, or for a wildcard App ID that matches it, such as `com.acme.*`. See [Mobile](mobile.md#building-an-ios-app).
+
 ## `version`
 
 The version of the application, as [`App::info()`](app.md) reports it. Defaults to the `version` of `composer.json`, then to `0.1.0`.

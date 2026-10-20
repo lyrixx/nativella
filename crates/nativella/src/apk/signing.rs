@@ -16,7 +16,7 @@ use p256::ecdsa::{DerSignature, SigningKey};
 use p256::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey, LineEnding};
 use sha2::{Digest, Sha256};
 
-use super::zip::{self, Unfinished};
+use crate::zip::{self, Unfinished};
 
 const BLOCK_MAGIC: &[u8; 16] = b"APK Sig Block 42";
 const V2_BLOCK_ID: u32 = 0x7109_871a;

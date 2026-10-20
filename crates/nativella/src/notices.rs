@@ -3,8 +3,10 @@
 //!
 //! `castor nativella:build` gathers them (.castor/notices.php) and build.rs
 //! compresses them into the executable, and so into every application
-//! `nativella build` makes of it. An Android application carries them as an
-//! asset of its APK instead, from the template.
+//! `nativella build` makes of it; `castor mobile:ios-template` into the
+//! library of the template app, and so into every iOS app `nativella ios`
+//! makes of it. An Android application carries them as an asset of its APK
+//! instead, from the template.
 
 use std::io::{self, Read};
 

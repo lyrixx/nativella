@@ -17,10 +17,11 @@ use function docker\run_in_builder;
 
 /**
  * The third-party notices: the copyright notices and the licenses of what
- * the executables and the template APK contain, gathered at each build from
+ * the executables and the templates contain, gathered at each build from
  * what it uses. One file per platform: the nativella command embeds it (see
  * crates/nativella/build.rs), `nativella build` writes it next to the
- * applications, the template APK carries it as an asset.
+ * applications, the template APK carries it as an asset, the library of the
+ * iOS template apps embeds it as the nativella command does.
  */
 const FILE = 'THIRD_PARTY_NOTICES.txt';
 
@@ -81,26 +82,61 @@ function desktop(bool $staticPhp): string
  */
 function android(Target $target, string $php, array $features, array $javaLibraries): string
 {
-    $root = variable('root_dir');
     $version = php_version("{$php}/include/php/main/php_version.h");
     $sections = php_sections($version, "{$php}/license", 'PHP is built by Nativella for the phone, from the sources static-php-cli downloads for the desktop, with the features it builds them with there (.castor/static-php-mobile.php), and linked with the libraries below.');
     $rust = rust_section($target->host, $features);
     $sections[] = $rust;
     $sections[] = java_section($javaLibraries, str_contains($rust['text'], "\n--- Apache License 2.0: "));
 
-    // The extensions of the build, from its configure command
-    preg_match_all("{'--(?:enable|with)-([\\w-]+)}", (string) file_get_contents("{$root}/{$php}/include/php/main/build-defs.h"), $matches);
-    // GNU libiconv, which the build downloads from there (config/source.json
-    // of static-php-cli), in the version of its header
-    $iconv = is_file("{$root}/{$php}/license/lib_libiconv_0.txt")
-        ? \sprintf('GNU libiconv %1$s: https://ftp.gnu.org/gnu/libiconv/libiconv-%1$s.tar.gz', libiconv_version("{$php}/include/iconv.h"))
-        : '';
-    $lgpl = lgpl($version, $matches[1], $iconv, '`nativella android`');
+    $lgpl = lgpl_of($version, $php, '`nativella android`');
 
     $intro = 'The template APK of `nativella android`, and every application made of it, contain the software below, '
         .'under the licenses below. The libraries of Android they load, such as its WebView, are not part of them.';
 
     return write("target/nativella/notices/THIRD_PARTY_NOTICES-{$target->name}.txt", $target->name, $intro, true, $lgpl, $sections);
+}
+
+/**
+ * The notices of a template app of iOS, and so of every app made of it: the
+ * Rust crates of the library, and the PHP of the phone with the libraries it
+ * links. The Swift code of Tauri and of its plugins comes with their crates.
+ *
+ * @param string       $rustTarget the target of Rust: aarch64-apple-ios, or aarch64-apple-ios-sim
+ * @param string       $php        the buildroot of the PHP of the phone, from the root of the repository (static_php\mobile\build())
+ * @param list<string> $features   the features of the nativella crate the template has
+ *
+ * @return string the file, from the root of the repository
+ */
+function ios(Target $target, string $rustTarget, string $php, array $features): string
+{
+    $version = php_version("{$php}/include/php/main/php_version.h");
+    $sections = php_sections($version, "{$php}/license", 'PHP is built by Nativella for the phone, from the sources static-php-cli downloads for the desktop, with the features it builds them with there (.castor/static-php-mobile.php), and linked with the libraries below.');
+    $sections[] = rust_section($rustTarget, $features);
+
+    $intro = 'The template app of `nativella ios`, and every app made of it, contain the software below, '
+        .'under the licenses below. The frameworks of iOS they load, such as WebKit, are not part of them.';
+
+    return write("target/nativella/notices/THIRD_PARTY_NOTICES-{$target->name}.txt", $target->name, $intro, true, lgpl_of($version, $php, '`nativella ios`'), $sections);
+}
+
+/**
+ * The code under the GNU LGPL 2.1 that the PHP of a phone links, from its
+ * build (lgpl()).
+ *
+ * @param string $php    the buildroot of the PHP of the phone, from the root of the repository
+ * @param string $repack the command that packs an application again
+ */
+function lgpl_of(string $version, string $php, string $repack): string
+{
+    // The extensions of the build, from its configure command
+    preg_match_all("{'--(?:enable|with)-([\\w-]+)}", (string) file_get_contents(variable('root_dir')."/{$php}/include/php/main/build-defs.h"), $matches);
+    // GNU libiconv, which the build downloads from there (config/source.json
+    // of static-php-cli), in the version of its header
+    $iconv = is_file(variable('root_dir')."/{$php}/license/lib_libiconv_0.txt")
+        ? \sprintf('GNU libiconv %1$s: https://ftp.gnu.org/gnu/libiconv/libiconv-%1$s.tar.gz', libiconv_version("{$php}/include/iconv.h"))
+        : '';
+
+    return lgpl($version, $matches[1], $iconv, $repack);
 }
 
 /**

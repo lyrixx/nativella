@@ -7,7 +7,7 @@
 //! tauri.conf.json (`castor mobile:android-template`). An application is the
 //! template:
 //!
-//! - with the bundle of the project as the asset [`ANDROID_ASSET`], which the
+//! - with the bundle of the project as the asset [`PACKAGED_BUNDLE`], which the
 //!   library reads at startup (see embedded.rs);
 //! - with the identity of the project in its manifest: its application ID,
 //!   made of its identifier, its name, its version, and the permissions of
@@ -15,7 +15,7 @@
 //! - with its icon, or Nativella's, as the launcher icon, in place of the
 //!   files of the template's, which its resource table names (see icon.rs and
 //!   resources.rs);
-//! - aligned, then signed (see zip.rs and signing.rs).
+//! - aligned, then signed (see ../zip.rs and signing.rs).
 //!
 //! Its classes stay in the package of the template, which the library names
 //! in its JNI functions: only the application ID changes, as when the
@@ -26,7 +26,6 @@ mod manifest;
 mod resources;
 mod signing;
 mod string_pool;
-mod zip;
 
 use std::fs::{self, File, OpenOptions};
 use std::io;
@@ -34,8 +33,9 @@ use std::path::Path;
 
 use self::icon::Icon;
 pub use self::signing::Key;
-use crate::embedded::{self, ANDROID_ASSET};
+use crate::embedded::{self, PACKAGED_BUNDLE};
 use crate::project::{Permission, Project};
+use crate::zip;
 
 const MANIFEST: &str = "AndroidManifest.xml";
 const RESOURCES: &str = "resources.arsc";
@@ -64,7 +64,7 @@ pub fn package(
         )
     })?;
     let entries = zip::entries(&mut template_file)?;
-    let asset = format!("assets/{ANDROID_ASSET}");
+    let asset = format!("assets/{PACKAGED_BUNDLE}");
     if entries.iter().any(|entry| entry.name == asset) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -427,7 +427,7 @@ mod tests {
         let entries = zip::entries(&mut file).unwrap();
         let asset = entries
             .iter()
-            .find(|entry| entry.name == format!("assets/{ANDROID_ASSET}"))
+            .find(|entry| entry.name == format!("assets/{PACKAGED_BUNDLE}"))
             .unwrap();
         let bundle = zip::read(&mut file, asset).unwrap();
 

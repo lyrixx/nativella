@@ -36,7 +36,7 @@ system webview ──php://localhost/…──▶ Tauri scheme handler (Rust)
 - **[Distribution](https://lyrixx.github.io/nativella/docs/building/)**: `nativella build` writes one
   executable that carries the project and PHP: the machine needs no PHP.
 - **[Phones](https://lyrixx.github.io/nativella/docs/mobile/)**: the same project builds into an Android APK
-  and an iOS app (simulator), experimentally.
+  and an iOS app, experimentally, without Android's or Apple's tools.
 
 Nativella is young and experimental, developed on Linux: read
 [Limitations and roadmap](https://lyrixx.github.io/nativella/docs/limitations/) first.

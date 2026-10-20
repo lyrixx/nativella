@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use nativella_lib::apk::{self, Key};
+use nativella_lib::ios::{self, Identity};
 use nativella_lib::{Project, embedded, notices};
 
 const USAGE: &str = "Usage:
@@ -14,12 +15,19 @@ const USAGE: &str = "Usage:
   nativella build [<project-dir>] [-o <output>]    Build a standalone executable of the project
   nativella android [<project-dir>] --template <apk> [--key <pem>] [-o <output>]
                                                    Make an Android application (APK) of the project
-  nativella bundle [<project-dir>] [-o <output>]   Pack the project into a file to embed in an iOS app
+  nativella ios [<project-dir>] --template <zip> [--certificate <p12> --profile <mobileprovision>] [-o <output>]
+                                                   Make an iOS app of the project, for the simulator,
+                                                   or for devices (IPA), signed with the certificate,
+                                                   whose password is NATIVELLA_CERTIFICATE_PASSWORD
   nativella licenses                               Print the licenses of the software nativella contains
   nativella --version                              Print the version
 
 The project directory defaults to the current one.
 Documentation: https://lyrixx.github.io/nativella/docs/";
+
+/// The variable that holds the password of the certificate of `nativella
+/// ios`, rather than an argument, which other users of the computer see.
+const CERTIFICATE_PASSWORD: &str = "NATIVELLA_CERTIFICATE_PASSWORD";
 
 fn main() -> ExitCode {
     // A standalone application runs its own project, whatever its arguments:
@@ -37,7 +45,7 @@ fn main() -> ExitCode {
         Some("run") => load(args.next()).map_or_else(|error| fail(&error), run),
         Some("build") => package(args, Package::Executable),
         Some("android") => package(args, Package::Android),
-        Some("bundle") => package(args, Package::Bundle),
+        Some("ios") => package(args, Package::Ios),
         Some("licenses") => licenses(),
         Some("-V" | "--version") => {
             println!("nativella {}", env!("CARGO_PKG_VERSION"));
@@ -69,8 +77,8 @@ enum Package {
     Executable,
     /// An Android application: the template APK, with the project.
     Android,
-    /// The project alone, for an iOS build to compile in.
-    Bundle,
+    /// An iOS app: a template app, with the project.
+    Ios,
 }
 
 fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode {
@@ -78,11 +86,15 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
     let mut output = None;
     let mut template = None;
     let mut key = None;
+    let mut certificate = None;
+    let mut profile = None;
     while let Some(arg) = args.next() {
         let path = match arg.as_str() {
             "-o" | "--output" => &mut output,
-            "--template" if matches!(package, Package::Android) => &mut template,
+            "--template" if matches!(package, Package::Android | Package::Ios) => &mut template,
             "--key" if matches!(package, Package::Android) => &mut key,
+            "--certificate" if matches!(package, Package::Ios) => &mut certificate,
+            "--profile" if matches!(package, Package::Ios) => &mut profile,
             _ if dir.is_none() && !arg.starts_with('-') => {
                 dir = Some(arg);
                 continue;
@@ -105,7 +117,9 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
             Package::Executable if cfg!(windows) => format!("{name}.exe"),
             Package::Executable => name,
             Package::Android => format!("{name}.apk"),
-            Package::Bundle => format!("{name}.bundle"),
+            // Signed for devices, or for the simulator.
+            Package::Ios if certificate.is_some() => format!("{name}.ipa"),
+            Package::Ios => format!("{name}.app"),
         })
     });
 
@@ -119,7 +133,13 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
         Package::Executable => embedded::build(&project, &output)
             .and_then(|local_overrides| write_notices(&output).map(|()| local_overrides)),
         Package::Android => android(&project, template.as_deref(), key.as_deref(), &output),
-        Package::Bundle => embedded::bundle(&project, &output),
+        Package::Ios => ios(
+            &project,
+            template.as_deref(),
+            certificate.as_deref(),
+            profile.as_deref(),
+            &output,
+        ),
     };
 
     match result {
@@ -201,6 +221,37 @@ fn android(
     };
 
     apk::package(project, template, output, &key)
+}
+
+/// The iOS app of `project`: for the simulator, or for devices, signed with
+/// `certificate` and `profile`. Returns the local overrides it left out.
+fn ios(
+    project: &Project,
+    template: Option<&Path>,
+    certificate: Option<&Path>,
+    profile: Option<&Path>,
+    output: &Path,
+) -> io::Result<Vec<String>> {
+    let template = template.ok_or_else(|| {
+        io::Error::other(format!(
+            "--template is missing: a template app of Nativella {}, for the simulator or for devices, from its release.",
+            env!("CARGO_PKG_VERSION")
+        ))
+    })?;
+    let identity = match (certificate, profile) {
+        (None, None) => None,
+        (Some(certificate), Some(profile)) => {
+            let password = env::var(CERTIFICATE_PASSWORD).unwrap_or_default();
+            Some(Identity::load(certificate, &password, profile)?)
+        }
+        _ => {
+            return Err(io::Error::other(
+                "--certificate and --profile go together: the certificate signs the app, the provisioning profile lets it run on devices.",
+            ));
+        }
+    };
+
+    ios::package(project, template, output, identity.as_ref())
 }
 
 fn fail(message: &str) -> ExitCode {

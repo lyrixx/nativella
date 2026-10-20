@@ -10,7 +10,7 @@ Nativella is experimental. This page lists what does not work, what is untested 
 | macOS | Built and tested by the CI (arm64), without a window: nobody has opened one there yet. |
 | Windows | Untested. Pages would be served from `http://php.localhost/`, as Tauri does for custom schemes there. |
 | Android | Experimental: the three demos run on an Android 16 emulator (arm64 builds, and the Symfony demo built for x86_64). The CI opens the Symfony demo in an emulator. See [Mobile](mobile.md#what-is-tested). |
-| iOS | Experimental: the CI builds the Symfony demo for the simulator and opens it there. No device yet. See [Mobile](mobile.md#what-is-tested). |
+| iOS | Experimental: the CI makes the app of the Symfony demo for the simulator with `nativella ios`, and opens it there. No device has run an app for devices yet. See [Mobile](mobile.md#what-is-tested). |
 
 ### Linux
 
@@ -57,6 +57,6 @@ Next:
 - **macOS and Windows**: build, test, fix.
 - **Extensions and `php.ini`**: let an application pick the extensions of its PHP, to add one or to leave intl and the data of ICU out of a smaller executable, and its settings.
 - **Installers**: bundle with `tauri build`.
-- **Mobile**: more [phone APIs](phone-apis.md) (camera, sharing, push notifications), iOS on a device, the JIT of PCRE on Android. See [Mobile](mobile.md).
+- **Mobile**: more [phone APIs](phone-apis.md) (camera, sharing, push notifications), an iOS app tried on a device, the JIT of PCRE on Android. See [Mobile](mobile.md).
 
 Found something that is not on this page? [Open an issue](https://github.com/lyrixx/nativella/issues).

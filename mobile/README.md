@@ -1,6 +1,6 @@
 # Mobile builds
 
-What the mobile builds need besides their Castor tasks, `castor mobile:android-template` and `castor mobile:ios` (`.castor/mobile.php`), and the builds of PHP for phones, `castor static-php:android` and `castor static-php:ios` (`.castor/static-php-mobile.php`). How they work and how to use them: [docs/mobile.md](../docs/mobile.md).
+What the mobile builds need besides their Castor tasks, `castor mobile:android-template` and `castor mobile:ios-template` (`.castor/mobile.php`), and the builds of PHP for phones, `castor static-php:android` and `castor static-php:ios` (`.castor/static-php-mobile.php`). How they work and how to use them: [docs/mobile.md](../docs/mobile.md).
 
 | Path | What |
 |---|---|

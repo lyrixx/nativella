@@ -263,20 +263,6 @@ function smoke(
 }
 
 /**
- * What mobile:ios compiles into the application: for the Mobile workflow,
- * whose macOS runners have no Docker to make it.
- */
-#[AsTask(name: 'bundle', description: 'Bundles a demo for an iOS build, staged for production, into target/nativella/app.bundle')]
-function bundle_demo(
-    #[AsArgument(description: 'The demo to bundle, e.g. symfony', autocomplete: 'project\complete_demo_names')]
-    string $demo,
-): void {
-    io()->title("Bundling demos/{$demo}");
-
-    io()->success('The bundle: '.bundle(demo($demo)));
-}
-
-/**
  * What the CI caches of a Rust build: the dependencies, built once for a
  * Cargo.lock. Not the crates of the workspace: a checkout makes their sources
  * newer than their build, which cargo then builds again anyway. Removes them
@@ -373,22 +359,6 @@ function stage(Project $project): string
     }
 
     return $builderStage;
-}
-
-/**
- * Bundles a project for an iOS build (`nativella bundle`), staged for
- * production, into target/nativella/app.bundle: the build compiles it into
- * the application.
- *
- * @return string the bundle, from the root of the repository
- */
-function bundle(Project $project): string
-{
-    $bundle = 'target/nativella/app.bundle';
-
-    run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--', 'bundle', stage($project), '-o', builder_path($bundle)]);
-
-    return $bundle;
 }
 
 /**

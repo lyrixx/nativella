@@ -8,17 +8,17 @@
 //!
 //! - `nativella build` appends it to a copy of the `nativella` executable: a
 //!   standalone desktop application.
-//! - `nativella android` adds it to an APK, as the asset [`ANDROID_ASSET`]
+//! - `nativella android` adds it to an APK, as the asset [`PACKAGED_BUNDLE`]
 //!   (see apk/mod.rs).
-//! - `nativella bundle` writes it alone, for an iOS build to compile it into
-//!   the application library (`NATIVELLA_BUNDLE`, see build.rs).
+//! - `nativella ios` adds it to an iOS app, as the file [`PACKAGED_BUNDLE`]
+//!   next to its executable (see ios/mod.rs).
 //!
 //! At startup, the application extracts its project once per build, in a
 //! cache directory.
 
 use std::env;
 use std::fs::{self, File};
-#[cfg(any(test, target_os = "ios"))]
+#[cfg(test)]
 use std::io::Cursor;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -34,13 +34,9 @@ use crate::project::{Manifest, Project};
 const MAGIC: &[u8; 8] = b"NTVLLA01";
 const TRAILER_LENGTH: u64 = 8 + 8 + 8;
 
-/// The bundle compiled into the library for iOS builds, empty otherwise.
-#[cfg(target_os = "ios")]
-static COMPILED_BUNDLE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/bundle.bin"));
-
-/// The bundle of an Android application: an asset of its APK, which the
-/// application library reads in place.
-pub const ANDROID_ASSET: &str = "nativella.bundle";
+/// The bundle of a phone application, which it reads in place: an asset of
+/// its APK on Android, a file of its app on iOS, next to the executable.
+pub const PACKAGED_BUNDLE: &str = "nativella.bundle";
 
 /// Paths of the project that never ship: version control, editors, tests.
 /// Relative to the project, with `/`. Local overrides (`.env.local`, every
@@ -99,23 +95,27 @@ pub fn is_standalone() -> bool {
 #[cfg(target_os = "android")]
 pub type Packaged = Bundle<asset::Asset>;
 #[cfg(target_os = "ios")]
-pub type Packaged = Bundle<Cursor<&'static [u8]>>;
+pub type Packaged = Bundle<File>;
 
-/// The bundle the phone application carries: the asset [`ANDROID_ASSET`] of
-/// its APK, or the one compiled into the library on iOS.
+/// The bundle the phone application carries: the asset [`PACKAGED_BUNDLE`]
+/// of its APK.
 #[cfg(target_os = "android")]
 pub fn packaged() -> io::Result<Option<Packaged>> {
-    match asset::open(ANDROID_ASSET)? {
+    match asset::open(PACKAGED_BUNDLE)? {
         Some(asset) => Bundle::read(asset),
         None => Ok(None),
     }
 }
 
-/// The bundle the phone application carries: the asset [`ANDROID_ASSET`] of
-/// its APK, or the one compiled into the library on iOS.
+/// The bundle the phone application carries: the file [`PACKAGED_BUNDLE`]
+/// of its app, next to its executable, as iOS apps keep their resources.
 #[cfg(target_os = "ios")]
 pub fn packaged() -> io::Result<Option<Packaged>> {
-    Bundle::read(Cursor::new(COMPILED_BUNDLE))
+    match File::open(env::current_exe()?.with_file_name(PACKAGED_BUNDLE)) {
+        Ok(file) => Bundle::read(file),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
 }
 
 /// Writes a standalone executable for `project` to `output`. Returns the
@@ -140,12 +140,6 @@ pub fn build(project: &Project, output: &Path) -> io::Result<Vec<String>> {
     }
 
     Ok(local_overrides)
-}
-
-/// Writes the bundle of `project` alone, for an iOS build. Returns the local
-/// overrides it left out, relative to the project.
-pub fn bundle(project: &Project, output: &Path) -> io::Result<Vec<String>> {
-    write_bundle(project, &mut create(output)?, &[output])
 }
 
 impl<R: Read + Seek> Bundle<R> {
@@ -512,11 +506,11 @@ mod tests {
         fs::write(project_dir.join(".env.local"), "SECRET=1").unwrap();
         let project = Project::load(&project_dir).unwrap();
 
+        let mut bytes = Vec::new();
         assert_eq!(
-            bundle(&project, &root.join("app.bundle")).unwrap(),
+            write_bundle(&project, &mut bytes, &[]).unwrap(),
             [".env.local"]
         );
-        let bytes = fs::read(root.join("app.bundle")).unwrap();
         let found = Bundle::read(Cursor::new(bytes)).unwrap().unwrap();
         assert_eq!(found.manifest().identifier, "dev.nativella.project");
 

@@ -1,11 +1,12 @@
 name: Mobile
 
 # Builds the template APK (arm64) in the android image, makes the APK of the
-# Symfony demo of it with nativella android, and opens it in an emulator;
-# builds the demo for the iOS simulator on a macOS runner, and opens it there,
-# experimentally. Both fail if PHP answers no page: their screenshot and the
-# output of the app are artifacts. The two platforms build side by side: iOS
-# waits only for the bundle of the demo.
+# Symfony demo of it with nativella android, and opens it in an emulator.
+# Experimentally, builds the template app for the iOS simulator on a macOS
+# runner, makes the app of the demo of it with nativella ios on Linux, and
+# opens it in a simulator on a macOS runner again. Both fail if PHP answers no
+# page: their screenshot and the output of the app are artifacts. The two
+# platforms build side by side.
 #
 # Its caches, the downloads, PHP for the phones and the build of the
 # dependencies, are the ones of main: main saves them, a pull request and the
@@ -46,8 +47,8 @@ env:
     # Fix for symfony/color detection. We know GitHub Actions can handle it
     ANSICON: 1
     # As in rust.yml: no incremental compilation, no debug info, but line
-    # tables for the iOS job (see there). The Bundle job restores the build of
-    # rust.yml: built with them, it is of use only with them too
+    # tables for the iOS template job (see there). The iOS job restores the
+    # build of rust.yml: built with them, it is of use only with them too
     CARGO_INCREMENTAL: 0
     CARGO_PROFILE_DEV_DEBUG: 0
     CASTOR_CONTEXT: ci
@@ -162,59 +163,6 @@ jobs:
                       target/docker
                   key: ${{ steps.android.outputs.cache-primary-key }}
 
-    # For the iOS job: a bundle is the same on every platform, and the macOS
-    # runners have no Docker to make it. The Android job makes its own, rather
-    # than wait for this one.
-    bundle:
-        name: Bundle of the Symfony demo
-        runs-on: ubuntu-latest
-        timeout-minutes: 30
-        steps:
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-            - name: Log in to registry
-              shell: bash
-              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-
-            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-              with:
-                persist-credentials: false
-
-            # The build of rust.yml, read only: its dependencies are the ones
-            # of the nativella command, which bundles. Its paths and its key
-            # are the ones of rust.yml
-            - name: "Restore the Rust build"
-              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-              with:
-                  path: |
-                      .home/.cargo/git
-                      .home/.cargo/registry
-                      target/docker
-                  key: cargo-debug-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock') }}
-                  restore-keys: |
-                      cargo-debug-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
-                      cargo-debug-
-
-            - name: "Build the builder"
-              run: "castor docker:build --service=builder"
-
-            - name: "Bundle the demo"
-              run: "castor nativella:bundle symfony"
-
-            - name: "Upload the bundle of the demo"
-              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-              with:
-                  name: nativella-demo-symfony-bundle
-                  path: target/nativella/app.bundle
-                  if-no-files-found: error
-                  retention-days: 1 # Only carries the bundle to the iOS job
-
     android-emulator:
         name: Android emulator, with the APK of the Symfony demo
         needs: android
@@ -263,9 +211,11 @@ jobs:
                       target/nativella/android-emulator.png
                   if-no-files-found: ignore
 
-    ios:
-        name: iOS simulator app of the Symfony demo (experimental)
-        needs: bundle
+    # The template app for the simulator (arm64), experimentally: only a Mac
+    # builds it. A release publishes the same, without debug symbols, and the
+    # one of devices
+    ios-template:
+        name: iOS template app for the simulator (experimental)
         runs-on: macos-latest
         # PHP for iOS, when it builds again, takes half an hour
         timeout-minutes: 90
@@ -285,12 +235,6 @@ jobs:
 
             - name: setup-castor
               uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-
-            # A few minutes on these runners, while the app builds:
-            # mobile:ios-simulator waits for the end of it
-            - name: "Boot the simulator, in the background"
-              shell: bash
-              run: nohup castor mobile:ios-boot > "${RUNNER_TEMP}/ios-boot.log" 2>&1 &
 
             # cargo tauri ios init installs with brew what it does not find:
             # XcodeGen, which generates the Xcode project, from its release
@@ -342,8 +286,8 @@ jobs:
               run: echo "version=$(rustc --version | cut -d ' ' -f 2)" >> "${GITHUB_OUTPUT}"
 
             # Keyed on the Rust of the runner, then on what builds, as
-            # macos.yml. Not target/nativella/, where the bundle of the demo
-            # goes
+            # macos.yml. Not target/nativella/, where the template goes.
+            # release.yml restores it too: keep the paths in sync
             - name: "Restore the Rust downloads and builds"
               id: ios
               uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -368,7 +312,8 @@ jobs:
             # PHP for iOS and its simulator, keyed on the Xcode of the runner,
             # then on what it is built from: static-php-cli and the
             # extensions, the recipes. static-php:ios builds it again only if
-            # one of them changed
+            # one of them changed. release.yml restores it too: keep the paths
+            # and the key in sync
             - name: "Restore PHP for iOS"
               id: static-php
               uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -381,9 +326,9 @@ jobs:
                       static-php-ios-${{ steps.xcode.outputs.version }}-
                       ${{ github.ref != 'refs/heads/main' && 'static-php-ios-' || '' }}
 
-            # For the device too, which nothing runs, but which must build.
-            # static-php-cli asks the GitHub API for the sources of PHP:
-            # without a token, the runners share its rate limit
+            # For the device too, whose template only a release builds, but
+            # which must build. static-php-cli asks the GitHub API for the
+            # sources of PHP: without a token, the runners share its rate limit
             - name: "Build PHP for iOS and its simulator"
               run: "castor static-php:ios"
               env:
@@ -400,14 +345,9 @@ jobs:
                       static-php/ios-simulator-arm64/buildroot
                   key: ${{ steps.static-php.outputs.cache-primary-key }}
 
-            - name: "Download the bundle of the demo"
-              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-              with:
-                  name: nativella-demo-symfony-bundle
-                  path: target/nativella/
-
-            - name: "Build the simulator app"
-              run: "castor mobile:ios symfony --bundle=target/nativella/app.bundle"
+            # With the PHP built above, and its third-party notices
+            - name: "Build the template app"
+              run: "castor mobile:ios-template"
 
             # Main only, once built, whatever fails next, as in rust.yml
             - name: "Prune the Rust build"
@@ -425,14 +365,108 @@ jobs:
                       !target/nativella
                   key: ${{ steps.ios.outputs.cache-primary-key }}
 
-            - name: "Upload the simulator app"
+            - name: "Upload the template app"
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: nativella-ios-template-iphonesimulator-debug
+                  path: target/nativella/ios-template-iphonesimulator-debug.zip
+                  if-no-files-found: error
+                  retention-days: 1 # Only carries the template to the iOS job
+
+    # The app of the demo, made of the template with nativella ios, on Linux,
+    # as a user without a Mac makes it
+    ios:
+        name: iOS simulator app of the Symfony demo (experimental)
+        needs: ios-template
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+            - name: Log in to registry
+              shell: bash
+              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: setup-castor
+              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false
+
+            # The build of rust.yml, read only: its dependencies are the ones
+            # of the nativella command. Its paths and its key are the ones of
+            # rust.yml
+            - name: "Restore the Rust build"
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      .home/.cargo/git
+                      .home/.cargo/registry
+                      target/docker
+                  key: cargo-debug-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock') }}
+                  restore-keys: |
+                      cargo-debug-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      cargo-debug-
+
+            - name: "Download the template app"
+              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+              with:
+                  name: nativella-ios-template-iphonesimulator-debug
+                  path: target/nativella/
+
+            # Stages the demo and runs nativella ios in the builder
+            - name: "Build the builder"
+              run: "castor docker:build --service=builder"
+
+            - name: "Make the app"
+              run: "castor mobile:ios symfony --template=target/nativella/ios-template-iphonesimulator-debug.zip"
+
+            # An artifact keeps no file permissions: the executable would not
+            # be one any more
+            - name: "Archive the app, with its permissions"
+              run: "tar -C target/nativella/ios -cf target/nativella/ios/symfony.app.tar symfony.app"
+
+            - name: "Upload the app"
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: nativella-demo-symfony-ios-simulator-debug
-                  path: crates/nativella/gen/apple/build/**/*.app
+                  path: target/nativella/ios/symfony.app.tar
                   if-no-files-found: error
 
-            # Fails if PHP answers no page within 2 minutes
+    ios-simulator:
+        name: iOS simulator, with the app of the Symfony demo (experimental)
+        needs: ios
+        runs-on: macos-latest
+        timeout-minutes: 30
+        env:
+            # No Docker on macOS runners: the tasks run on the runner itself
+            CASTOR_CONTEXT: host
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false
+
+            - name: setup-castor
+              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+
+            - name: "Download the app"
+              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+              with:
+                  name: nativella-demo-symfony-ios-simulator-debug
+                  path: target/nativella/ios/
+
+            - name: "Extract the app"
+              run: "tar -C target/nativella/ios -xf target/nativella/ios/symfony.app.tar"
+
+            # Checks its signature with codesign, boots the simulator (a few
+            # minutes on these runners), then fails if PHP answers no page
+            # within 2 minutes. Not booted in the background while the app
+            # downloads: the download takes seconds, and both boots raced
+            # ("Unable to boot device in current state: Booted")
             - name: "Open the app in a simulator"
               run: "castor mobile:ios-simulator symfony"
 
