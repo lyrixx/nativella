@@ -12,25 +12,37 @@
 //! - with the identity of the project in its manifest: its application ID,
 //!   made of its identifier, its name, its version, and the permissions of
 //!   the phone APIs it asks for, not the others (see manifest.rs);
+//! - with its icon, or Nativella's, as the launcher icon, in place of the
+//!   files of the template's, which its resource table names (see icon.rs and
+//!   resources.rs);
 //! - aligned, then signed (see zip.rs and signing.rs).
 //!
 //! Its classes stay in the package of the template, which the library names
 //! in its JNI functions: only the application ID changes, as when the
 //! `applicationId` of a Gradle build differs from its `namespace`.
 
+mod icon;
 mod manifest;
+mod resources;
 mod signing;
+mod string_pool;
 mod zip;
 
 use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::path::Path;
 
+use self::icon::Icon;
 pub use self::signing::Key;
 use crate::embedded::{self, ANDROID_ASSET};
 use crate::project::{Permission, Project};
 
 const MANIFEST: &str = "AndroidManifest.xml";
+const RESOURCES: &str = "resources.arsc";
+
+/// The screen densities a launcher icon may be drawn for, in dots per inch:
+/// from ldpi to xxxhdpi.
+const DENSITIES: std::ops::RangeInclusive<u16> = 120..=640;
 
 /// Writes the APK of `project` to `output`, made from `template` and signed
 /// with `key`. Returns the local overrides it left out, relative to the
@@ -43,6 +55,7 @@ pub fn package(
 ) -> io::Result<Vec<String>> {
     let application_id = application_id(&project.manifest.identifier)?;
     let version_code = version_code(&project.manifest.version)?;
+    let icon = Icon::of(project)?;
 
     let mut template_file = File::open(template).map_err(|error| {
         io::Error::new(
@@ -80,6 +93,7 @@ pub fn package(
             "Warning: the template is the one of Nativella {template_version}, this command the one of {nativella_version}: take both from the same release."
         );
     }
+    let launcher_icons = launcher_icons(&mut template_file, &entries, &manifest, &icon)?;
     let removed_permissions = removed_permissions(&project.manifest.permissions);
     let manifest = manifest::rewrite(
         &manifest,
@@ -106,6 +120,9 @@ pub fn package(
     for entry in &entries {
         if entry.name == MANIFEST {
             writer.add_deflated(MANIFEST, &manifest)?;
+        } else if let Some((_, png)) = launcher_icons.iter().find(|(path, _)| *path == entry.name) {
+            // Stored, as aapt2 stores images.
+            writer.add_stored_with(&entry.name, |out| out.write_all(png))?;
         } else if !is_v1_signature(&entry.name) {
             writer.copy(entry, &mut template_file)?;
         }
@@ -122,6 +139,54 @@ pub fn package(
     signing::sign(&mut apk, &unfinished, key)?;
 
     Ok(local_overrides)
+}
+
+/// The launcher icons of the template, the files of the icon of its manifest
+/// `manifest`, one per screen density, each with `icon` drawn for it: by
+/// path. Tauri's Android project has PNG files, and no adaptive icon.
+fn launcher_icons(
+    template: &mut File,
+    entries: &[zip::Entry],
+    manifest: &[u8],
+    icon: &Icon,
+) -> io::Result<Vec<(String, Vec<u8>)>> {
+    let table = entries
+        .iter()
+        .find(|entry| entry.name == RESOURCES)
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "The template has no resources.arsc.",
+            )
+        })?;
+    let files = resources::files(&zip::read(template, table)?, manifest::icon(manifest)?)?;
+    if files.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "The launcher icon of the template has no file.",
+        ));
+    }
+
+    files
+        .into_iter()
+        .map(|file| {
+            if !file.path.ends_with(".png")
+                || !DENSITIES.contains(&file.density)
+                || !entries.iter().any(|entry| entry.name == file.path)
+            {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "The launcher icon of the template, {}, is not the PNG file of a screen density.",
+                        file.path
+                    ),
+                ));
+            }
+            let png = icon.launcher(file.density);
+
+            Ok((file.path, png))
+        })
+        .collect()
 }
 
 /// The application ID of `identifier`: the identifier, its dashes as
@@ -315,8 +380,16 @@ mod tests {
         }
     }
 
-    /// A template APK: its manifest, and a library.
-    fn template(path: &Path) {
+    /// The launcher icon of the template: one PNG file per density, the
+    /// second one named as a release build shortens it.
+    const LAUNCHER_ICONS: [(&str, u16); 2] = [
+        ("res/mipmap-mdpi-v4/ic_launcher.png", 160),
+        ("res/o-.png", 640),
+    ];
+
+    /// A template APK: its manifest, its resource table, the files of its
+    /// launcher icon, `launcher_icons`, and a library.
+    fn template(path: &Path, launcher_icons: &[(&str, u16)]) {
         let mut file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -328,6 +401,15 @@ mod tests {
         writer
             .add_deflated(MANIFEST, &manifest::tests::template(false))
             .unwrap();
+        let table = resources::tests::table(0x7f0e_0000, launcher_icons);
+        writer
+            .add_stored_with(RESOURCES, |out| out.write_all(&table))
+            .unwrap();
+        for (path, _) in launcher_icons {
+            writer
+                .add_stored_with(path, |out| out.write_all(b"The icon of the template"))
+                .unwrap();
+        }
         writer
             .add_stored_with("lib/arm64-v8a/libnativella_lib.so", |out| {
                 out.write_all(b"ELF")
@@ -377,7 +459,7 @@ mod tests {
             .to_pkcs8_pem(LineEnding::LF)
             .unwrap();
         fs::write(project_dir.join("key.pem"), pem.as_bytes()).unwrap();
-        template(&project_dir.join("template.apk"));
+        template(&project_dir.join("template.apk"), &LAUNCHER_ICONS);
         let project = Project::load(&project_dir).unwrap();
         let key = Key::load(&project_dir.join("key.pem")).unwrap();
         let output = project_dir.join("dist/note-taker.apk");
@@ -410,10 +492,29 @@ mod tests {
             .find(|entry| entry.name.ends_with(".so"))
             .unwrap();
         assert_eq!(zip::read(&mut file, library).unwrap(), b"ELF");
+        // Nativella's icon, the project having none.
+        let icon = Icon::of(&project).unwrap();
+        for (path, density) in LAUNCHER_ICONS {
+            let entry = entries.iter().find(|entry| entry.name == path).unwrap();
+            assert_eq!(zip::read(&mut file, entry).unwrap(), icon.launcher(density));
+        }
 
         // An application is no template.
         let error = package(&project, &output, &root.join("again.apk"), &key).unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+
+        // Nor is an APK with an adaptive icon, which Nativella does not draw.
+        let adaptive = root.join("adaptive.apk");
+        template(
+            &adaptive,
+            &[
+                LAUNCHER_ICONS[0],
+                ("res/mipmap-anydpi-v26/ic_launcher.xml", 0xfffe),
+            ],
+        );
+        let error = package(&project, &adaptive, &root.join("adaptive-app.apk"), &key).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert!(error.to_string().contains("ic_launcher.xml"), "{error}");
 
         fs::remove_dir_all(root).unwrap();
     }

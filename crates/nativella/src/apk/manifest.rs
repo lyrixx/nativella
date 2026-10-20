@@ -11,23 +11,24 @@
 
 use std::io;
 
+use super::string_pool::{self, STRING_POOL, StringPool};
+
 const XML: u16 = 0x0003;
-const STRING_POOL: u16 = 0x0001;
 const RESOURCE_MAP: u16 = 0x0180;
 const START_ELEMENT: u16 = 0x0102;
 const END_ELEMENT: u16 = 0x0103;
 
-const STRING_POOL_HEADER_LENGTH: usize = 28;
-const UTF8_FLAG: u32 = 1 << 8;
-
-/// The attributes of the android namespace this module changes, by ID.
+/// The attributes of the android namespace this module reads or changes, by
+/// ID.
 const LABEL: u32 = 0x0101_0001;
+const ICON: u32 = 0x0101_0002;
 const NAME: u32 = 0x0101_0003;
 const AUTHORITIES: u32 = 0x0101_0018;
 const VERSION_CODE: u32 = 0x0101_021b;
 const VERSION_NAME: u32 = 0x0101_021c;
 
-/// The types of attribute values this module writes.
+/// The types of attribute values this module reads or writes.
+const TYPE_REFERENCE: u8 = 0x01;
 const TYPE_STRING: u8 = 0x03;
 const TYPE_INT_DEC: u8 = 0x10;
 
@@ -209,6 +210,32 @@ pub fn version_name(xml: &[u8]) -> io::Result<Option<String>> {
         .transpose()
 }
 
+/// The launcher icon of the manifest `xml`: the resource ID of the icon of
+/// its application. Tauri's Android project gives no other: no round icon,
+/// and none of its own to the main activity.
+pub fn icon(xml: &[u8]) -> io::Result<u32> {
+    let document = Document::parse(xml)?;
+    for chunk in &document.chunks {
+        if u16_at(chunk, 0) != START_ELEMENT {
+            continue;
+        }
+        let (name, attributes) = element(chunk)?;
+        if document.string(name)? != "application" {
+            continue;
+        }
+        if let Some(icon) = attributes
+            .iter()
+            .find(|attribute| document.attribute_id(attribute.name) == Some(ICON))
+            .filter(|icon| chunk[icon.offset + 15] == TYPE_REFERENCE)
+        {
+            return Ok(u32_at(chunk, icon.offset + 16));
+        }
+        break;
+    }
+
+    Err(invalid("The application of the template has no icon."))
+}
+
 struct Document {
     strings: Vec<String>,
     utf8: bool,
@@ -297,37 +324,7 @@ impl Document {
     }
 
     fn write(&self) -> io::Result<Vec<u8>> {
-        let mut data = Vec::new();
-        let mut offsets = Vec::with_capacity(self.strings.len() * 4);
-        for string in &self.strings {
-            offsets.extend((data.len() as u32).to_le_bytes());
-            if self.utf8 {
-                write_length8(&mut data, string.encode_utf16().count());
-                write_length8(&mut data, string.len());
-                data.extend(string.as_bytes());
-                data.push(0);
-            } else {
-                let units: Vec<u16> = string.encode_utf16().collect();
-                write_length16(&mut data, units.len());
-                data.extend(units.iter().flat_map(|unit| unit.to_le_bytes()));
-                data.extend([0, 0]);
-            }
-        }
-        data.resize(data.len().next_multiple_of(4), 0);
-
-        let strings_start = STRING_POOL_HEADER_LENGTH + offsets.len();
-        let mut pool = Vec::with_capacity(strings_start + data.len());
-        pool.extend(STRING_POOL.to_le_bytes());
-        pool.extend((STRING_POOL_HEADER_LENGTH as u16).to_le_bytes());
-        pool.extend(chunk_size(strings_start + data.len())?.to_le_bytes());
-        pool.extend(chunk_size(self.strings.len())?.to_le_bytes());
-        // No style.
-        pool.extend(0_u32.to_le_bytes());
-        pool.extend((if self.utf8 { UTF8_FLAG } else { 0 }).to_le_bytes());
-        pool.extend(chunk_size(strings_start)?.to_le_bytes());
-        pool.extend(0_u32.to_le_bytes());
-        pool.extend(offsets);
-        pool.extend(data);
+        let pool = string_pool::write(&self.strings, self.utf8)?;
 
         let length = 8 + pool.len() + self.chunks.iter().map(Vec::len).sum::<usize>();
         let mut xml = Vec::with_capacity(length);
@@ -345,91 +342,15 @@ impl Document {
 
 /// The strings of a pool, and whether they are in UTF-8 rather than UTF-16.
 fn parse_strings(chunk: &[u8]) -> io::Result<(Vec<String>, bool)> {
-    if chunk.len() < STRING_POOL_HEADER_LENGTH {
-        return Err(corrupted());
-    }
-    let header_length = usize::from(u16_at(chunk, 2));
-    let count = u32_at(chunk, 8) as usize;
-    let style_count = u32_at(chunk, 12);
-    let utf8 = u32_at(chunk, 16) & UTF8_FLAG != 0;
-    let strings_start = u32_at(chunk, 20) as usize;
-    if style_count != 0 {
+    let pool = StringPool::parse(chunk).ok_or_else(corrupted)?;
+    if pool.styled {
         return Err(invalid("The manifest of the template has styled strings."));
     }
+    let strings = (0..pool.count)
+        .map(|index| pool.get(index).ok_or_else(corrupted))
+        .collect::<io::Result<_>>()?;
 
-    let mut strings = Vec::with_capacity(count);
-    for index in 0..count {
-        let offset = chunk
-            .get(header_length + index * 4..header_length + index * 4 + 4)
-            .map(|offset| u32_at(offset, 0) as usize)
-            .ok_or_else(corrupted)?;
-        let data = chunk.get(strings_start + offset..).ok_or_else(corrupted)?;
-
-        strings.push(if utf8 {
-            // The length in UTF-16 units, then in bytes.
-            let (_, skipped) = read_length8(data)?;
-            let (length, start) = read_length8(&data[skipped..])?;
-            let bytes = data
-                .get(skipped + start..skipped + start + length)
-                .ok_or_else(corrupted)?;
-            String::from_utf8(bytes.to_vec()).map_err(|_| corrupted())?
-        } else {
-            let (length, start) = read_length16(data)?;
-            let units: Vec<u16> = data
-                .get(start..start + length * 2)
-                .ok_or_else(corrupted)?
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|unit| u16::from_le_bytes(*unit))
-                .collect();
-            String::from_utf16(&units).map_err(|_| corrupted())?
-        });
-    }
-
-    Ok((strings, utf8))
-}
-
-/// A length of a UTF-8 pool: one byte, or two with the high bit set.
-fn read_length8(data: &[u8]) -> io::Result<(usize, usize)> {
-    match *data {
-        [first, second, ..] if first & 0x80 != 0 => {
-            Ok(((usize::from(first & 0x7f) << 8) | usize::from(second), 2))
-        }
-        [first, ..] => Ok((usize::from(first), 1)),
-        [] => Err(corrupted()),
-    }
-}
-
-fn write_length8(data: &mut Vec<u8>, length: usize) {
-    if length > 0x7f {
-        data.extend([0x80 | (length >> 8) as u8, length as u8]);
-    } else {
-        data.push(length as u8);
-    }
-}
-
-/// A length of a UTF-16 pool: one unit, or two with the high bit set.
-fn read_length16(data: &[u8]) -> io::Result<(usize, usize)> {
-    let unit = |index: usize| {
-        data.get(index * 2..index * 2 + 2)
-            .map(|unit| usize::from(u16::from_le_bytes([unit[0], unit[1]])))
-            .ok_or_else(corrupted)
-    };
-
-    let first = unit(0)?;
-    if first & 0x8000 != 0 {
-        Ok((((first & 0x7fff) << 16) | unit(1)?, 4))
-    } else {
-        Ok((first, 2))
-    }
-}
-
-fn write_length16(data: &mut Vec<u8>, length: usize) {
-    if length > 0x7fff {
-        data.extend((0x8000 | (length >> 16) as u16).to_le_bytes());
-    }
-    data.extend((length as u16).to_le_bytes());
+    Ok((strings, pool.utf8))
 }
 
 /// An attribute of a start element: where it is in the chunk, and what it
@@ -522,7 +443,7 @@ fn invalid(message: &str) -> io::Error {
 pub(super) mod tests {
     use super::*;
 
-    const ANDROID: u32 = 5;
+    const ANDROID: u32 = 6;
 
     /// A start element: its name, then its attributes (namespace, name, raw
     /// value, type, data).
@@ -570,6 +491,7 @@ pub(super) mod tests {
             "name",
             "label",
             "authorities",
+            "icon",
             "http://schemas.android.com/apk/res/android",
             "package",
             "manifest",
@@ -587,7 +509,7 @@ pub(super) mod tests {
             "provider",
             "dev.nativella.runtime.fileprovider;dev.nativella.runtimes",
         ];
-        let ids = [VERSION_CODE, VERSION_NAME, NAME, LABEL, AUTHORITIES];
+        let ids = [VERSION_CODE, VERSION_NAME, NAME, LABEL, AUTHORITIES, ICON];
         let mut resource_map = Vec::new();
         resource_map.extend(RESOURCE_MAP.to_le_bytes());
         resource_map.extend(8_u16.to_le_bytes());
@@ -597,34 +519,35 @@ pub(super) mod tests {
         }
 
         let string = |index: u32| (ANDROID, 2, index, TYPE_STRING, index);
-        let reference = (ANDROID, 3, NO_STRING, 0x01, 0x7f0f_001c);
+        let reference = (ANDROID, 3, NO_STRING, TYPE_REFERENCE, 0x7f0f_001c);
+        let icon = (ANDROID, 5, NO_STRING, TYPE_REFERENCE, 0x7f0e_0000);
         let chunks = vec![
             resource_map,
             start(
-                7,
+                8,
                 &[
                     (ANDROID, 0, NO_STRING, TYPE_INT_DEC, 1001),
-                    (ANDROID, 1, 9, TYPE_STRING, 9),
-                    (NO_STRING, 6, 8, TYPE_STRING, 8),
+                    (ANDROID, 1, 10, TYPE_STRING, 10),
+                    (NO_STRING, 7, 9, TYPE_STRING, 9),
                 ],
             ),
-            start(10, &[string(11)]),
-            end(10),
-            start(10, &[string(12)]),
-            end(10),
-            start(13, &[string(14)]),
-            end(13),
-            start(10, &[string(14)]),
-            end(10),
-            start(15, &[reference]),
-            start(16, &[reference, string(17)]),
+            start(11, &[string(12)]),
+            end(11),
+            start(11, &[string(13)]),
+            end(11),
+            start(14, &[string(15)]),
+            end(14),
+            start(11, &[string(15)]),
+            end(11),
+            start(16, &[reference, icon]),
+            start(17, &[reference, string(18)]),
+            end(17),
+            start(17, &[reference, string(19)]),
+            end(17),
+            start(20, &[(ANDROID, 4, 21, TYPE_STRING, 21)]),
+            end(20),
             end(16),
-            start(16, &[reference, string(18)]),
-            end(16),
-            start(19, &[(ANDROID, 4, 20, TYPE_STRING, 20)]),
-            end(19),
-            end(15),
-            end(7),
+            end(8),
         ];
 
         Document {
@@ -713,7 +636,10 @@ pub(super) mod tests {
                             "com.acme.notes.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
                         )])
                     ),
-                    ("application".to_owned(), pairs(&[("label", "Acme Notes")])),
+                    (
+                        "application".to_owned(),
+                        pairs(&[("label", "Acme Notes"), ("icon", "@2131623936")])
+                    ),
                     (
                         "activity".to_owned(),
                         pairs(&[
@@ -738,6 +664,13 @@ pub(super) mod tests {
                 ],
                 "UTF-8: {utf8}"
             );
+        }
+    }
+
+    #[test]
+    fn the_icon_of_the_application() {
+        for utf8 in [false, true] {
+            assert_eq!(icon(&template(utf8)).unwrap(), 0x7f0e_0000, "UTF-8: {utf8}");
         }
     }
 
