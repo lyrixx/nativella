@@ -73,7 +73,7 @@ jobs:
     # static image, against a static PHP, for the glibc of Ubuntu 22.04
     linux-static:
         name: Linux, static PHP
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         timeout-minutes: 90
         steps:
             - name: Set up Docker Buildx

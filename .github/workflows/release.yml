@@ -34,7 +34,7 @@ env:
 jobs:
     linux:
         name: Build for Linux x86_64
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         timeout-minutes: 60
         steps:
             - name: Set up Docker Buildx
@@ -165,7 +165,7 @@ jobs:
 
     android:
         name: Build the template APK for Android arm64
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         timeout-minutes: 90
         steps:
             - name: Set up Docker Buildx
@@ -354,7 +354,7 @@ jobs:
         name: Publish the release
         if: github.ref_type == 'tag'
         needs: [linux, macos, android, ios]
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         permissions:
             contents: write
         steps:

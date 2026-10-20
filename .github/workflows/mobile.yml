@@ -58,7 +58,7 @@ env:
 jobs:
     android:
         name: Android APK of the Symfony demo
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         timeout-minutes: 60
         steps:
             - name: Set up Docker Buildx
@@ -166,7 +166,7 @@ jobs:
     android-emulator:
         name: Android emulator, with the APK of the Symfony demo
         needs: android
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         timeout-minutes: 30
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -378,7 +378,7 @@ jobs:
     ios:
         name: iOS simulator app of the Symfony demo (experimental)
         needs: ios-template
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         timeout-minutes: 30
         steps:
             - name: Set up Docker Buildx
