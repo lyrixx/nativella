@@ -39,9 +39,21 @@ function desktop(bool $staticPhp): string
     $platform = builder_platform();
 
     $sections = [];
+    $lgpl = '';
     if ($staticPhp) {
         $buildroot = 'static-php/buildroot';
-        $sections = php_sections(php_version("{$buildroot}/include/php/main/php_version.h"), "{$buildroot}/license");
+        $version = php_version("{$buildroot}/include/php/main/php_version.h");
+        $sections = php_sections($version, "{$buildroot}/license");
+
+        /** @var list<string> $extensions what static-php-cli built */
+        $extensions = json_decode((string) file_get_contents(variable('root_dir')."/{$buildroot}/build-extensions.json"), true, flags: \JSON_THROW_ON_ERROR);
+        // GNU libiconv when static-php-cli built it, which dumped its license,
+        // in the version of its header. static-php-cli downloads PHP and
+        // GNU libiconv from these URLs (PhpSource, config/source.json)
+        $iconv = is_file(variable('root_dir')."/{$buildroot}/license/lib_libiconv_0.txt")
+            ? \sprintf('GNU libiconv %1$s: https://ftp.gnu.org/gnu/libiconv/libiconv-%1$s.tar.gz', libiconv_version("{$buildroot}/include/iconv.h"))
+            : '';
+        $lgpl = lgpl($version, $extensions, $iconv, '`nativella build`');
     }
     $sections[] = rust_section(target_triple($platform));
 
@@ -51,7 +63,7 @@ function desktop(bool $staticPhp): string
             ? 'The libraries of the system they load, such as glibc, libstdc++ and WebKitGTK on Linux, or the frameworks of macOS, are not part of them.'
             : 'They load the PHP of the system, and its libraries, which are not part of them, as the other libraries of the system.');
 
-    return write("target/nativella/notices/THIRD_PARTY_NOTICES-{$platform}.txt", $platform, $intro, $staticPhp, $sections);
+    return write("target/nativella/notices/THIRD_PARTY_NOTICES-{$platform}.txt", $platform, $intro, $staticPhp, $lgpl, $sections);
 }
 
 /**
@@ -68,15 +80,81 @@ function desktop(bool $staticPhp): string
  */
 function android(string $php, array $features, array $javaLibraries): string
 {
-    $sections = php_sections(php_version("{$php}/include/php_version.h"), nativephp_licenses($php), nativephp: true);
+    $root = variable('root_dir');
+    $version = php_version("{$php}/include/php_version.h");
+    $sections = php_sections($version, nativephp_licenses($php), nativephp: true);
     $rust = rust_section('aarch64-linux-android', $features);
     $sections[] = $rust;
     $sections[] = java_section($javaLibraries, str_contains($rust['text'], "\n--- Apache License 2.0: "));
 
+    // The extensions of the build, from its configure command
+    preg_match_all("{'--(?:enable|with)-([\\w-]+)}", (string) file_get_contents("{$root}/{$php}/include/build-defs.h"), $matches);
+    $iconv = [] !== glob("{$root}/{$php}/staticLibs/*/libiconv.a")
+        ? 'GNU libiconv, built by NativePHP, which does not publish its version: https://ftp.gnu.org/pub/gnu/libiconv/'
+        : '';
+    $lgpl = lgpl($version, $matches[1], $iconv, '`nativella android`');
+
     $intro = 'The template APK of `nativella android`, and every application made of it, contain the software below, '
         .'under the licenses below. The libraries of Android they load, such as its WebView, are not part of them.';
 
-    return write('target/nativella/notices/THIRD_PARTY_NOTICES-android.txt', 'android', $intro, true, $sections);
+    return write('target/nativella/notices/THIRD_PARTY_NOTICES-android.txt', 'android', $intro, true, $lgpl, $sections);
+}
+
+/**
+ * The libraries of php-src under the GNU LGPL 2.1, by the extension that
+ * brings them: its README.REDIST.BINS.
+ */
+const PHP_LGPL_LIBRARIES = [
+    'bcmath' => 'libbcmath',
+    'mbstring' => 'libmbfl',
+];
+
+/**
+ * The code under the GNU LGPL 2.1 that PHP links statically, with the source
+ * of each, and how to link it again, which the LGPL asks to make possible.
+ *
+ * @param list<string> $extensions the extensions of PHP
+ * @param string       $iconv      GNU libiconv and its source, '' when PHP links none
+ * @param string       $repack     the command that packs an application again
+ */
+function lgpl(string $phpVersion, array $extensions, string $iconv, string $repack): string
+{
+    $components = [];
+    $libraries = array_values(array_intersect_key(PHP_LGPL_LIBRARIES, array_flip($extensions)));
+    if ([] !== $libraries) {
+        $components[] = \sprintf('%s, in PHP %s: https://www.php.net/distributions/php-%2$s.tar.xz', implode(' and ', $libraries), $phpVersion);
+    }
+    if ('' !== $iconv) {
+        $components[] = $iconv;
+    }
+
+    if ([] === $components) {
+        return '';
+    }
+
+    $text = "Under the GNU Lesser General Public License 2.1, linked statically, from\nthese sources:\n";
+    foreach ($components as $component) {
+        $text .= wordwrap("- {$component}", 79, "\n  ")."\n";
+    }
+
+    // Broken by hand: wordwrap() would split the command
+    return $text.\sprintf("To link them again: Nativella builds from its sources,\n%s (see docs/development.md), and\n%s packs an application again.\n", workspace_package('repository'), $repack);
+}
+
+/**
+ * From GNU libiconv's iconv.h: #define _LIBICONV_VERSION 0x0113, for 1.19.
+ */
+function libiconv_version(string $header): string
+{
+    $content = (string) file_get_contents(variable('root_dir')."/{$header}");
+
+    if (!preg_match('{^#define _LIBICONV_VERSION 0x([0-9a-f]+)}mi', $content, $matches)) {
+        throw new \RuntimeException(\sprintf('%s defines no _LIBICONV_VERSION.', $header));
+    }
+
+    $version = (int) hexdec($matches[1]);
+
+    return \sprintf('%d.%d', $version >> 8, $version & 0xFF);
 }
 
 /**
@@ -363,18 +441,23 @@ function java_section(array $libraries, bool $apacheTextAbove): array
 }
 
 /**
+ * @param string                                   $lgpl     the code under the LGPL and its sources (lgpl()), '' when there is none
  * @param list<array{title: string, text: string}> $sections
  *
  * @return string $file
  */
-function write(string $file, string $platform, string $intro, bool $includesPhp, array $sections): string
+function write(string $file, string $platform, string $intro, bool $includesPhp, string $lgpl, array $sections): string
 {
-    $title = \sprintf('Third-party notices of Nativella %s, %s', nativella_version(), $platform);
+    $title = \sprintf('Third-party notices of Nativella %s, %s', workspace_package('version'), $platform);
     $text = "{$title}\n".str_repeat('=', \strlen($title))."\n\n".wordwrap($intro, 79)."\n";
 
     if ($includesPhp) {
         // What the PHP License asks every redistribution to say
         $text .= "\nThis product includes PHP software, freely available from\n<http://www.php.net/software/>.\n";
+    }
+
+    if ('' !== $lgpl) {
+        $text .= "\n{$lgpl}";
     }
 
     $text .= "\nContents:\n";
@@ -415,14 +498,15 @@ function php_version(string $header): string
 }
 
 /**
- * The version of the crates, from the root Cargo.toml.
+ * A key of [workspace.package] in the root Cargo.toml: the version or the
+ * repository of the crates.
  */
-function nativella_version(): string
+function workspace_package(string $key): string
 {
     $manifest = (string) file_get_contents(variable('root_dir').'/Cargo.toml');
 
-    if (!preg_match('{^\[workspace\.package\][^\[]*^version = "([^"]+)"}ms', $manifest, $matches)) {
-        throw new \LogicException('The root Cargo.toml has no version in [workspace.package].');
+    if (!preg_match('{^\[workspace\.package\][^\[]*^'.preg_quote($key).' = "([^"]+)"}ms', $manifest, $matches)) {
+        throw new \LogicException(\sprintf('The root Cargo.toml has no %s in [workspace.package].', $key));
     }
 
     return $matches[1];
