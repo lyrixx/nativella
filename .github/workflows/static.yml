@@ -1,13 +1,23 @@
 name: Static PHP
 
 # Links the crates against a static PHP on Linux, as the release does: serves
-# each demo through the runtime, then builds and checks the executables of
-# the demos, staged for production.
+# each demo through the runtime; on main, weekly and by hand, builds and
+# checks the executables of the demos too, staged for production.
 #
 # A pull request runs it on the changes of the Rust workflow: a demo can need
-# an extension that the static PHP lacks, or break once staged for
-# production. And on mobile/php/php, which describes the static PHP to
-# ext-php-rs. Weekly too: the static image installs Rust stable.
+# an extension that the static PHP lacks. And on mobile/php/php, which
+# describes the static PHP to ext-php-rs. Weekly too: the static image
+# installs Rust stable.
+#
+# A pull request does not build the executables (3 minutes): main builds
+# them once merged, as the release does, and the smoke test links the
+# runtime against the static PHP already. Only main then catches what only
+# they break: an executable that needs a glibc or a libstdc++ newer than the
+# ones of Ubuntu 22.04, the release build of the nativella command, linked
+# against the static PHP and WebKitGTK, a demo that fails to stage for
+# production (mobile.yml stages the Symfony one), or a crate of the desktop
+# under a license that tools/cargo-about/about.toml lacks. Run by hand on the
+# branch of a pull request, it builds them before the merge.
 #
 # Its caches, the static PHP and the build of the dependencies, are the ones
 # of main: main saves them, a pull request and the release restore them (see
@@ -139,7 +149,9 @@ jobs:
             - name: "Smoke test the demos through the runtime"
               run: "castor nativella:smoke --static"
 
+            # Not on a pull request (see the top)
             - name: "Build the executables"
+              if: github.event_name != 'pull_request'
               run: "castor nativella:build"
 
             # Main only, once all built, as in rust.yml
@@ -158,6 +170,7 @@ jobs:
                   key: ${{ steps.cargo.outputs.cache-primary-key }}
 
             # Fails if an executable needs a glibc, or a libstdc++, newer than
-            # the one of Ubuntu 22.04
+            # the one of Ubuntu 22.04. Not on a pull request, which builds none
             - name: "Check the executables as the release does"
+              if: github.event_name != 'pull_request'
               run: "castor nativella:package"
