@@ -208,7 +208,7 @@ The PHP of a phone is the one of [the desktop](building.md#the-php-inside), buil
 - the extensions a Symfony, Laravel or Doctrine application needs, intl included: bcmath, ctype, curl, dom, fileinfo, filter, iconv, intl, mbstring, opcache, openssl, pdo_sqlite, phar, session, simplexml, sodium, sqlite3, tokenizer, xml, xmlreader, xmlwriter, zip, zlib;
 - for Android 9 (API level 28) and later, arm64; and x86_64, for the emulators of x86_64 computers, which then run it without their ARM translation: `castor mobile:android symfony --abi=x86_64`. The releases publish the arm64 template only;
 - without JIT, of PCRE or of opcache: iOS runs no code it did not sign, and on Android, the JIT of PCRE needs a function of the runtime of clang that Rust does not link. PCRE interprets the regular expressions instead;
-- intl carries ICU and its data, for every locale: about 36 MB of the library, as of the executables of the desktop, which the APK stores uncompressed, as Android loads the library from there. A release template weighs about 72 MB, twice the 36 MB it weighed with NativePHP's PHP, which had no intl.
+- intl carries ICU and its data, for every locale: about 36 MB of the library, as of the executables of the desktop, which the APK stores uncompressed, as Android loads the library from there. A release template weighs about 75 MB, its library 72 MB, twice the 37 MB it weighed with NativePHP's PHP, which had no intl.
 
 ICU is C++: the application library carries the C++ library of the NDK (`c++_static`), as no other code of the application needs one to share.
 
@@ -219,7 +219,7 @@ On iOS, `castor static-php:ios` builds the same PHP on a Mac, with Xcode, for iO
 ## Limitations
 
 - **First launch is slow**: the project is extracted, then the framework builds its cache on the phone (about 5 seconds for the Symfony demo on an emulator). The following requests take a few hundred milliseconds in a debug build.
-- **Debug templates are big** (about 265 MB), and so are the APKs made of them: the library is not stripped. A release template weighs about 72 MB, the APK of the Symfony demo made of it 75 MB: ICU and its data, for intl, are half of it (see [PHP for the phone](#php-for-the-phone)).
+- **Debug templates are big** (about 280 MB), and so are the APKs made of them: the library is not stripped. A release template weighs about 75 MB, the APK of the Symfony demo made of it 79 MB: ICU and its data, for intl, are half of it (see [PHP for the phone](#php-for-the-phone)).
 - **25 seconds per page**: Android's webview, through wry, gives up on a page after 30 seconds and shows an error in its place. So when PHP takes longer, because the user left a dialog, the file picker or a fingerprint prompt open, Nativella answers first with a page that waits: it loads the same page again for a `GET`, the page of the form for a `POST`, once PHP is done. The response PHP gives at last is dropped, so a redirect after a form is lost, not the form's work. A `fetch()` or an XHR gets a 504 instead, even one that asks for HTML, as Turbo does.
 - **No adaptive icon**: the launcher icon is a plain one, which launchers that shape icons, such as the Pixel one, shrink onto a white shape. No round icon, nor a monochrome one for themed icons.
 - **The icon of iOS apps is the template's**: the `icon` of `extra.nativella` does not reach the iOS app yet.
