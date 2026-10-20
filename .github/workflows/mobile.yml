@@ -453,12 +453,6 @@ jobs:
             - name: setup-castor
               uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
 
-            # A few minutes on these runners, while the app downloads:
-            # mobile:ios-simulator waits for the end of it
-            - name: "Boot the simulator, in the background"
-              shell: bash
-              run: nohup castor mobile:ios-boot > "${RUNNER_TEMP}/ios-boot.log" 2>&1 &
-
             - name: "Download the app"
               uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
               with:
@@ -468,8 +462,11 @@ jobs:
             - name: "Extract the app"
               run: "tar -C target/nativella/ios -xf target/nativella/ios/symfony.app.tar"
 
-            # Checks its signature with codesign, then fails if PHP answers no
-            # page within 2 minutes
+            # Checks its signature with codesign, boots the simulator (a few
+            # minutes on these runners), then fails if PHP answers no page
+            # within 2 minutes. Not booted in the background while the app
+            # downloads: the download takes seconds, and both boots raced
+            # ("Unable to boot device in current state: Booted")
             - name: "Open the app in a simulator"
               run: "castor mobile:ios-simulator symfony"
 

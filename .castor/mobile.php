@@ -400,25 +400,6 @@ function ios_template(
 }
 
 /**
- * Boots the simulator mobile:ios-simulator opens the app in, and waits for
- * it: a few minutes on the macOS runners of GitHub, which the Mobile
- * workflow spends building the app, running it in the background.
- */
-#[AsTask(name: 'ios-boot', description: 'Boots the iOS simulator of mobile:ios-simulator, on macOS (experimental)')]
-function ios_boot(): void
-{
-    if (!context()['macos']) {
-        throw new \RuntimeException('An iOS simulator needs macOS, with Xcode.');
-    }
-
-    $device = simulator();
-    io()->title("Booting {$device['name']}");
-
-    // -b boots it first, if needed
-    run(['xcrun', 'simctl', 'bootstatus', $device['udid'], '-b']);
-}
-
-/**
  * Opens the app mobile:ios made in a simulator, the newest iPhone of the
  * newest iOS, and waits for PHP to answer a page. Tauri sends what the app
  * writes to the log of the system, in debug builds: it goes next to the
