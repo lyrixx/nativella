@@ -13,7 +13,6 @@ $finder = PhpCsFixer\Finder::create()
     ->append([
         __DIR__.'/castor.php',
         __DIR__.'/.twig-cs-fixer.php',
-        __DIR__.'/mobile/pom-licenses.php',
         __FILE__,
         // PHP scripts without the .php extension
         ...glob(__DIR__.'/website/bin/*') ?: [],
