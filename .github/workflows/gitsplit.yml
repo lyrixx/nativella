@@ -24,7 +24,7 @@ permissions:
 jobs:
     gitsplit:
         name: Split the packages
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         timeout-minutes: 15
         steps:
             # gitsplit splits the local branches and tags that .gitsplit.yml

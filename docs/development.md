@@ -280,6 +280,8 @@ On `main`, they all run on every push, whatever the paths, but `cache.yml` and `
 
 A pull request does not build the executables of the release, 3 minutes of `static.yml`: `main` builds them once it is merged, and so does the release, while `castor nativella:smoke --static` links the runtime against the static PHP already. What only they break, only `main` catches: an executable that needs a glibc or a libstdc++ newer than the ones of Ubuntu 22.04 (`nativella:package`), the release build of the `nativella` command, linked against the static PHP and WebKitGTK, a demo that fails to stage for production (`mobile.yml` stages the Symfony one), a crate of the desktop under a license that `tools/cargo-about/about.toml` does not list. Run by hand on the branch of a pull request, `static.yml` builds them before the merge.
 
+The Linux jobs name their runner, `ubuntu-26.04`, not `ubuntu-latest`: it changes when a pull request of its own moves it, with its CI. Most jobs run in the images of the stack, whatever the runner; two depend on it: Website, with the Python of the runner, and the Android emulator, with its KVM and its Android SDK.
+
 The jobs that build the iOS template apps, in `mobile.yml` and `release.yml`, install XcodeGen from its release, pinned, rather than with Homebrew, as `cargo tauri ios init` would. That command also looks for libimobiledevice (`idevicesyslog`), for the logs of a phone, and CocoaPods (`pod`), for the pods of an application that has some: the templates use neither, so the jobs put stand-ins, which fail if run, in the place of those the runner lacks.
 
 ### Caches
