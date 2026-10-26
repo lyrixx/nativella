@@ -10,7 +10,10 @@ The [Notes demo](../demos/symfony) is a complete Symfony application built with 
 composer require nativella/symfony-bundle
 ```
 
-It brings `nativella/nativella`, the native APIs. There is no Flex recipe yet: enable the bundle yourself.
+It brings `nativella/nativella`, the native APIs.
+
+> [!IMPORTANT]
+> `composer require` does not enable the bundle: there is no Flex recipe yet. Add it to `config/bundles.php` yourself, or the native APIs are no services, and no native event reaches your listeners.
 
 ```php title="config/bundles.php"
 return [

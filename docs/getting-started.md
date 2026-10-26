@@ -96,7 +96,9 @@ Click the button: a notification shows up, and the page comes back. The 303 redi
 
 ## 4. React to native events
 
-Native events (the application started, a menu item was clicked…) reach PHP as requests to `POST /_nativella/event`, which only the runtime can send. `EventFactory::fromGlobals()` turns such a request into an event object, and returns null for every other request. Put it at the top of the front controller:
+Step 3 only calls native code. When something must happen the other way round (the application started, a menu item was clicked, files were dropped on a window, a timer fired), PHP has to hear about it: that is a native event. An application that does not react to any can skip this step. With [Symfony](symfony.md#native-events-are-symfony-events) and [Laravel](laravel.md#native-events-are-laravel-events), a listener does what the code below does by hand.
+
+Native events reach PHP as requests to `POST /_nativella/event`, which only the runtime can send. `EventFactory::fromGlobals()` turns such a request into an event object, and returns null for every other request. Put it at the top of the front controller:
 
 ```php title="public/index.php"
 <?php
@@ -146,11 +148,13 @@ nativella build hello
 ./dist/hello
 ```
 
-`dist/hello` is one executable carrying the whole project. Building from the parent directory keeps `dist/` out of the project. [Building a standalone app](building.md) says what goes in, and what the machine still needs.
+`dist/hello` is one executable carrying the whole project; `dist/` itself is never packed, so building from the project directory works too. [Building a standalone app](building.md) says what goes in, and what the machine still needs.
 
 ## Where to go next
 
+- [What runs where](platforms.md): which native API works on computers, which on phones.
 - [Windows](windows.md), [Menus](menus.md), [Dialogs](dialogs.md): the native APIs, one page each.
+- [Mobile](mobile.md): the same project as an Android or iOS application, with `nativella android` and `nativella ios`.
 - [Database](database.md): keep data in SQLite, in the data directory of the application.
 - [Pages and JavaScript](javascript.md): native events in the browser, and context menus.
 - The demos of the repository: [Notes](../demos/symfony) with Symfony, [Tasks](../demos/laravel) with Laravel, [Snippets](../demos/vanilla) in plain PHP.

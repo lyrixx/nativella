@@ -9,6 +9,7 @@ Nativella is young and experimental. Linux is the platform it is built and teste
 - [Introduction](introduction.md): what Nativella is, what it is not, and when it fits.
 - [Installation](installation.md): the `nativella` command, with PHP inside, and the PHP package.
 - [Getting started](getting-started.md): from an empty directory to a desktop application, in plain PHP.
+- [What runs where](platforms.md): every native API, on computers and on phones.
 - [Configuration](configuration.md): the `extra.nativella` section of `composer.json`, and the environment.
 
 ## Frameworks
@@ -23,7 +24,7 @@ Nativella is young and experimental. Linux is the platform it is built and teste
 - [Database](database.md): SQLite in the data directory, migrated when the application starts.
 - [Testing](testing.md): the fake client, and running the application outside Nativella.
 - [Building a standalone app](building.md): `nativella build`, and what ships in the executable.
-- [Mobile](mobile.md): Android and iOS builds, what changes on a phone, what is tested.
+- [Mobile](mobile.md): `nativella android` and `nativella ios`, what changes on a phone, what is tested.
 
 ## Native APIs
 
