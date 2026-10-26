@@ -31,6 +31,8 @@ $native->notification->send('Export finished', 'notes.zip is in your Downloads.'
 
 What happens on the native side (a menu click, a global shortcut, files dropped on a window) comes back to PHP as typed event objects, and to the page's JavaScript as DOM events. See [Lifecycle and events](lifecycle.md).
 
+Not every API works on every platform: some are for computers only, a few for phones only. [What runs where](platforms.md) lists each one.
+
 ## Any PHP application
 
 Nativella needs a `public/index.php` front controller, and nothing else. Symfony, Laravel, Slim, a hand-written router, an old-school `index.php` with a `switch`: if it runs behind nginx and PHP-FPM, it should run in Nativella. The front controller is not modified, `$_SERVER`, `$_GET`, `$_POST`, cookies, sessions and `header()` work as usual.

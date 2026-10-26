@@ -38,11 +38,13 @@ const TRAILER_LENGTH: u64 = 8 + 8 + 8;
 /// its APK on Android, a file of its app on iOS, next to the executable.
 pub const PACKAGED_BUNDLE: &str = "nativella.bundle";
 
-/// Paths of the project that never ship: version control, editors, tests.
-/// Relative to the project, with `/`. Local overrides (`.env.local`, every
-/// path ending with `.local`), which may hold secrets, never ship either:
-/// `append_dir` leaves them out on their own, to list them.
-const EXCLUDED: &[&str] = &[".git", ".idea", "node_modules", "tests"];
+/// Paths of the project that never ship: version control, editors, the
+/// builds (`dist`, where `nativella build` writes by default: an earlier
+/// build would ship in the next one), tests. Relative to the project, with
+/// `/`. Local overrides (`.env.local`, every path ending with `.local`),
+/// which may hold secrets, never ship either: `append_dir` leaves them out on
+/// their own, to list them.
+const EXCLUDED: &[&str] = &[".git", ".idea", "dist", "node_modules", "tests"];
 
 /// Directories that ship empty: caches, logs and sessions of the computer
 /// that built the application, which the framework expects to exist.
@@ -501,8 +503,12 @@ mod tests {
         let project_dir = root.join("project");
         fs::create_dir_all(project_dir.join("public")).unwrap();
         fs::create_dir_all(project_dir.join("var/cache")).unwrap();
+        fs::create_dir_all(project_dir.join("dist")).unwrap();
+        fs::create_dir_all(project_dir.join("public/dist")).unwrap();
         fs::write(project_dir.join("public/index.php"), "<?php echo 'hi';").unwrap();
+        fs::write(project_dir.join("public/dist/app.js"), "shipped").unwrap();
         fs::write(project_dir.join("var/cache/big"), "never shipped").unwrap();
+        fs::write(project_dir.join("dist/notes"), "an earlier build").unwrap();
         fs::write(project_dir.join(".env.local"), "SECRET=1").unwrap();
         let project = Project::load(&project_dir).unwrap();
 
@@ -520,6 +526,14 @@ mod tests {
             "<?php echo 'hi';"
         );
         assert!(!extracted.dir.join("var/cache/big").exists());
+        assert!(
+            !extracted.dir.join("dist").exists(),
+            "The builds do not ship."
+        );
+        assert!(
+            extracted.dir.join("public/dist/app.js").is_file(),
+            "Only the dist of the project root is left out."
+        );
         assert!(
             extracted.dir.join("var/cache").is_dir(),
             "Caches ship empty."

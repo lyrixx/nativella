@@ -21,7 +21,7 @@ nativella build [<project-dir>] [-o <output>]
 The project directory defaults to the current one. The executable goes to `dist/` in the current directory, named after the [`name`](configuration.md#name) of the application, in lower case with dashes (`.exe` on Windows); `-o` picks another path.
 
 > [!TIP]
-> Build from the parent directory, as above, so that `dist/` lands outside the project. The executable being written is always left out of the archive, but other files of a `dist/` inside the project, like the builds of other applications, would ship.
+> `nativella build` from the project directory works too: the `dist/` it writes to is never packed, so the builds of earlier runs do not ship. With `-o` to another directory of the project, only the executable being written is left out of the archive.
 
 ## What ships
 
@@ -29,7 +29,7 @@ The whole project directory, `vendor/` included, as a compressed archive, except
 
 | Left out | |
 |---|---|
-| `.git`, `.idea`, `node_modules`, `tests` | At the root of the project. |
+| `.git`, `.idea`, `dist`, `node_modules`, `tests` | At the root of the project. `dist` is where `nativella build` writes: a `dist` directory of your own there does not ship either, but `public/dist` does. |
 | `.env.local`, and every path ending with `.local` | Local overrides, which tend to hold secrets. The build lists the ones it leaves out. |
 
 | Shipped empty | |
