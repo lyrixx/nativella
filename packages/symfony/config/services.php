@@ -3,6 +3,7 @@
 namespace Symfony\Component\DependencyInjection\Loader\Configurator;
 
 use Nativella\App;
+use Nativella\BarcodeScanner;
 use Nativella\Biometrics;
 use Nativella\ChildProcess;
 use Nativella\Client;
@@ -34,7 +35,7 @@ return static function (ContainerConfigurator $container): void {
     $services->set(ExtensionClient::class);
     $services->alias(Client::class, ExtensionClient::class);
 
-    foreach ([App::class, Biometrics::class, ChildProcess::class, Clipboard::class, Dialog::class, Geolocation::class, GlobalShortcut::class, Haptics::class, Menu::class, Nativella::class, Notification::class, Page::class, Power::class, Screen::class, Secrets::class, Settings::class, Shell::class, System::class, Timer::class, Tray::class, Window::class] as $api) {
+    foreach ([App::class, BarcodeScanner::class, Biometrics::class, ChildProcess::class, Clipboard::class, Dialog::class, Geolocation::class, GlobalShortcut::class, Haptics::class, Menu::class, Nativella::class, Notification::class, Page::class, Power::class, Screen::class, Secrets::class, Settings::class, Shell::class, System::class, Timer::class, Tray::class, Window::class] as $api) {
         $services->set($api)->args([service(Client::class)]);
     }
 

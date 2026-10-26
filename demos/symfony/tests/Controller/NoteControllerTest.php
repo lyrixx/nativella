@@ -138,6 +138,63 @@ final class NoteControllerTest extends NotesTestCase
         $this->assertSame([], $this->nativeMethods());
     }
 
+    public function testAPhoneAddsAScannedCode(): void
+    {
+        $_SERVER['NATIVELLA_PLATFORM'] = 'android';
+        $note = $this->createNote('Shopping', 'Milk.');
+        $this->fakeClient()->respond('barcodeScanner.scan', ['barcode' => ['content' => '3017620422003', 'format' => 'EAN_13']]);
+
+        $this->client->request('POST', "/notes/{$note->getId()}/scan");
+
+        $this->assertResponseRedirects("/notes/{$note->getId()}");
+        $this->assertSame("Milk.\n\n📷 `3017620422003`", $this->notes()->find($note->getId())?->getBody());
+    }
+
+    public function testAScannedWebAddressBecomesALink(): void
+    {
+        $_SERVER['NATIVELLA_PLATFORM'] = 'android';
+        $note = $this->createNote('Shopping', '');
+        $this->fakeClient()->respond('barcodeScanner.scan', ['barcode' => ['content' => 'https://example.com/a?b=c', 'format' => 'QR_CODE']]);
+
+        $this->client->request('POST', "/notes/{$note->getId()}/scan");
+
+        $this->assertSame('📷 <https://example.com/a?b=c>', $this->notes()->find($note->getId())?->getBody());
+    }
+
+    public function testACancelledScanChangesNothing(): void
+    {
+        $_SERVER['NATIVELLA_PLATFORM'] = 'android';
+        $note = $this->createNote('Shopping', 'Milk.');
+
+        $this->client->request('POST', "/notes/{$note->getId()}/scan");
+        $this->client->followRedirect();
+
+        $this->assertSelectorTextContains('.flash', 'No code was added to the note.');
+        $this->assertSame('Milk.', $this->notes()->find($note->getId())?->getBody());
+    }
+
+    public function testAFailingCameraIsReported(): void
+    {
+        $_SERVER['NATIVELLA_PLATFORM'] = 'android';
+        $note = $this->createNote('Shopping', 'Milk.');
+        $this->fakeClient()->respond('barcodeScanner.scan', new NativeCallException('barcodeScanner.scan', new \RuntimeException('The phone read no barcode within 120 seconds.')));
+
+        $this->client->request('POST', "/notes/{$note->getId()}/scan");
+        $this->client->followRedirect();
+
+        $this->assertSelectorTextContains('.flash', 'Notes cannot read a code: The phone read no barcode within 120 seconds.');
+    }
+
+    public function testComputersHaveNoBarcodeScanner(): void
+    {
+        $note = $this->createNote();
+
+        $this->client->request('POST', "/notes/{$note->getId()}/scan");
+
+        $this->assertResponseStatusCodeSame(404);
+        $this->assertSame([], $this->nativeMethods());
+    }
+
     public function testExportWritesTheFileTheUserPicked(): void
     {
         $note = $this->createNote();

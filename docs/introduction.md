@@ -51,7 +51,7 @@ A desktop application has no server to deploy to and no database server to conne
 
 ## On a phone, too
 
-The same project builds into an Android application, and into an iOS one, experimentally, without the tools of either platform: PHP is linked into the application, the pages are served the same way, and the APIs that make sense on a phone work there, with [phone APIs](phone-apis.md) of their own (haptics, geolocation, biometrics). The three demos run on an Android emulator; the CI builds the Symfony one for Android and iOS on every change, and opens it in an Android emulator and in the iOS simulator. See [Mobile](mobile.md).
+The same project builds into an Android application, and into an iOS one, experimentally, without the tools of either platform: PHP is linked into the application, the pages are served the same way, and the APIs that make sense on a phone work there, with [phone APIs](phone-apis.md) of their own (haptics, geolocation, biometrics, barcode scanner). The three demos run on an Android emulator; the CI builds the Symfony one for Android and iOS on every change, and opens it in an Android emulator and in the iOS simulator. See [Mobile](mobile.md).
 
 ## When it fits
 

@@ -103,6 +103,7 @@ pub fn package(
             version_code,
             version_name: &project.manifest.version,
             removed_permissions: &removed_permissions,
+            removed_features: &removed_features(&project.manifest.permissions),
         },
     )?;
 
@@ -215,22 +216,52 @@ fn application_id(identifier: &str) -> io::Result<String> {
     ))
 }
 
-/// The Android permissions of the phone APIs the application does not ask
-/// for: the template has them all.
+/// The Android permissions the template has for the phone APIs the
+/// application does not ask for, and no API it asks for needs: the template
+/// has them all.
 fn removed_permissions(asked: &[Permission]) -> Vec<&'static str> {
-    Permission::ALL
+    removed(asked, android_permissions)
+}
+
+/// The same for the features of the manifest: `uses-feature` elements.
+fn removed_features(asked: &[Permission]) -> Vec<&'static str> {
+    removed(asked, android_features)
+}
+
+/// What `needs` lists for the APIs not in `asked`, once, less what the APIs
+/// in `asked` need: two APIs may need the same permission.
+fn removed(
+    asked: &[Permission],
+    needs: fn(Permission) -> &'static [&'static str],
+) -> Vec<&'static str> {
+    let kept: Vec<&str> = asked
+        .iter()
+        .flat_map(|&permission| needs(permission))
+        .copied()
+        .collect();
+    let mut removed = Vec::new();
+    for &permission in Permission::ALL
         .iter()
         .filter(|permission| !asked.contains(permission))
-        .flat_map(|&permission| android_permissions(permission))
-        .copied()
-        .collect()
+    {
+        for &name in needs(permission) {
+            if !kept.contains(&name) && !removed.contains(&name) {
+                removed.push(name);
+            }
+        }
+    }
+
+    removed
 }
 
 /// The Android permissions of a phone API, which its plugin brings to the
 /// manifest. Keep in sync with the AndroidManifest.xml of the plugins, and of
-/// their libraries: androidx.biometric declares its own.
+/// their libraries: androidx.biometric declares its own. Those of the pages
+/// (`camera`, `microphone`) no plugin declares: .castor/mobile.php adds them
+/// to the manifest of the template.
 fn android_permissions(permission: Permission) -> &'static [&'static str] {
     match permission {
+        Permission::BarcodeScanner | Permission::Camera => &["android.permission.CAMERA"],
         Permission::Biometrics => &[
             "android.permission.USE_BIOMETRIC",
             "android.permission.USE_FINGERPRINT",
@@ -240,6 +271,22 @@ fn android_permissions(permission: Permission) -> &'static [&'static str] {
             "android.permission.ACCESS_FINE_LOCATION",
         ],
         Permission::Haptics => &["android.permission.VIBRATE"],
+        Permission::Microphone => &[
+            "android.permission.MODIFY_AUDIO_SETTINGS",
+            "android.permission.RECORD_AUDIO",
+        ],
+    }
+}
+
+/// The hardware a phone API requires: Google Play hides the application from
+/// the phones that lack it. The camera plugin asks for one.
+fn android_features(permission: Permission) -> &'static [&'static str] {
+    match permission {
+        Permission::BarcodeScanner | Permission::Camera => &["android.hardware.camera.any"],
+        Permission::Biometrics
+        | Permission::Geolocation
+        | Permission::Haptics
+        | Permission::Microphone => &[],
     }
 }
 
@@ -353,12 +400,43 @@ mod tests {
         assert_eq!(
             removed_permissions(&[Permission::Geolocation]),
             [
+                "android.permission.CAMERA",
                 "android.permission.USE_BIOMETRIC",
                 "android.permission.USE_FINGERPRINT",
                 "android.permission.VIBRATE",
+                "android.permission.MODIFY_AUDIO_SETTINGS",
+                "android.permission.RECORD_AUDIO",
             ]
         );
         assert!(removed_permissions(Permission::ALL).is_empty());
+    }
+
+    #[test]
+    fn a_permission_two_apis_need_stays_for_either() {
+        // The camera is the barcode scanner's, and the pages'.
+        for asked in [Permission::BarcodeScanner, Permission::Camera] {
+            let removed = removed_permissions(&[asked, Permission::Haptics]);
+
+            assert!(!removed.contains(&"android.permission.CAMERA"), "{asked:?}");
+            assert!(
+                !removed.contains(&"android.permission.VIBRATE"),
+                "{asked:?}"
+            );
+            assert!(
+                removed.contains(&"android.permission.RECORD_AUDIO"),
+                "{asked:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn only_the_hardware_asked_for_stays() {
+        assert_eq!(
+            removed_features(&[Permission::Microphone]),
+            ["android.hardware.camera.any"]
+        );
+        assert!(removed_features(&[Permission::BarcodeScanner]).is_empty());
+        assert!(removed_features(Permission::ALL).is_empty());
     }
 
     #[test]

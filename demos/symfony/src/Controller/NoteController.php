@@ -9,6 +9,7 @@ use App\Native\Desktop;
 use App\Note\NoteActions;
 use App\Repository\NoteRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Nativella\BarcodeScanner;
 use Nativella\Clipboard;
 use Nativella\Exception\NativeCallException;
 use Nativella\Geolocation;
@@ -165,6 +166,32 @@ final class NoteController extends AbstractController
             $note->addLocation($position->latitude, $position->longitude);
             $this->entityManager->flush();
             $this->addFlash('success', 'Your location was added to the note.');
+        }
+
+        return $this->redirectToRoute('note_show', ['id' => $note->getId()]);
+    }
+
+    #[Route('/notes/{id}/scan', name: 'note_scan', requirements: ['id' => Requirement::DIGITS], methods: ['POST'])]
+    public function scan(Note $note, BarcodeScanner $barcodeScanner): Response
+    {
+        if (!Runtime::isMobile()) {
+            throw $this->createNotFoundException('Only phones have a barcode scanner.');
+        }
+
+        try {
+            $barcode = $barcodeScanner->scan(cancelLabel: 'Cancel');
+        } catch (NativeCallException $exception) {
+            // The camera failed, or saw no code: the message of the phone says which.
+            $this->addFlash('success', \sprintf('Notes cannot read a code: %s', $exception->getPrevious()?->getMessage()));
+
+            return $this->redirectToRoute('note_show', ['id' => $note->getId()]);
+        }
+        if (null === $barcode) {
+            $this->addFlash('success', 'No code was added to the note.');
+        } else {
+            $note->addCode($barcode->content);
+            $this->entityManager->flush();
+            $this->addFlash('success', 'The code was added to the note.');
         }
 
         return $this->redirectToRoute('note_show', ['id' => $note->getId()]);

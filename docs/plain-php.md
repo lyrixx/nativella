@@ -22,7 +22,7 @@ $native->clipboard->writeText($snippet);
 $native->notification->send('Copied', 'The snippet is in the clipboard.');
 ```
 
-Its properties are `app`, `biometrics`, `childProcess`, `clipboard`, `dialog`, `geolocation`, `globalShortcut`, `haptics`, `menu`, `notification`, `page`, `power`, `screen`, `secrets`, `settings`, `shell`, `system`, `timer`, `tray` and `window`, one per API of the [documentation](README.md#native-apis). Creating it calls nothing: it is safe outside Nativella, until you use it.
+Its properties are `app`, `barcodeScanner`, `biometrics`, `childProcess`, `clipboard`, `dialog`, `geolocation`, `globalShortcut`, `haptics`, `menu`, `notification`, `page`, `power`, `screen`, `secrets`, `settings`, `shell`, `system`, `timer`, `tray` and `window`, one per API of the [documentation](README.md#native-apis). Creating it calls nothing: it is safe outside Nativella, until you use it.
 
 To build the API objects one by one, give each the same client:
 

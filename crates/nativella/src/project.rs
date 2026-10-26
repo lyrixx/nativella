@@ -76,16 +76,21 @@ macro_rules! permissions {
 }
 
 permissions! {
-    /// An API of phones, which brings permissions to the Android manifest,
-    /// the reason iOS gives the user to the Info.plist of iOS apps.
+    /// An API of phones, or what the pages may use of the phone, which
+    /// brings permissions to the Android manifest, the reason iOS gives the
+    /// user to the Info.plist of iOS apps.
     ///
     /// Keep in sync with the features of Cargo.toml, PHONE_DOMAINS in
     /// native/mod.rs, android_permissions() in apk/mod.rs,
     /// usage_description() in ios/mod.rs and PHONE_APIS in
-    /// .castor/mobile.php.
+    /// .castor/mobile.php: `camera` and `microphone` are for the pages
+    /// (see webview_permissions.rs), without a feature or a domain.
+    BarcodeScanner,
     Biometrics,
+    Camera,
     Geolocation,
     Haptics,
+    Microphone,
 }
 
 /// The `extra.nativella` section as written, before defaults apply.

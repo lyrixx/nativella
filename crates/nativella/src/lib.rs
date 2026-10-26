@@ -23,6 +23,7 @@ pub mod project;
 #[cfg(target_os = "android")]
 mod request_bodies;
 mod secret;
+mod webview_permissions;
 #[cfg(desktop)]
 mod zip;
 
@@ -150,7 +151,10 @@ fn start(
         context.set_default_window_icon(Some(icon));
     }
 
-    let builder = Builder::default();
+    // What the pages may ask of the webview, getUserMedia() for a start.
+    let asked = manifest.permissions.clone();
+    let builder = Builder::default()
+        .on_permission_request(move |_, kind| webview_permissions::respond(&asked, kind));
 
     #[cfg(desktop)]
     let builder = builder
@@ -190,6 +194,15 @@ fn start(
     // The APIs of phones the application asks for, and only them: the
     // templates of `nativella android` and `nativella ios` are built with them
     // all.
+    #[cfg(all(mobile, feature = "barcode-scanner"))]
+    let builder = if manifest
+        .permissions
+        .contains(&project::Permission::BarcodeScanner)
+    {
+        builder.plugin(native::barcode_scanner::plugin())
+    } else {
+        builder
+    };
     #[cfg(all(mobile, feature = "biometrics"))]
     let builder = if manifest
         .permissions
@@ -216,11 +229,15 @@ fn start(
     };
 
     #[cfg(target_os = "android")]
-    let builder = builder
-        .manage(request_bodies::Bodies::default())
-        .invoke_handler(tauri::generate_handler![
-            request_bodies::nativella_store_body
-        ]);
+    let builder = builder.manage(request_bodies::Bodies::default());
+    // What the scripts Nativella injects in the pages call.
+    #[cfg(any(target_os = "android", all(mobile, feature = "barcode-scanner")))]
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        #[cfg(all(mobile, feature = "barcode-scanner"))]
+        native::barcode_scanner::nativella_cancel_scan,
+        #[cfg(target_os = "android")]
+        request_bodies::nativella_store_body,
+    ]);
 
     let builder = builder
         .plugin(tauri_plugin_clipboard_manager::init())
