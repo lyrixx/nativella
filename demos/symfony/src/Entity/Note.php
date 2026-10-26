@@ -82,6 +82,26 @@ class Note
         $this->edit($this->title, '' === $body ? $location : "{$body}\n\n{$location}");
     }
 
+    /**
+     * Ends the note with what a barcode holds: a link when it is a web
+     * address, a code otherwise.
+     */
+    public function addCode(string $content): void
+    {
+        if (false !== filter_var($content, \FILTER_VALIDATE_URL) && 1 === preg_match('#^https?://#i', $content)) {
+            $code = "📷 <{$content}>";
+        } else {
+            // Longer than any run of backticks in the content, or it would end the span.
+            $fence = str_repeat('`', 1 + max(array_map(strlen(...), preg_match_all('/`+/', $content, $runs) ? $runs[0] : [''])));
+            // A span strips one space on each side: a backtick at the end of the content needs one to stay.
+            $space = str_starts_with($content, '`') || str_ends_with($content, '`') ? ' ' : '';
+            $code = "📷 {$fence}{$space}{$content}{$space}{$fence}";
+        }
+
+        $body = rtrim($this->body);
+        $this->edit($this->title, '' === $body ? $code : "{$body}\n\n{$code}");
+    }
+
     public function pin(): void
     {
         $this->pinned = true;

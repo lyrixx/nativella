@@ -17,6 +17,7 @@
                     <form action="{{ path('note_copy', {id: note.id}) }}" method="post"><button name="format" value="html">Copy as rich text</button></form>
                     {% if nativella_is_mobile() %}
                         <form action="{{ path('note_location', {id: note.id}) }}" method="post"><button>Add my location</button></form>
+                        <form action="{{ path('note_scan', {id: note.id}) }}" method="post"><button>Scan a code</button></form>
                     {% else %}
                         <form action="{{ path('note_export', {id: note.id}) }}" method="post"><button>Export…</button></form>
                     {% endif %}

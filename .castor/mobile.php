@@ -40,7 +40,7 @@ const PHP_ANSWERED = '/\[php\] GET \S+ 200 /';
  * crate: the templates have them all. Keep in sync with the features of
  * crates/nativella/Cargo.toml.
  */
-const PHONE_APIS = ['biometrics', 'geolocation', 'haptics'];
+const PHONE_APIS = ['barcode-scanner', 'biometrics', 'geolocation', 'haptics'];
 
 /**
  * The template APK first (mobile:android-template), then `nativella
@@ -132,6 +132,8 @@ function android_template(
         run_in_builder(['cargo', 'tauri', 'android', 'init', '--ci'], $workDir, $environment, $service);
         fs()->dumpFile("{$root}/crates/nativella/gen/android/.nativella-generation", $generation);
     }
+    android_page_permissions("{$root}/crates/nativella/gen/android/app/src/main/AndroidManifest.xml");
+    android_bundled_barcode_model("{$root}/crates/nativella/gen/android/app/build.gradle.kts");
 
     $variant = $release ? 'release' : 'debug';
     $build = static fn () => run_in_builder([
@@ -725,6 +727,55 @@ function cargo_env(array $environment): string
     }
 
     return $toml;
+}
+
+/**
+ * Adds to the manifest of the generated Android project the permissions the
+ * pages need for getUserMedia(): the camera and the microphone. No plugin
+ * declares the microphone ones; `nativella android` takes away the ones the
+ * application does not ask for. Keep in sync with android_permissions() in
+ * crates/nativella/src/apk/mod.rs. Does nothing when they are there already.
+ */
+function android_page_permissions(string $manifest): void
+{
+    $internet = '<uses-permission android:name="android.permission.INTERNET" />';
+    $content = (string) file_get_contents($manifest);
+    if (str_contains($content, 'android.permission.RECORD_AUDIO')) {
+        return;
+    }
+    if (!str_contains($content, $internet)) {
+        throw new \RuntimeException(\sprintf('%s has no INTERNET permission to add the others after: Tauri changed its template.', $manifest));
+    }
+
+    $permissions = implode("\n    ", array_map(
+        static fn (string $permission): string => \sprintf('<uses-permission android:name="android.permission.%s" />', $permission),
+        ['CAMERA', 'MODIFY_AUDIO_SETTINGS', 'RECORD_AUDIO'],
+    ));
+    fs()->dumpFile($manifest, str_replace($internet, "{$internet}\n    {$permissions}", $content));
+}
+
+/**
+ * Makes the Android project read barcodes with the model that ships in the
+ * APK, not the one of Google Play services, which the barcode scanner plugin
+ * asks for: it is missing from the phones without Play services, and from
+ * those that did not download it yet. The bundled library finds the API of
+ * the plugin's one, and takes over. Does nothing when the project does it
+ * already.
+ */
+function android_bundled_barcode_model(string $gradle): void
+{
+    $content = (string) file_get_contents($gradle);
+    if (str_contains($content, 'com.google.mlkit:barcode-scanning')) {
+        return;
+    }
+
+    fs()->dumpFile($gradle, $content."\n".<<<'KOTLIN'
+        // Nativella: the barcode model ships in the APK (see .castor/mobile.php).
+        dependencies {
+            implementation("com.google.mlkit:barcode-scanning:17.3.0")
+        }
+
+        KOTLIN);
 }
 
 /**

@@ -5,6 +5,7 @@ namespace Nativella\Laravel\Tests;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
 use Nativella\App;
+use Nativella\BarcodeScanner;
 use Nativella\Biometrics;
 use Nativella\ChildProcess;
 use Nativella\Client;
@@ -54,7 +55,7 @@ final class NativellaServiceProviderTest extends TestCase
      */
     public static function provideApis(): iterable
     {
-        foreach ([App::class, Biometrics::class, ChildProcess::class, Clipboard::class, Dialog::class, Geolocation::class, GlobalShortcut::class, Haptics::class, Menu::class, Nativella::class, Notification::class, Page::class, Power::class, Screen::class, Secrets::class, Settings::class, Shell::class, System::class, Timer::class, Tray::class, Window::class] as $api) {
+        foreach ([App::class, BarcodeScanner::class, Biometrics::class, ChildProcess::class, Clipboard::class, Dialog::class, Geolocation::class, GlobalShortcut::class, Haptics::class, Menu::class, Nativella::class, Notification::class, Page::class, Power::class, Screen::class, Secrets::class, Settings::class, Shell::class, System::class, Timer::class, Tray::class, Window::class] as $api) {
             yield $api => [$api];
         }
     }

@@ -29,4 +29,14 @@ final class NoteTest extends TestCase
 
         $this->assertEquals($note->getBody(), Note::fromFile('x.md', $note->toMarkdown())->getBody());
     }
+
+    public function testACodeWithBackticksStaysInItsSpan(): void
+    {
+        $note = new Note('Title', 'Body');
+
+        $note->addCode('a`b');
+        $note->addCode('`b`');
+
+        $this->assertSame("Body\n\n📷 ``a`b``\n\n📷 `` `b` ``", $note->getBody());
+    }
 }

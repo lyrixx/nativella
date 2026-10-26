@@ -15,6 +15,7 @@ use Nativella\Client\ExtensionClient;
 final readonly class Nativella
 {
     public App $app;
+    public BarcodeScanner $barcodeScanner;
     public Biometrics $biometrics;
     public ChildProcess $childProcess;
     public Clipboard $clipboard;
@@ -38,6 +39,7 @@ final readonly class Nativella
     public function __construct(Client $client)
     {
         $this->app = new App($client);
+        $this->barcodeScanner = new BarcodeScanner($client);
         $this->biometrics = new Biometrics($client);
         $this->childProcess = new ChildProcess($client);
         $this->clipboard = new Clipboard($client);

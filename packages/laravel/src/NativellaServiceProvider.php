@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Facade;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\View\Compilers\BladeCompiler;
 use Nativella\App;
+use Nativella\BarcodeScanner;
 use Nativella\Biometrics;
 use Nativella\ChildProcess;
 use Nativella\Client;
@@ -47,6 +48,7 @@ final class NativellaServiceProvider extends ServiceProvider
      */
     private const array APIS = [
         App::class,
+        BarcodeScanner::class,
         Biometrics::class,
         ChildProcess::class,
         Clipboard::class,

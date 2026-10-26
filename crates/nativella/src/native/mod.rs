@@ -5,6 +5,8 @@
 //! packages/nativella/src/ (`Nativella\Window` for `window.*`, and so on).
 
 pub(crate) mod app;
+#[cfg(all(mobile, feature = "barcode-scanner"))]
+pub(crate) mod barcode_scanner;
 #[cfg(all(mobile, feature = "biometrics"))]
 pub(crate) mod biometrics;
 #[cfg(desktop)]
@@ -173,6 +175,10 @@ pub(crate) fn call(app: &AppHandle, call: NativeCall<'_>) -> Result<Value, Strin
 
     let result = match domain {
         "app" => app::call(&call, method),
+        #[cfg(all(mobile, feature = "barcode-scanner"))]
+        "barcodeScanner" if barcode_scanner::registered(app) => {
+            barcode_scanner::call(&call, method)
+        }
         #[cfg(desktop)]
         "childProcess" => child_process::call(&call, method),
         #[cfg(all(mobile, feature = "biometrics"))]
@@ -226,7 +232,7 @@ pub(crate) fn call(app: &AppHandle, call: NativeCall<'_>) -> Result<Value, Strin
 
 /// Keep in sync with the features of Cargo.toml and the permissions of
 /// project.rs.
-const PHONE_DOMAINS: &[&str] = &["biometrics", "geolocation", "haptics"];
+const PHONE_DOMAINS: &[&str] = &["barcodeScanner", "biometrics", "geolocation", "haptics"];
 
 pub(crate) fn unknown(method: &str) -> String {
     format!("Unknown native method \"{method}\".")

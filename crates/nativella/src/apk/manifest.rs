@@ -51,6 +51,9 @@ pub struct Identity<'a> {
     /// The permissions to leave out: those of the phone APIs the application
     /// does not ask for.
     pub removed_permissions: &'a [&'a str],
+    /// The same for the hardware the manifest requires: Google Play hides
+    /// the application from the phones that lack it.
+    pub removed_features: &'a [&'a str],
 }
 
 /// The manifest `xml` of the template, for the application `identity`.
@@ -123,6 +126,18 @@ pub fn rewrite(xml: &[u8], identity: &Identity) -> io::Result<Vec<u8>> {
                             let value = document.add_string(&renamed)?;
                             set_string(&mut chunk, name, value);
                         }
+                    }
+                }
+                "uses-feature" => {
+                    if let Some(name) = attributes
+                        .iter()
+                        .find(|attribute| document.attribute_id(attribute.name) == Some(NAME))
+                        && identity
+                            .removed_features
+                            .contains(&document.string(name.raw_value)?)
+                    {
+                        removing = 1;
+                        continue;
                     }
                 }
                 "provider" => {
@@ -508,6 +523,8 @@ pub(super) mod tests {
             "dev.nativella.runtime.OtherActivity",
             "provider",
             "dev.nativella.runtime.fileprovider;dev.nativella.runtimes",
+            "uses-feature",
+            "android.hardware.camera.any",
         ];
         let ids = [VERSION_CODE, VERSION_NAME, NAME, LABEL, AUTHORITIES, ICON];
         let mut resource_map = Vec::new();
@@ -539,6 +556,8 @@ pub(super) mod tests {
             end(14),
             start(11, &[string(15)]),
             end(11),
+            start(22, &[string(23)]),
+            end(22),
             start(16, &[reference, icon]),
             start(17, &[reference, string(18)]),
             end(17),
@@ -598,6 +617,7 @@ pub(super) mod tests {
                 version_code: 2_003_004,
                 version_name: "2.3.4",
                 removed_permissions: &["android.permission.VIBRATE"],
+                removed_features: &["android.hardware.camera.any"],
             };
             let xml = rewrite(&template(utf8), &identity).unwrap();
 
@@ -668,6 +688,37 @@ pub(super) mod tests {
     }
 
     #[test]
+    fn the_hardware_of_the_apis_not_asked_for_is_left_out() {
+        for utf8 in [false, true] {
+            let names = |removed_features: &[&str]| {
+                let identity = Identity {
+                    application_id: "com.acme.notes",
+                    label: "Acme Notes",
+                    version_code: 1,
+                    version_name: "0.0.1",
+                    removed_permissions: &[],
+                    removed_features,
+                };
+                let xml = rewrite(&template(utf8), &identity).unwrap();
+
+                elements(&xml)
+                    .into_iter()
+                    .map(|(name, _)| name)
+                    .collect::<Vec<_>>()
+            };
+
+            assert!(
+                names(&[]).contains(&"uses-feature".to_owned()),
+                "UTF-8: {utf8}"
+            );
+            assert!(
+                !names(&["android.hardware.camera.any"]).contains(&"uses-feature".to_owned()),
+                "UTF-8: {utf8}"
+            );
+        }
+    }
+
+    #[test]
     fn the_icon_of_the_application() {
         for utf8 in [false, true] {
             assert_eq!(icon(&template(utf8)).unwrap(), 0x7f0e_0000, "UTF-8: {utf8}");
@@ -689,6 +740,7 @@ pub(super) mod tests {
             version_code: 1,
             version_name: "0.0.1",
             removed_permissions: &[],
+            removed_features: &[],
         };
 
         for xml in [&b"<manifest/>"[..], &[], &template(false)[..100]] {

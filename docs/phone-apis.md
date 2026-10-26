@@ -1,12 +1,15 @@
 # Phone APIs
 
-Phones can do what computers cannot: vibrate, locate themselves, recognize the fingerprint or the face of their owner. Nativella exposes these to PHP, on Android (and on iOS, untested), with Tauri's plugins.
+Phones can do what computers cannot: vibrate, locate themselves, recognize the fingerprint or the face of their owner, read a barcode with their camera. Nativella exposes these to PHP, on Android (and on iOS, untested), with Tauri's plugins.
 
 | API | | Permission |
 |---|---|---|
 | `Nativella\Haptics` | Vibrations and haptic feedback. | `haptics` |
 | `Nativella\Geolocation` | Where the phone is. | `geolocation` |
 | `Nativella\Biometrics` | Fingerprint or face authentication. | `biometrics` |
+| `Nativella\BarcodeScanner` | Barcodes and QR codes, read by the camera. | `barcodeScanner` |
+
+Two more permissions have no API of PHP: `camera` and `microphone` let the [pages](#camera-and-microphone-in-the-pages) use them.
 
 ## Permissions
 
@@ -22,9 +25,9 @@ An application asks for the APIs it uses in the `permissions` of its [configurat
 }
 ```
 
-Every application has the plugins of the three, from the template of its platform, but registers only those it asks for. On Android, it keeps only the permissions they declare, location for `geolocation`: an application that never locates the phone does not ask for it. On iOS, its `Info.plist` has the reasons of those it asks for only, which iOS shows the user: Face ID for `biometrics`, the location for `geolocation`.
+Every application has the plugins of the four, from the template of its platform, but registers only those it asks for. On Android, it keeps only the permissions they declare, location for `geolocation`: an application that never locates the phone does not ask for it. On iOS, its `Info.plist` has the reasons of those it asks for only, which iOS shows the user: Face ID for `biometrics`, the location for `geolocation`, the camera for `barcodeScanner` and `camera`, the microphone for `microphone`.
 
-Where the user must agree, they are asked on the first call, not at install: location, on Android.
+Where the user must agree, they are asked on the first call, not at install: location and camera, on Android.
 
 Calling an API that the application did not ask for throws a `NativeCallException` that says so, and so does calling any of them on a computer. Check `Runtime::isMobile()` first:
 
@@ -99,12 +102,53 @@ if ($biometrics->isAvailable() && !$biometrics->authenticate('Show the private n
 
 The user can fall back on the PIN of the phone, as everywhere else on it. Biometrics prove that the owner of the phone holds it, nothing more: there is no key or identity to check on a server.
 
+## Barcode scanner
+
+```php
+use Nativella\BarcodeScanner\Format;
+
+$barcode = $barcodeScanner->scan([Format::Ean13, Format::QrCode]);
+if (null === $barcode) {
+    // The user did not allow the camera, or cancelled.
+}
+
+$barcode->content; // "3017620422003"
+$barcode->format;  // Format::Ean13
+```
+
+`scan(array $formats = [], string $cancelLabel = 'Cancel'): ?Barcode` asks the user the first time, then shows the camera and blocks until it reads a code. It returns null when the user does not allow the camera, or cancels. It throws a `NativeCallException` when the camera fails, or when it reads no code within 2 minutes.
+
+| Argument | |
+|---|---|
+| `$formats` | The kinds of codes to read: `Format::Aztec`, `Codabar`, `Code128`, `Code39`, `Code93`, `DataMatrix`, `Ean13`, `Ean8`, `Itf`, `Pdf417`, `QrCode`, `UpcA`, `UpcE`. Every kind when empty. |
+| `$cancelLabel` | The label of the button that gives up, in the language of the application. |
+
+The camera shows behind the page: while PHP waits, Nativella makes the page transparent and hides it, and draws a frame and the button to cancel on top. The page comes back as it was. A `Barcode` has the `content` of the code, and its `format`, null for a kind of code that `Format` does not list.
+
+On Android, ML Kit reads the codes with a model that ships in the APK: no Google Play services, no download. It always reads QR codes, whatever the `$formats`. `Codabar` and `UpcA` are Android's: iOS reads a UPC-A code as an EAN-13 one, with a leading zero, and fails when asked for either.
+
+The call blocks PHP, so make it in a request the page waits for, a link or a form, and redirect once it is done. A `fetch()` gets a 504 after 25 seconds on Android: see [Mobile](mobile.md#limitations).
+
+## Camera and microphone in the pages
+
+The pages of the application may use the camera and the microphone themselves, with `navigator.mediaDevices.getUserMedia()`: a video call, a photo, a voice note. The application asks for them in its `permissions`, `camera` and `microphone`, one by one:
+
+```js
+const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+document.querySelector('video').srcObject = stream;
+```
+
+A page that asks for what the application did not ask for gets a `NotAllowedError`. The user is asked on the first use, as in a browser: by Android for the camera and the microphone, by iOS with the reason of the `Info.plist`. Computers have no question: Linux's webview lets the page use the devices once the application asked for them, and nothing tried it on macOS or Windows.
+
+These two are not phone APIs: they work on computers too, and need no PHP.
+
 ## In the demos
 
 - Laravel Tasks vibrates with a success when the last open task is done.
 - Symfony Notes adds the location of the phone to a note, as a link to OpenStreetMap.
+- Symfony Notes adds what a barcode or a QR code holds to a note: a link for a web address.
 - Plain PHP Snippets asks for a fingerprint, rather than a dialog, before deleting a snippet.
 
 ## Not there yet
 
-The camera, the barcode scanner, sharing, NFC and push notifications. Tauri has plugins for most of them: the barcode scanner, for one, only has a JavaScript API, which PHP cannot call.
+A PHP API for the camera (photos and videos) and the microphone, sharing, NFC and push notifications. Tauri has no plugin for the first two: the pages can use them with `getUserMedia()`, see above.

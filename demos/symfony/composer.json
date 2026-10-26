@@ -92,6 +92,7 @@
                 "nativella-notes"
             ],
             "permissions": [
+                "barcodeScanner",
                 "geolocation"
             ]
         }

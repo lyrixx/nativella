@@ -29,6 +29,7 @@ mod profile;
 mod resources;
 mod signature;
 
+use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufWriter, Write};
 use std::path::{Component, Path, PathBuf};
@@ -389,16 +390,31 @@ fn rewrite_info(info: &mut Dictionary, project: &Project, version: &str) {
     info.insert("CFBundleShortVersionString".to_owned(), version.into());
     info.insert("CFBundleVersion".to_owned(), version.into());
 
+    for (key, reason) in usage_descriptions(&manifest.permissions, &manifest.name) {
+        match reason {
+            Some(reason) => info.insert(key.to_owned(), reason.into()),
+            None => info.remove(key),
+        };
+    }
+}
+
+/// The reason of each key of the Info.plist that a phone API has: the one of
+/// the first API asked for that needs it, none when no API asked for does,
+/// and the template's must go. Two APIs may need the same key: the camera,
+/// for the barcode scanner and for the pages.
+fn usage_descriptions(asked: &[Permission], name: &str) -> BTreeMap<&'static str, Option<String>> {
+    let mut descriptions = BTreeMap::new();
     for &permission in Permission::ALL {
-        let Some((key, reason)) = usage_description(permission, &manifest.name) else {
+        let Some((key, reason)) = usage_description(permission, name) else {
             continue;
         };
-        if manifest.permissions.contains(&permission) {
-            info.insert(key.to_owned(), reason.into());
-        } else {
-            info.remove(key);
+        let description = descriptions.entry(key).or_insert(None);
+        if description.is_none() && asked.contains(&permission) {
+            *description = Some(reason);
         }
     }
+
+    descriptions
 }
 
 /// The key of the Info.plist that holds the reason iOS gives the user of the
@@ -407,9 +423,17 @@ fn rewrite_info(info: &mut Dictionary, project: &Project, version: &str) {
 /// iOS side of the plugins.
 fn usage_description(permission: Permission, name: &str) -> Option<(&'static str, String)> {
     match permission {
+        Permission::BarcodeScanner => Some((
+            "NSCameraUsageDescription",
+            format!("{name} uses the camera to read barcodes."),
+        )),
         Permission::Biometrics => Some((
             "NSFaceIDUsageDescription",
             format!("{name} uses Face ID to check that it is you."),
+        )),
+        Permission::Camera => Some((
+            "NSCameraUsageDescription",
+            format!("{name} uses the camera."),
         )),
         // The plugin asks for the location while the app is in use.
         Permission::Geolocation => Some((
@@ -417,6 +441,10 @@ fn usage_description(permission: Permission, name: &str) -> Option<(&'static str
             format!("{name} uses the location of the phone."),
         )),
         Permission::Haptics => None,
+        Permission::Microphone => Some((
+            "NSMicrophoneUsageDescription",
+            format!("{name} uses the microphone."),
+        )),
     }
 }
 
@@ -629,6 +657,47 @@ mod tests {
     }
 
     #[test]
+    fn the_reasons_of_the_apis_asked_for() {
+        let descriptions = usage_descriptions(
+            &[Permission::BarcodeScanner, Permission::Microphone],
+            "Note Taker",
+        );
+
+        assert_eq!(
+            descriptions.get("NSCameraUsageDescription"),
+            Some(&Some(
+                "Note Taker uses the camera to read barcodes.".to_owned()
+            ))
+        );
+        assert_eq!(
+            descriptions.get("NSMicrophoneUsageDescription"),
+            Some(&Some("Note Taker uses the microphone.".to_owned()))
+        );
+        // Those of the others go, with nothing to ask the user.
+        assert_eq!(descriptions.get("NSFaceIDUsageDescription"), Some(&None));
+        assert_eq!(
+            descriptions.get("NSLocationWhenInUseUsageDescription"),
+            Some(&None)
+        );
+    }
+
+    #[test]
+    fn a_reason_two_apis_share_stays_for_either() {
+        for asked in [Permission::BarcodeScanner, Permission::Camera] {
+            let descriptions = usage_descriptions(&[asked], "Note Taker");
+
+            assert!(
+                descriptions["NSCameraUsageDescription"].is_some(),
+                "{asked:?}"
+            );
+        }
+        assert_eq!(
+            usage_descriptions(&[], "Note Taker")["NSCameraUsageDescription"],
+            None
+        );
+    }
+
+    #[test]
     fn an_app_for_the_simulator() {
         let (project, project_dir) = project("simulator", Platform::Simulator);
         let output = project_dir.join("dist/note-taker.app");
@@ -663,6 +732,7 @@ mod tests {
             Some("Note Taker uses the location of the phone.")
         );
         assert_eq!(string("NSFaceIDUsageDescription"), None);
+        assert_eq!(string("NSCameraUsageDescription"), None);
 
         // Signed ad hoc: the code directory binds the Info.plist, the seal of
         // the files, and the pages of the executable.
