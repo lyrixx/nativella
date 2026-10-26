@@ -57,7 +57,7 @@ composer require nativella/nativella        # plain PHP, or another framework
 
 [Symfony](symfony.md), [Laravel](laravel.md) and [Plain PHP](plain-php.md) go on from there.
 
-Composer writes a constraint such as `^0.3`, which stays on 0.3.x: before 1.0, a minor version can break things. The packages and the `nativella` command are released together, with the same version number: upgrade them together.
+Composer writes a constraint such as `^0.4`, which stays on 0.4.x: before 1.0, a minor version can break things. The packages and the `nativella` command are released together, with the same version number: upgrade them together.
 
 To work on Nativella itself, the demos of the repository take the packages from `packages/` through a [path repository](https://getcomposer.org/doc/05-repositories.md#path): see [Developing Nativella](development.md).
 

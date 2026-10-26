@@ -13,8 +13,8 @@
         "php": ">=8.4",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
-        "nativella/laravel": "^0.3@dev",
-        "nativella/nativella": "^0.3@dev"
+        "nativella/laravel": "^0.4@dev",
+        "nativella/nativella": "^0.4@dev"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
@@ -41,9 +41,9 @@
             "url": "../../packages/*",
             "options": {
                 "versions": {
-                    "nativella/laravel": "0.3.x-dev",
-                    "nativella/nativella": "0.3.x-dev",
-                    "nativella/symfony-bundle": "0.3.x-dev"
+                    "nativella/laravel": "0.4.x-dev",
+                    "nativella/nativella": "0.4.x-dev",
+                    "nativella/symfony-bundle": "0.4.x-dev"
                 }
             }
         }
