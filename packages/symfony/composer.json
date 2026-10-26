@@ -6,7 +6,7 @@
     "license": "MIT",
     "require": {
         "php": ">=8.4",
-        "nativella/nativella": "^0.3",
+        "nativella/nativella": "^0.4",
         "symfony/config": "^7.4|^8.0",
         "symfony/dependency-injection": "^7.4|^8.0",
         "symfony/event-dispatcher": "^7.4|^8.0",
@@ -39,7 +39,7 @@
             "url": "../nativella",
             "options": {
                 "versions": {
-                    "nativella/nativella": "0.3.x-dev"
+                    "nativella/nativella": "0.4.x-dev"
                 }
             }
         }
@@ -51,7 +51,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3.x-dev"
+            "dev-main": "0.4.x-dev"
         }
     }
 }
