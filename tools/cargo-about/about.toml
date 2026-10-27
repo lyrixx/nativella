@@ -11,6 +11,8 @@ accepted = [
     "BSD-3-Clause",
     "BSL-1.0",
     "CC0-1.0",
+    # The certificates of Mozilla's root store that webpki-roots carries
+    "CDLA-Permissive-2.0",
     "ISC",
     "MPL-2.0",
     "Unicode-3.0",
