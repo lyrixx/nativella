@@ -119,4 +119,6 @@ if ($event instanceof AppReopened && isset($event->args[1])) {
 
 Closing a window sends `WindowClosed`. Closing the last one quits the application, unless it has a [tray](tray.md) icon: then it keeps running in the tray until something calls `App::quit()`.
 
+Before a window closes, its page is asked, as a browser asks before closing a tab: a page with unsaved changes can [keep it open](javascript.md#unsaved-changes) until the user confirms.
+
 `App::quit()` and `App::restart()` act once the current request has been answered, so the response still reaches the page. See [App](app.md).

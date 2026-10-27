@@ -9,6 +9,8 @@
 mod absolute_urls;
 #[cfg(desktop)]
 pub mod apk;
+#[cfg(desktop)]
+mod before_unload;
 #[cfg(any(test, target_os = "android"))]
 mod deadline;
 #[cfg(desktop)]
@@ -388,6 +390,14 @@ fn start(
                         "window.blurred",
                         json!({ "window": label }),
                     );
+                }
+                // Not before its page lets it go.
+                #[cfg(desktop)]
+                WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    if let Some(window) = window.get_webview_window(label) {
+                        before_unload::close(window);
+                    }
                 }
                 WindowEvent::Destroyed => {
                     events::send(

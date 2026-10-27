@@ -29,3 +29,21 @@ window.addEventListener('nativella:notes.changed', (event) => {
         location.reload();
     }
 });
+
+// A note with unsaved changes keeps its window open: Nativella asks first, as a browser asks before
+// closing a tab.
+const editor = document.querySelector('form.editor');
+if (editor) {
+    let dirty = false;
+    editor.addEventListener('input', () => {
+        dirty = true;
+    });
+    editor.addEventListener('submit', () => {
+        dirty = false;
+    });
+    window.addEventListener('beforeunload', (event) => {
+        if (dirty) {
+            event.preventDefault();
+        }
+    });
+}

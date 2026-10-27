@@ -84,6 +84,21 @@ window.addEventListener('nativella:menu.itemClicked', (event) => {
 });
 ```
 
+## Unsaved changes
+
+A page keeps its window open as it keeps a browser tab open, with `beforeunload`: when the window closes, a listener that cancels the event, or a `window.onbeforeunload` that returns a string, makes Nativella ask the user, "Close this window? Changes you made may not be saved.", with Close and Cancel.
+
+```js
+const form = document.querySelector('form');
+let dirty = false;
+
+form.addEventListener('input', () => (dirty = true));
+form.addEventListener('submit', () => (dirty = false));
+window.addEventListener('beforeunload', (event) => dirty && event.preventDefault());
+```
+
+The page is asked whatever closes the window: its close button, `Window::close()`, or the Close Window item of the menu. On Linux, the Quit item of the menu asks every window, and quits once the user confirms; `App::quit()` and a signal quit without asking. A page that does not answer within a second, a script stuck in a loop, lets its window close.
+
 ## Context menus
 
 A right click is a page event; the menu is native. The page asks PHP for it, and PHP opens it with `Menu::popup()`: see [Menus](menus.md#context-menus).

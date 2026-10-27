@@ -324,7 +324,7 @@ mod linux_roles {
             return false;
         };
         if name == "quit" {
-            app.exit(0);
+            crate::before_unload::quit(app);
 
             return true;
         }
