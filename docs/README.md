@@ -22,6 +22,7 @@ Nativella is young and experimental. Linux is the platform it is built and teste
 
 - [Lifecycle and events](lifecycle.md): booting, native events, closing windows, quitting.
 - [Database](database.md): SQLite in the data directory, migrated when the application starts.
+- [Downloads](downloads.md): attachments and `download` links, saved where the user chooses.
 - [Testing](testing.md): the fake client, and running the application outside Nativella.
 - [Building a standalone app](building.md): `nativella build`, and what ships in the executable.
 - [Mobile](mobile.md): `nativella android` and `nativella ios`, what changes on a phone, what is tested.

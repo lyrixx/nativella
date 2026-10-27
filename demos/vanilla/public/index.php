@@ -80,6 +80,7 @@ $router->get('/', $snippets->index(...));
 $router->get('/snippets/new', $snippets->new(...));
 $router->post('/snippets', $snippets->create(...));
 $router->post('/snippets/{id}/delete', $snippets->delete(...));
+$router->get('/snippets/{id}/download', $snippets->download(...));
 $router->get('/system', $system->show(...));
 // The clipboard and the file dialog only exist in Nativella. On phones, the
 // file dialog picks a content URI, not a file PHP can read: no import there.

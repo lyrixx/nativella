@@ -19,4 +19,5 @@ mod sapi;
 mod static_files;
 
 pub use bridge::{NativeCall, NativeHandler};
+pub use redirects::is_navigation;
 pub use runtime::{PhpApp, PhpRuntime, RequestOrigin};

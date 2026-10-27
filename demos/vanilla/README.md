@@ -7,6 +7,7 @@ CSS file and one JavaScript file. The database is SQLite through `doctrine/dbal`
 | Feature | Nativella API |
 |---|---|
 | Copy a snippet | `$native->clipboard->writeText()` |
+| Download a snippet as a text file | Nothing: an attachment, which Nativella asks where to save |
 | Delete, after a native confirmation | `$native->dialog->confirm()` |
 | Import a text file (button, or File › Import…) | `$native->dialog->openFile()`, `$native->notification->send()` |
 | Import the files dropped on the window | `Event\WindowFilesDropped`, then `$native->page->dispatch()`: the page reloads its list |

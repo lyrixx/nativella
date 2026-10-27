@@ -28,6 +28,20 @@ final readonly class Response
     }
 
     /**
+     * A file to save rather than show: a browser, or Nativella, asks where.
+     */
+    public static function download(string $content, string $fileName, string $contentType): self
+    {
+        // "filename" for the old clients, in ASCII; "filename*" in UTF-8 for the others.
+        $ascii = preg_replace('/[^\x20-\x7E]|["\\\\]/u', '_', $fileName);
+
+        return new self($content, 200, [
+            'Content-Disposition' => \sprintf('attachment; filename="%s"; filename*=UTF-8\'\'%s', $ascii, rawurlencode($fileName)),
+            'Content-Type' => $contentType,
+        ]);
+    }
+
+    /**
      * After a form: "See Other" turns the next request into a GET, so that
      * reloading the page does not post the form again.
      */
