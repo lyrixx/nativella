@@ -63,7 +63,7 @@ The first request of the new window waits for the current one to finish, since o
 
 | Method | |
 |---|---|
-| `close(?string $window = null): void` | Closes the window. Closing the last one quits the application, unless it has a [tray](tray.md). |
+| `close(?string $window = null): void` | Closes the window, once its page [lets it go](javascript.md#unsaved-changes). Closing the last one quits the application, unless it has a [tray](tray.md). |
 | `all(): list<WindowInfo>` | Every open window, sorted by label. |
 | `get(?string $window = null): WindowInfo` | |
 | `setTitle(string $title, ?string $window = null): void` | |

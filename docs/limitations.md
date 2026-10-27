@@ -38,7 +38,7 @@ Nativella is experimental. This page lists what does not work, what is untested 
 ## The native side
 
 - Clicking a [notification](notifications.md#clicks) reaches PHP on Linux only.
-- There is no event before a window closes: closing cannot be prevented, or confirmed.
+- PHP gets no event before a window closes: only [its page](javascript.md#unsaved-changes) can keep it open.
 - A menu item cannot be updated on its own: set the menu again.
 - [Power](power.md) knows the battery and the power source, not the screen lock or the thermal state, as NativePHP's `PowerMonitor` does.
 
