@@ -128,6 +128,27 @@ final class NoteControllerTest extends NotesTestCase
         $this->assertSelectorTextContains('.flash', 'Notes cannot find where you are: Location services are disabled.');
     }
 
+    public function testAPhoneSharesTheNote(): void
+    {
+        $_SERVER['NATIVELLA_PLATFORM'] = 'android';
+        $note = $this->createNote('Picnic', 'Bring a blanket.');
+
+        $this->client->request('POST', "/notes/{$note->getId()}/share");
+
+        $this->assertResponseRedirects("/notes/{$note->getId()}");
+        $this->assertSame(['text' => "Picnic\n\nBring a blanket."], $this->fakeClient()->calls('share.text')[0]['payload']);
+    }
+
+    public function testComputersHaveNoShareSheet(): void
+    {
+        $note = $this->createNote();
+
+        $this->client->request('POST', "/notes/{$note->getId()}/share");
+
+        $this->assertResponseStatusCodeSame(404);
+        $this->assertSame([], $this->nativeMethods());
+    }
+
     public function testComputersHaveNoLocation(): void
     {
         $note = $this->createNote();

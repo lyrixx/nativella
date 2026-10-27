@@ -1,6 +1,6 @@
 # Phone APIs
 
-Phones can do what computers cannot: vibrate, locate themselves, recognize the fingerprint or the face of their owner, read a barcode with their camera. Nativella exposes these to PHP, on Android (and on iOS, untested), with Tauri's plugins.
+Phones can do what computers cannot: vibrate, locate themselves, recognize the fingerprint or the face of their owner, read a barcode with their camera, share with the other applications. Nativella exposes these to PHP, on Android (and on iOS, untested), with Tauri's plugins.
 
 | API | | Permission |
 |---|---|---|
@@ -8,6 +8,7 @@ Phones can do what computers cannot: vibrate, locate themselves, recognize the f
 | `Nativella\Geolocation` | Where the phone is. | `geolocation` |
 | `Nativella\Biometrics` | Fingerprint or face authentication. | `biometrics` |
 | `Nativella\BarcodeScanner` | Barcodes and QR codes, read by the camera. | `barcodeScanner` |
+| `Nativella\Share` | The share sheet, with a text or a file. | None |
 
 Two more permissions have no API of PHP: `camera` and `microphone` let the [pages](#camera-and-microphone-in-the-pages) use them. `geolocation` lets the [pages](#location-in-the-pages) locate the device too.
 
@@ -129,6 +130,21 @@ On Android, ML Kit reads the codes with a model that ships in the APK: no Google
 
 The call blocks PHP, so make it in a request the page waits for, a link or a form, and redirect once it is done. A `fetch()` gets a 504 after 25 seconds on Android: see [Mobile](mobile.md#limitations).
 
+## Share
+
+```php
+$share->text("{$note->getTitle()}\n\n{$note->getBody()}");
+
+$share->file(Runtime::dataDir().'/export.csv', 'text/csv');
+```
+
+| Method | |
+|---|---|
+| `text(string $text): void` | Opens the share sheet with a text, or a link: the application the user picks makes what it can of it. |
+| `file(string $path, ?string $mimeType = null, ?string $title = null): void` | Opens it with a file, absolute and readable by PHP: one of the data directory, the cache. `$mimeType` (`text/csv`, `image/png`…) tells the phone which applications can take it. Throws when there is no such file. |
+
+Sharing needs no permission: the user picks where it goes, or closes the sheet. The call returns once the sheet is open, and nothing tells whether the user shared: Android does not say. The file is copied to the cache of the application first, so PHP can delete or change its own afterwards.
+
 ## Camera and microphone in the pages
 
 The pages of the application may use the camera and the microphone themselves, with `navigator.mediaDevices.getUserMedia()`: a video call, a photo, a voice note. The application asks for them in its `permissions`, `camera` and `microphone`, one by one:
@@ -160,8 +176,9 @@ Without `geolocation` in the `permissions`, the page gets a `PERMISSION_DENIED` 
 - Laravel Tasks vibrates with a success when the last open task is done.
 - Symfony Notes adds the location of the phone to a note, as a link to OpenStreetMap.
 - Symfony Notes adds what a barcode or a QR code holds to a note: a link for a web address.
+- Symfony Notes shares a note, its title and its text, with the share sheet.
 - Plain PHP Snippets asks for a fingerprint, rather than a dialog, before deleting a snippet.
 
 ## Not there yet
 
-A PHP API for the camera (photos and videos) and the microphone, sharing, NFC and push notifications. Tauri has no plugin for the first two: the pages can use them with `getUserMedia()`, see above.
+A PHP API for the camera (photos and videos) and the microphone, NFC and push notifications. Tauri has no plugin for the first two: the pages can use them with `getUserMedia()`, see above.

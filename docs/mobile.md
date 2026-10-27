@@ -35,7 +35,7 @@ Windows fill the screen: their size, position and decoration options are ignored
 
 `Dialog::openFile()` and `openFiles()` open the file picker of the system: it answers `content://` URIs, which PHP cannot read, so Nativella copies the picked files into the cache directory of the application and hands PHP their path there. Message dialogs, notifications, the clipboard, settings, timers, the shell, the system information and the page events work as on the desktop.
 
-Phones have APIs of their own: [haptics, geolocation, biometrics and a barcode scanner](phone-apis.md), which an application asks for in its `permissions`, as it does for the camera and the microphone of its pages.
+Phones have APIs of their own: [haptics, geolocation, biometrics, a barcode scanner and the share sheet](phone-apis.md). An application asks for the first four in its `permissions`, as it does for the camera and the microphone of its pages.
 
 Pages are drawn under the status and navigation bars: add `viewport-fit=cover` to the viewport and pad the page with `env(safe-area-inset-*)`, as the Symfony demo does.
 
@@ -224,7 +224,7 @@ On iOS, `castor static-php:ios` builds the same PHP on a Mac, with Xcode, for iO
 - **No adaptive icon**: the launcher icon is a plain one, which launchers that shape icons, such as the Pixel one, shrink onto a white shape. No round icon, nor a monochrome one for themed icons.
 - **The icon of iOS apps is the template's**: the `icon` of `extra.nativella` does not reach the iOS app yet.
 - **No Google Play bundle**: `nativella android` writes APKs, to install with `adb` or to open on the phone; Google Play asks for an Android App Bundle (AAB), which a Gradle build, in a Docker image, will make. Its keys are EC P-256 ones, in PEM files, not Java keystores yet.
-- **Few phone APIs**: [haptics, geolocation, biometrics and a barcode scanner](phone-apis.md). No photo or video API, no microphone one, no sharing or push notifications yet: the pages have the camera and the microphone with `getUserMedia()`.
+- **Few phone APIs**: [haptics, geolocation, biometrics, a barcode scanner and the share sheet](phone-apis.md). No photo or video API, no microphone one, no push notifications yet: the pages have the camera and the microphone with `getUserMedia()`.
 - **iOS** is experimental: in the simulator, the Symfony demo shows its first page, but the webview leaves the bottom of the screen black, and what the app writes reaches the log of the system in debug builds only. No device has run an [app for devices](#for-devices), nor has any phone API been tried.
 - **iOS apps get every entitlement of their profile**, as re-signing tools give them, not the ones the app needs: those of the capabilities of its App ID, as the Apple Developer website lists them.
 - **iOS apps link every phone API**: App Store Connect may refuse an app whose code can use the location or Face ID without the reason in its `Info.plist` (ITMS-90683), which only the APIs it asks for have.

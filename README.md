@@ -30,7 +30,7 @@ system webview ──php://localhost/…──▶ Tauri scheme handler (Rust)
   dialogs, notifications, clipboard, global shortcuts, settings, secrets,
   timers, child processes, power, screens, shell… and typed native events
   (`MenuItemClicked`, `WindowFilesDropped`…). On phones, haptics, geolocation,
-  biometrics and a barcode scanner.
+  biometrics, a barcode scanner and the share sheet.
 - **[State](https://lyrixx.github.io/nativella/docs/database/)**: an SQLite database in the data directory
   of the application, migrated when it starts (Doctrine, Eloquent).
 - **[Distribution](https://lyrixx.github.io/nativella/docs/building/)**: `nativella build` writes one

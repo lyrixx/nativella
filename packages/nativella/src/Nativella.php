@@ -30,6 +30,7 @@ final readonly class Nativella
     public Screen $screen;
     public Secrets $secrets;
     public Settings $settings;
+    public Share $share;
     public Shell $shell;
     public System $system;
     public Timer $timer;
@@ -54,6 +55,7 @@ final readonly class Nativella
         $this->screen = new Screen($client);
         $this->secrets = new Secrets($client);
         $this->settings = new Settings($client);
+        $this->share = new Share($client);
         $this->shell = new Shell($client);
         $this->system = new System($client);
         $this->timer = new Timer($client);

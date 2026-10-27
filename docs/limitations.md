@@ -57,6 +57,6 @@ Next:
 - **macOS and Windows**: build, test, fix.
 - **Extensions and `php.ini`**: let an application pick the extensions of its PHP, to add one or to leave intl and the data of ICU out of a smaller executable, and its settings.
 - **Installers**: bundle with `tauri build`.
-- **Mobile**: more [phone APIs](phone-apis.md) (photos and videos, sharing, push notifications), an iOS app tried on a device, the JIT of PCRE on Android. See [Mobile](mobile.md).
+- **Mobile**: more [phone APIs](phone-apis.md) (photos and videos, push notifications), an iOS app tried on a device, the JIT of PCRE on Android. See [Mobile](mobile.md).
 
 Found something that is not on this page? [Open an issue](https://github.com/lyrixx/nativella/issues).

@@ -30,6 +30,7 @@ use Nativella\Runtime;
 use Nativella\Screen;
 use Nativella\Secrets;
 use Nativella\Settings;
+use Nativella\Share;
 use Nativella\Shell;
 use Nativella\System;
 use Nativella\Timer;
@@ -64,6 +65,7 @@ final class NativellaServiceProvider extends ServiceProvider
         Screen::class,
         Secrets::class,
         Settings::class,
+        Share::class,
         Shell::class,
         System::class,
         Timer::class,
