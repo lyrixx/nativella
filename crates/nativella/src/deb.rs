@@ -355,6 +355,7 @@ mod tests {
             window: serde_json::Map::new(),
             deep_links: vec!["notes".to_owned()],
             permissions: Vec::new(),
+            updates: None,
         }
     }
 
