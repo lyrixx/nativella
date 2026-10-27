@@ -37,6 +37,10 @@ nativella run .
 
 A window opens on the page. Submit the form: `$_GET` is filled, as behind any web server, except that no server started. `ss -ltnp` shows no new port: the request went from the webview to PHP inside the `nativella` process.
 
+### Reloading
+
+Change `index.php` and save: the window reloads. `nativella run` watches the files of the project, and reloads every window once they stop changing, with the new code: opcache checks the files on every request. It leaves out what the application and its tools write to, `var/`, `storage/`, `bootstrap/cache/`, `vendor/`, `node_modules/` and `.git/`, the data directory, and the files editors keep aside (`.index.php.swp`, `index.php~`). A [standalone executable](building.md) does not watch anything. `NATIVELLA_RELOAD=0` turns it off.
+
 ## 2. Give it a name
 
 The window is titled after the directory. Name the application in `composer.json`:
