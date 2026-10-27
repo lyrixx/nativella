@@ -1,19 +1,21 @@
-//! `power.*`: the battery and the power source. A thread watches them for
-//! `power.sourceChanged`, when the computer goes on battery or back on mains,
-//! and `power.resumed`, when it wakes from sleep.
+//! `power.*`: the battery and the power source, and keeping the computer
+//! awake. A thread watches them for `power.sourceChanged`, when the computer
+//! goes on battery or back on mains, and `power.resumed`, when it wakes from
+//! sleep.
 
 use std::thread;
 use std::time::Duration;
 #[cfg(not(target_os = "linux"))]
 use std::time::{Instant, SystemTime};
 
+use serde::Deserialize;
 use serde_json::{Value, json};
 use starship_battery::units::energy::watt_hour;
 use starship_battery::units::time::second;
 use starship_battery::{Manager, State};
 use tauri::AppHandle;
 
-use super::{Call, failed};
+use super::{Call, failed, lock};
 use crate::events;
 
 /// How often the thread looks: unplugging the computer is no emergency.
@@ -21,11 +23,47 @@ const POLL: Duration = Duration::from_secs(5);
 /// A sleep shorter than that is no news.
 const SLEPT: Duration = Duration::from_secs(15);
 
-pub(crate) fn call(_call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct KeepAwake {
+    /// What the system shows the user, next to the name of the application.
+    reason: String,
+}
+
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
     Some(match method {
         "status" => status(),
+        "keepAwake" => call
+            .payload::<KeepAwake>()
+            .and_then(|payload| keep_awake(call, payload)),
+        "allowSleep" => {
+            // Dropped once the lock is released.
+            let awake = lock(&call.state().awake).take();
+            drop(awake);
+            Ok(json!({}))
+        }
         _ => return None,
     })
+}
+
+/// Keeps the screen on and the computer awake, replacing what did, if
+/// anything. The previous one goes first: on Windows, dropping it restores
+/// the state it found.
+fn keep_awake(call: &Call<'_>, payload: KeepAwake) -> Result<Value, String> {
+    let previous = lock(&call.state().awake).take();
+    drop(previous);
+
+    let awake = keepawake::Builder::default()
+        .display(true)
+        .idle(true)
+        .reason(payload.reason)
+        .app_name(call.app.package_info().name.clone())
+        .app_reverse_domain(call.app.config().identifier.clone())
+        .create()
+        .map_err(|error| format!("The computer cannot be kept awake: {error}."))?;
+    *lock(&call.state().awake) = Some(awake);
+
+    Ok(json!({}))
 }
 
 /// Starts watching, for the whole life of the application.

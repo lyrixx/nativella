@@ -1,6 +1,6 @@
 # Power
 
-`Nativella\Power` tells whether the computer runs on battery, and how much is left: to put off a heavy sync until it is plugged in, or to warn before a long export.
+`Nativella\Power` tells whether the computer runs on battery, and how much is left: to put off a heavy sync until it is plugged in, or to warn before a long export. It also keeps the computer awake while it works.
 
 ```php
 if ($power->isOnBattery() && $power->battery()?->level < 0.2) {
@@ -14,6 +14,24 @@ if ($power->isOnBattery() && $power->battery()?->level < 0.2) {
 | `battery(): ?Battery` | The battery, null without one (a desktop computer). Several batteries count as one. |
 
 A `Battery` has a `level`, from 0 to 1, a `state` (`BatteryState::Charging`, `Discharging`, `Full`, `Empty`, `NotCharging` when a charge limit holds it on mains, or `Unknown`), and `timeToEmpty` and `timeToFull` in seconds, when the system has an estimate.
+
+## Keeping the computer awake
+
+```php
+$power->keepAwake('Exporting the notes');
+try {
+    $exporter->export($notes);
+} finally {
+    $power->allowSleep();
+}
+```
+
+| Method | |
+|---|---|
+| `keepAwake(string $reason): void` | Keeps the screen on and the computer awake, until `allowSleep()` or until the application quits. `$reason` is what the system shows the user. Calling it again replaces the reason. |
+| `allowSleep(): void` | Lets the computer sleep again. |
+
+The user can still put the computer to sleep, or close its lid. On Linux, Nativella asks the screen saver of the desktop and systemd-logind not to go idle: `systemd-inhibit --list` shows it, with the name of the application and the reason. macOS and Windows go through the same library, untested.
 
 ## Events
 
