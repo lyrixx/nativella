@@ -26,6 +26,13 @@ const LEFT_OUT: &[&str] = &[
     "vendor",
 ];
 
+/// What the application writes as it runs, wherever it puts them: its logs,
+/// and the SQLite databases with their journals. A page would reload itself
+/// forever.
+const WRITTEN: &[&str] = &[
+    ".db", ".log", ".sqlite", ".sqlite3", "-journal", "-shm", "-wal",
+];
+
 /// An editor saves a file in several steps, a build tool writes several
 /// files: the windows reload once they are done.
 const QUIET: Duration = Duration::from_millis(200);
@@ -114,8 +121,8 @@ pub(crate) fn watch(app: &AppHandle, dir: &Path, data_dir: &Path) {
 }
 
 /// The file `event` changed, when it counts: written, created, removed or
-/// renamed, out of the directories left out, and not a file an editor keeps
-/// aside (`.notes.php.swp`, `notes.php~`).
+/// renamed, out of the directories left out, not a file an editor keeps
+/// aside (`.notes.php.swp`, `notes.php~`), nor one the application writes.
 fn changed(event: notify::Result<Event>, left_out: &[PathBuf]) -> Option<PathBuf> {
     let event = event.ok()?;
     if !matches!(
@@ -133,6 +140,7 @@ fn changed(event: notify::Result<Event>, left_out: &[PathBuf]) -> Option<PathBuf
 
         !name.starts_with('.')
             && !name.ends_with('~')
+            && !WRITTEN.iter().any(|suffix| name.ends_with(suffix))
             && !left_out.iter().any(|left_out| path.starts_with(left_out))
     })
 }
@@ -176,6 +184,8 @@ mod tests {
         assert_eq!(modified("/app/storage/framework/views/a.php"), None);
         assert_eq!(modified("/app/src/.Note.php.swp"), None);
         assert_eq!(modified("/app/src/Note.php~"), None);
+        assert_eq!(modified("/app/database/database.sqlite-journal"), None);
+        assert_eq!(modified("/app/app.log"), None);
         assert_eq!(
             changed(
                 event(EventKind::Access(AccessKind::Any), "/app/src/Note.php"),
