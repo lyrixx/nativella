@@ -92,6 +92,7 @@ permissions! {
     Geolocation,
     Haptics,
     Microphone,
+    Nfc,
 }
 
 /// The `extra.nativella` section as written, before defaults apply.

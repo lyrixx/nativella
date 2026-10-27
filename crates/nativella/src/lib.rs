@@ -22,6 +22,8 @@ pub mod ios;
 #[cfg(target_os = "android")]
 mod logcat;
 mod native;
+#[cfg(any(test, all(mobile, feature = "nfc")))]
+mod nfc_tags;
 pub mod notices;
 pub mod project;
 #[cfg(desktop)]
@@ -231,6 +233,13 @@ fn start(
     #[cfg(all(mobile, feature = "haptics"))]
     let builder = if manifest.permissions.contains(&project::Permission::Haptics) {
         builder.plugin(tauri_plugin_haptics::init())
+    } else {
+        builder
+    };
+
+    #[cfg(all(mobile, feature = "nfc"))]
+    let builder = if manifest.permissions.contains(&project::Permission::Nfc) {
+        builder.plugin(native::nfc::plugin())
     } else {
         builder
     };

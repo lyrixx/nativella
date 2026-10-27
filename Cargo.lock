@@ -3185,6 +3185,7 @@ dependencies = [
  "tauri-plugin-geolocation",
  "tauri-plugin-global-shortcut",
  "tauri-plugin-haptics",
+ "tauri-plugin-nfc",
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tauri-plugin-os",
@@ -5748,6 +5749,21 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "tauri-plugin-nfc"
+version = "2.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb6ca2d3b3699b4bf0f1caa2a3ce1863cc6c6296654a45c944215fd025d9f999"
+dependencies = [
+ "log",
+ "serde",
+ "serde_json",
+ "serde_repr",
  "tauri",
  "tauri-plugin",
  "thiserror 2.0.21",

@@ -94,6 +94,7 @@ barcode-scanner = ["dep:tauri-plugin-barcode-scanner"]
 biometrics = ["dep:tauri-plugin-biometric"]
 geolocation = ["dep:tauri-plugin-geolocation"]
 haptics = ["dep:tauri-plugin-haptics"]
+nfc = ["dep:tauri-plugin-nfc"]
 # Needs no permission: an application always has it.
 share = ["dep:tauri-plugin-sharekit"]
 
@@ -108,6 +109,7 @@ tauri-plugin-biometric = { version = "2", optional = true }
 tauri-plugin-fs = "2"
 tauri-plugin-geolocation = { version = "2", optional = true }
 tauri-plugin-haptics = { version = "2", optional = true }
+tauri-plugin-nfc = { version = "2", optional = true }
 tauri-plugin-sharekit = { version = "0.3", optional = true }
 
 # What tao already uses, to read the assets of the APK: the bundle of the

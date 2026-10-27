@@ -19,6 +19,7 @@ use Nativella\Laravel\Facades;
 use Nativella\Laravel\NativellaServiceProvider;
 use Nativella\Menu;
 use Nativella\Nativella;
+use Nativella\Nfc;
 use Nativella\Notification;
 use Nativella\Page;
 use Nativella\Power;
@@ -56,7 +57,7 @@ final class NativellaServiceProviderTest extends TestCase
      */
     public static function provideApis(): iterable
     {
-        foreach ([App::class, BarcodeScanner::class, Biometrics::class, ChildProcess::class, Clipboard::class, Dialog::class, Geolocation::class, GlobalShortcut::class, Haptics::class, Menu::class, Nativella::class, Notification::class, Page::class, Power::class, Screen::class, Secrets::class, Settings::class, Share::class, Shell::class, System::class, Timer::class, Tray::class, Window::class] as $api) {
+        foreach ([App::class, BarcodeScanner::class, Biometrics::class, ChildProcess::class, Clipboard::class, Dialog::class, Geolocation::class, GlobalShortcut::class, Haptics::class, Menu::class, Nativella::class, Nfc::class, Notification::class, Page::class, Power::class, Screen::class, Secrets::class, Settings::class, Share::class, Shell::class, System::class, Timer::class, Tray::class, Window::class] as $api) {
             yield $api => [$api];
         }
     }

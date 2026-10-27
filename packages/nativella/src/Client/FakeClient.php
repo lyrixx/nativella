@@ -34,6 +34,7 @@ final class FakeClient implements Client
         'dialog.saveFile' => ['path' => null],
         'geolocation.currentPosition' => ['position' => null],
         'globalShortcut.isRegistered' => ['registered' => false],
+        'nfc.isAvailable' => ['available' => false],
         'power.status' => ['onBattery' => false, 'battery' => null],
         'screen.all' => ['screens' => []],
         'screen.cursorPosition' => ['x' => 0, 'y' => 0],
