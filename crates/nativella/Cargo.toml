@@ -94,6 +94,8 @@ barcode-scanner = ["dep:tauri-plugin-barcode-scanner"]
 biometrics = ["dep:tauri-plugin-biometric"]
 geolocation = ["dep:tauri-plugin-geolocation"]
 haptics = ["dep:tauri-plugin-haptics"]
+# Needs no permission: an application always has it.
+share = ["dep:tauri-plugin-sharekit"]
 
 [build-dependencies]
 # What build.rs compresses the third-party notices with.
@@ -106,6 +108,7 @@ tauri-plugin-biometric = { version = "2", optional = true }
 tauri-plugin-fs = "2"
 tauri-plugin-geolocation = { version = "2", optional = true }
 tauri-plugin-haptics = { version = "2", optional = true }
+tauri-plugin-sharekit = { version = "0.3", optional = true }
 
 # What tao already uses, to read the assets of the APK: the bundle of the
 # application is one (see src/embedded.rs). jni in the version of tao's, which

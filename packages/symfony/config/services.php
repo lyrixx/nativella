@@ -21,6 +21,7 @@ use Nativella\Power;
 use Nativella\Screen;
 use Nativella\Secrets;
 use Nativella\Settings;
+use Nativella\Share;
 use Nativella\Shell;
 use Nativella\Symfony\EventListener\NativeEventListener;
 use Nativella\System;
@@ -35,7 +36,7 @@ return static function (ContainerConfigurator $container): void {
     $services->set(ExtensionClient::class);
     $services->alias(Client::class, ExtensionClient::class);
 
-    foreach ([App::class, BarcodeScanner::class, Biometrics::class, ChildProcess::class, Clipboard::class, Dialog::class, Geolocation::class, GlobalShortcut::class, Haptics::class, Menu::class, Nativella::class, Notification::class, Page::class, Power::class, Screen::class, Secrets::class, Settings::class, Shell::class, System::class, Timer::class, Tray::class, Window::class] as $api) {
+    foreach ([App::class, BarcodeScanner::class, Biometrics::class, ChildProcess::class, Clipboard::class, Dialog::class, Geolocation::class, GlobalShortcut::class, Haptics::class, Menu::class, Nativella::class, Notification::class, Page::class, Power::class, Screen::class, Secrets::class, Settings::class, Share::class, Shell::class, System::class, Timer::class, Tray::class, Window::class] as $api) {
         $services->set($api)->args([service(Client::class)]);
     }
 

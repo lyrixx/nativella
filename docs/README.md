@@ -41,7 +41,7 @@ Nativella is young and experimental. Linux is the platform it is built and teste
 - [Secrets](secrets.md): tokens and passwords in the keychain of the system.
 - [Timers](timers.md): wake PHP up for periodic work.
 - [Child processes](child-processes.md): start processes, with their output as events.
-- [Phone APIs](phone-apis.md): haptics, geolocation, biometrics and a barcode scanner, on phones.
+- [Phone APIs](phone-apis.md): haptics, geolocation, biometrics, a barcode scanner and the share sheet, on phones.
 - [Shell](shell.md): open URLs and files with the applications of the system.
 - [Screens](screens.md): displays, work areas and the cursor.
 - [System](system.md): the operating system, the locale and the theme.

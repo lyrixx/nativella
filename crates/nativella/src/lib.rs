@@ -235,6 +235,9 @@ fn start(
         builder
     };
 
+    #[cfg(all(mobile, feature = "share"))]
+    let builder = builder.plugin(tauri_plugin_sharekit::init());
+
     #[cfg(target_os = "android")]
     let builder = builder.manage(request_bodies::Bodies::default());
     // What the scripts Nativella injects in the pages call.

@@ -25,6 +25,7 @@ use Nativella\Power;
 use Nativella\Screen;
 use Nativella\Secrets;
 use Nativella\Settings;
+use Nativella\Share;
 use Nativella\Shell;
 use Nativella\System;
 use Nativella\Timer;
@@ -55,7 +56,7 @@ final class NativellaServiceProviderTest extends TestCase
      */
     public static function provideApis(): iterable
     {
-        foreach ([App::class, BarcodeScanner::class, Biometrics::class, ChildProcess::class, Clipboard::class, Dialog::class, Geolocation::class, GlobalShortcut::class, Haptics::class, Menu::class, Nativella::class, Notification::class, Page::class, Power::class, Screen::class, Secrets::class, Settings::class, Shell::class, System::class, Timer::class, Tray::class, Window::class] as $api) {
+        foreach ([App::class, BarcodeScanner::class, Biometrics::class, ChildProcess::class, Clipboard::class, Dialog::class, Geolocation::class, GlobalShortcut::class, Haptics::class, Menu::class, Nativella::class, Notification::class, Page::class, Power::class, Screen::class, Secrets::class, Settings::class, Share::class, Shell::class, System::class, Timer::class, Tray::class, Window::class] as $api) {
             yield $api => [$api];
         }
     }

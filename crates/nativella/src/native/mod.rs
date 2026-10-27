@@ -31,6 +31,8 @@ pub(crate) mod screen;
 #[cfg(desktop)]
 pub(crate) mod secrets;
 pub(crate) mod settings;
+#[cfg(all(mobile, feature = "share"))]
+pub(crate) mod share;
 pub(crate) mod shell;
 pub(crate) mod system;
 pub(crate) mod timer;
@@ -212,6 +214,8 @@ pub(crate) fn call(app: &AppHandle, call: NativeCall<'_>) -> Result<Value, Strin
         #[cfg(desktop)]
         "secrets" => secrets::call(&call, method),
         "settings" => settings::call(&call, method),
+        #[cfg(all(mobile, feature = "share"))]
+        "share" => share::call(&call, method),
         "shell" => shell::call(&call, method),
         "system" => system::call(&call, method),
         "timer" => timer::call(&call, method),
@@ -243,7 +247,13 @@ pub(crate) fn call(app: &AppHandle, call: NativeCall<'_>) -> Result<Value, Strin
 
 /// Keep in sync with the features of Cargo.toml and the permissions of
 /// project.rs.
-const PHONE_DOMAINS: &[&str] = &["barcodeScanner", "biometrics", "geolocation", "haptics"];
+const PHONE_DOMAINS: &[&str] = &[
+    "barcodeScanner",
+    "biometrics",
+    "geolocation",
+    "haptics",
+    "share",
+];
 
 pub(crate) fn unknown(method: &str) -> String {
     format!("Unknown native method \"{method}\".")

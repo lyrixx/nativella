@@ -17,6 +17,7 @@ use Nativella\Geolocation\Accuracy;
 use Nativella\Menu;
 use Nativella\Menu\MenuItem;
 use Nativella\Runtime;
+use Nativella\Share;
 use Nativella\Window;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -140,6 +141,18 @@ final class NoteController extends AbstractController
             $note->pin();
         }
         $this->entityManager->flush();
+
+        return $this->redirectToRoute('note_show', ['id' => $note->getId()]);
+    }
+
+    #[Route('/notes/{id}/share', name: 'note_share', requirements: ['id' => Requirement::DIGITS], methods: ['POST'])]
+    public function share(Note $note, Share $share): Response
+    {
+        if (!Runtime::isMobile()) {
+            throw $this->createNotFoundException('Only phones have a share sheet.');
+        }
+
+        $share->text("{$note->getTitle()}\n\n{$note->getBody()}");
 
         return $this->redirectToRoute('note_show', ['id' => $note->getId()]);
     }

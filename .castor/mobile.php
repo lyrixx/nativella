@@ -40,7 +40,7 @@ const PHP_ANSWERED = '/\[php\] GET \S+ 200 /';
  * crate: the templates have them all. Keep in sync with the features of
  * crates/nativella/Cargo.toml.
  */
-const PHONE_APIS = ['barcode-scanner', 'biometrics', 'geolocation', 'haptics'];
+const PHONE_APIS = ['barcode-scanner', 'biometrics', 'geolocation', 'haptics', 'share'];
 
 /**
  * The template APK first (mobile:android-template), then `nativella
