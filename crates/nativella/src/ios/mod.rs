@@ -445,6 +445,10 @@ fn usage_description(permission: Permission, name: &str) -> Option<(&'static str
             "NSMicrophoneUsageDescription",
             format!("{name} uses the microphone."),
         )),
+        Permission::Nfc => Some((
+            "NFCReaderUsageDescription",
+            format!("{name} reads NFC tags."),
+        )),
     }
 }
 

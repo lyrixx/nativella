@@ -27,7 +27,8 @@ A call that the platform cannot answer throws a `Nativella\Exception\NativeCallE
 | [Pages and JavaScript](javascript.md) | Yes. | Yes. |
 | [Downloads](downloads.md) | Yes. | — |
 | [Phone APIs](phone-apis.md): `Haptics`, `Geolocation`, `Biometrics`, `Share` | — | Android. iOS: untested. |
+| [Phone APIs](phone-apis.md#nfc): `Nfc` | — | Untested: emulators have no NFC. iOS needs an entitlement `nativella ios` does not set. |
 
 ## What there is no API for
 
-There is no PHP API for the camera, the microphone, NFC or push notifications, on any platform: [Phone APIs](phone-apis.md#not-there-yet) says what is missing. [Limitations and roadmap](limitations.md) lists the rest.
+There is no PHP API for the camera, the microphone or push notifications, on any platform: [Phone APIs](phone-apis.md#not-there-yet) says what is missing. [Limitations and roadmap](limitations.md) lists the rest.

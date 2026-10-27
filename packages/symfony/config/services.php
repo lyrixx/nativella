@@ -15,6 +15,7 @@ use Nativella\GlobalShortcut;
 use Nativella\Haptics;
 use Nativella\Menu;
 use Nativella\Nativella;
+use Nativella\Nfc;
 use Nativella\Notification;
 use Nativella\Page;
 use Nativella\Power;
@@ -36,7 +37,7 @@ return static function (ContainerConfigurator $container): void {
     $services->set(ExtensionClient::class);
     $services->alias(Client::class, ExtensionClient::class);
 
-    foreach ([App::class, BarcodeScanner::class, Biometrics::class, ChildProcess::class, Clipboard::class, Dialog::class, Geolocation::class, GlobalShortcut::class, Haptics::class, Menu::class, Nativella::class, Notification::class, Page::class, Power::class, Screen::class, Secrets::class, Settings::class, Share::class, Shell::class, System::class, Timer::class, Tray::class, Window::class] as $api) {
+    foreach ([App::class, BarcodeScanner::class, Biometrics::class, ChildProcess::class, Clipboard::class, Dialog::class, Geolocation::class, GlobalShortcut::class, Haptics::class, Menu::class, Nativella::class, Nfc::class, Notification::class, Page::class, Power::class, Screen::class, Secrets::class, Settings::class, Share::class, Shell::class, System::class, Timer::class, Tray::class, Window::class] as $api) {
         $services->set($api)->args([service(Client::class)]);
     }
 

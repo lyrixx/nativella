@@ -23,6 +23,7 @@ use Nativella\Laravel\Facades\Nativella as NativellaFacade;
 use Nativella\Laravel\Listeners\MigrateOnBootListener;
 use Nativella\Menu;
 use Nativella\Nativella;
+use Nativella\Nfc;
 use Nativella\Notification;
 use Nativella\Page;
 use Nativella\Power;
@@ -59,6 +60,7 @@ final class NativellaServiceProvider extends ServiceProvider
         Haptics::class,
         Menu::class,
         Nativella::class,
+        Nfc::class,
         Notification::class,
         Page::class,
         Power::class,

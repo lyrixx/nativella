@@ -86,7 +86,7 @@ Schemes are lowercase letters, digits, `+`, `-` and `.`, starting with a letter;
 
 ## `permissions`
 
-The [phone APIs](phone-apis.md) the application uses: `barcodeScanner`, `biometrics`, `geolocation`, `haptics`, and what its pages may use of the device: `camera`, `microphone`, and the location, with `geolocation` too. Mobile applications have the phone APIs it lists, and only those: on Android, with the permissions they declare. Computers ignore the phone APIs, but not what the pages may use.
+The [phone APIs](phone-apis.md) the application uses: `barcodeScanner`, `biometrics`, `geolocation`, `haptics`, `nfc`, and what its pages may use of the device: `camera`, `microphone`, and the location, with `geolocation` too. Mobile applications have the phone APIs it lists, and only those: on Android, with the permissions they declare. Computers ignore the phone APIs, but not what the pages may use.
 
 ## The data directory
 

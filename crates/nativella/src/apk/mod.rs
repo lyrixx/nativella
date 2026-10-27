@@ -275,6 +275,7 @@ fn android_permissions(permission: Permission) -> &'static [&'static str] {
             "android.permission.MODIFY_AUDIO_SETTINGS",
             "android.permission.RECORD_AUDIO",
         ],
+        Permission::Nfc => &["android.permission.NFC"],
     }
 }
 
@@ -286,7 +287,8 @@ fn android_features(permission: Permission) -> &'static [&'static str] {
         Permission::Biometrics
         | Permission::Geolocation
         | Permission::Haptics
-        | Permission::Microphone => &[],
+        | Permission::Microphone
+        | Permission::Nfc => &[],
     }
 }
 
@@ -406,6 +408,7 @@ mod tests {
                 "android.permission.VIBRATE",
                 "android.permission.MODIFY_AUDIO_SETTINGS",
                 "android.permission.RECORD_AUDIO",
+                "android.permission.NFC",
             ]
         );
         assert!(removed_permissions(Permission::ALL).is_empty());

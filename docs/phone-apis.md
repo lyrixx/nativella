@@ -1,6 +1,6 @@
 # Phone APIs
 
-Phones can do what computers cannot: vibrate, locate themselves, recognize the fingerprint or the face of their owner, read a barcode with their camera, share with the other applications. Nativella exposes these to PHP, on Android (and on iOS, untested), with Tauri's plugins.
+Phones can do what computers cannot: vibrate, locate themselves, recognize the fingerprint or the face of their owner, read a barcode with their camera or an NFC tag, share with the other applications. Nativella exposes these to PHP, on Android (and on iOS, untested), with Tauri's plugins.
 
 | API | | Permission |
 |---|---|---|
@@ -8,6 +8,7 @@ Phones can do what computers cannot: vibrate, locate themselves, recognize the f
 | `Nativella\Geolocation` | Where the phone is. | `geolocation` |
 | `Nativella\Biometrics` | Fingerprint or face authentication. | `biometrics` |
 | `Nativella\BarcodeScanner` | Barcodes and QR codes, read by the camera. | `barcodeScanner` |
+| `Nativella\Nfc` | NFC tags, held against the phone. | `nfc` |
 | `Nativella\Share` | The share sheet, with a text or a file. | None |
 
 Two more permissions have no API of PHP: `camera` and `microphone` let the [pages](#camera-and-microphone-in-the-pages) use them. `geolocation` lets the [pages](#location-in-the-pages) locate the device too.
@@ -26,7 +27,7 @@ An application asks for the APIs it uses in the `permissions` of its [configurat
 }
 ```
 
-Every application has the plugins of the four, from the template of its platform, but registers only those it asks for. On Android, it keeps only the permissions they declare, location for `geolocation`: an application that never locates the phone does not ask for it. On iOS, its `Info.plist` has the reasons of those it asks for only, which iOS shows the user: Face ID for `biometrics`, the location for `geolocation`, the camera for `barcodeScanner` and `camera`, the microphone for `microphone`.
+Every application has the plugins of the five, from the template of its platform, but registers only those it asks for. On Android, it keeps only the permissions they declare, location for `geolocation`: an application that never locates the phone does not ask for it. On iOS, its `Info.plist` has the reasons of those it asks for only, which iOS shows the user: Face ID for `biometrics`, the location for `geolocation`, the camera for `barcodeScanner` and `camera`, the microphone for `microphone`, NFC for `nfc`.
 
 Where the user must agree, they are asked on the first call, not at install: location and camera, on Android.
 
@@ -130,6 +131,27 @@ On Android, ML Kit reads the codes with a model that ships in the APK: no Google
 
 The call blocks PHP, so make it in a request the page waits for, a link or a form, and redirect once it is done. A `fetch()` gets a 504 after 25 seconds on Android: see [Mobile](mobile.md#limitations).
 
+## NFC
+
+```php
+$tag = $nfc->read();
+
+$tag->id;                    // "04A1B2C3D4E5F6"
+$tag->records[0]->uri();     // "https://notes.example/42"
+$tag->records[1]->text();    // "Shelf B"
+```
+
+| Method | |
+|---|---|
+| `isAvailable(): bool` | Whether the phone has NFC, turned on in its settings. |
+| `read(): Tag` | Waits for a tag to come near the phone, and reads it. Throws a `NativeCallException` when NFC is not available, or when no tag comes within 60 seconds. |
+
+A `Tag` has its `id` in hexadecimal, null when the phone does not tell it, its `technologies` (Android's classes, as `android.nfc.tech.NfcA`, or iOS's families, as `MiFare`) and its `records`, the NDEF message it holds: empty when it holds none. A `Record` has its `format` (`Nfc\TypeNameFormat`), and its `type`, `id` and `payload` as bytes; `text()` and `uri()` read the text and URI records, which most tags hold, and return null for the others.
+
+The call blocks PHP, so make it in a request the page waits for, and tell the user to hold the tag against the phone first: Android shows nothing while it waits. A `fetch()` gets a 504 after 25 seconds on Android: see [Mobile](mobile.md#limitations).
+
+Not tried on a phone: emulators have no NFC, where `isAvailable()` is false. On iOS, reading tags needs an entitlement that `nativella ios` does not set yet. Writing tags is not there yet.
+
 ## Share
 
 ```php
@@ -181,4 +203,4 @@ Without `geolocation` in the `permissions`, the page gets a `PERMISSION_DENIED` 
 
 ## Not there yet
 
-A PHP API for the camera (photos and videos) and the microphone, NFC and push notifications. Tauri has no plugin for the first two: the pages can use them with `getUserMedia()`, see above.
+A PHP API for the camera (photos and videos) and the microphone, writing NFC tags, and push notifications. Tauri has no plugin for the first two: the pages can use them with `getUserMedia()`, see above.

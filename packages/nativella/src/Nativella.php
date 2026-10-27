@@ -24,6 +24,7 @@ final readonly class Nativella
     public GlobalShortcut $globalShortcut;
     public Haptics $haptics;
     public Menu $menu;
+    public Nfc $nfc;
     public Notification $notification;
     public Page $page;
     public Power $power;
@@ -49,6 +50,7 @@ final readonly class Nativella
         $this->globalShortcut = new GlobalShortcut($client);
         $this->haptics = new Haptics($client);
         $this->menu = new Menu($client);
+        $this->nfc = new Nfc($client);
         $this->notification = new Notification($client);
         $this->page = new Page($client);
         $this->power = new Power($client);

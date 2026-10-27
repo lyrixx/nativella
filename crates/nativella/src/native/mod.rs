@@ -21,6 +21,8 @@ pub(crate) mod global_shortcut;
 pub(crate) mod haptics;
 #[cfg(desktop)]
 pub(crate) mod menu;
+#[cfg(all(mobile, feature = "nfc"))]
+pub(crate) mod nfc;
 pub(crate) mod notification;
 pub(crate) mod page;
 #[cfg(target_os = "linux")]
@@ -206,6 +208,8 @@ pub(crate) fn call(app: &AppHandle, call: NativeCall<'_>) -> Result<Value, Strin
         "haptics" if haptics::registered(app) => haptics::call(&call, method),
         #[cfg(desktop)]
         "menu" => menu::call(&call, method),
+        #[cfg(all(mobile, feature = "nfc"))]
+        "nfc" if nfc::registered(app) => nfc::call(&call, method),
         "notification" => notification::call(&call, method),
         "page" => page::call(&call, method),
         #[cfg(desktop)]
@@ -252,6 +256,7 @@ const PHONE_DOMAINS: &[&str] = &[
     "biometrics",
     "geolocation",
     "haptics",
+    "nfc",
     "share",
 ];
 
