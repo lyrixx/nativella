@@ -1,7 +1,7 @@
 //! The launcher icon of an application: the icon of the project, or
 //! Nativella's, drawn for each screen density of the template as `tauri icon`
 //! draws the launcher icons of Android: 48 dp, the image inside a margin of a
-//! twelfth, its corners rounded as much.
+//! twelfth, its corners rounded as much. Linux packages take it whole (deb.rs).
 
 use std::fs;
 use std::io;
@@ -61,7 +61,7 @@ impl Icon {
         })?;
         if image.width().max(image.height()) < LARGEST {
             eprintln!(
-                "Warning: the icon {} is {}×{} pixels, and Android shows it at up to {LARGEST} pixels, blurred: give it 512 pixels or more.",
+                "Warning: the icon {} is {}×{} pixels, and phones and desktops show it at up to {LARGEST} pixels, blurred: give it 512 pixels or more.",
                 path.display(),
                 image.width(),
                 image.height()
@@ -99,32 +99,58 @@ impl Icon {
         let inner = size - 2 * margin;
         let resized = imageops::resize(&self.image, inner, inner, Filter::Lanczos3);
 
-        let to_byte = |value: f32| (value.clamp(0.0, 1.0) * 255.0).round() as u8;
         let mut icon = RgbaImage::new(size, size);
-        for (x, y, &Rgba([red, green, blue, alpha])) in resized.enumerate_pixels() {
-            let opacity = alpha.clamp(0.0, 1.0) * coverage(x, y, inner, margin as f32);
+        for (x, y, &pixel) in resized.enumerate_pixels() {
+            let opacity = pixel[3].clamp(0.0, 1.0) * coverage(x, y, inner, margin as f32);
             if opacity > 0.0 {
-                // Not premultiplied anymore.
-                icon.put_pixel(
-                    x + margin,
-                    y + margin,
-                    Rgba([
-                        to_byte(red / alpha),
-                        to_byte(green / alpha),
-                        to_byte(blue / alpha),
-                        to_byte(opacity),
-                    ]),
-                );
+                icon.put_pixel(x + margin, y + margin, straight(pixel, opacity));
             }
         }
 
-        let mut png = Vec::new();
-        PngEncoder::new_with_quality(&mut png, CompressionType::Best, FilterType::Adaptive)
-            .write_image(icon.as_raw(), size, size, ExtendedColorType::Rgba8)
-            .expect("An image of its own size encodes in memory.");
-
-        png
+        encode(&icon)
     }
+
+    /// The whole icon, `size` pixels square, as a PNG file.
+    #[cfg(target_os = "linux")]
+    pub fn png(&self, size: u32) -> Vec<u8> {
+        let resized = imageops::resize(&self.image, size, size, Filter::Lanczos3);
+
+        let mut icon = RgbaImage::new(size, size);
+        for (x, y, &pixel) in resized.enumerate_pixels() {
+            if pixel[3] > 0.0 {
+                icon.put_pixel(x, y, straight(pixel, pixel[3]));
+            }
+        }
+
+        encode(&icon)
+    }
+}
+
+/// A premultiplied pixel, with the colors not premultiplied anymore and
+/// `opacity`, in bytes.
+fn straight(Rgba([red, green, blue, alpha]): Rgba<f32>, opacity: f32) -> Rgba<u8> {
+    let to_byte = |value: f32| (value.clamp(0.0, 1.0) * 255.0).round() as u8;
+
+    Rgba([
+        to_byte(red / alpha),
+        to_byte(green / alpha),
+        to_byte(blue / alpha),
+        to_byte(opacity),
+    ])
+}
+
+fn encode(icon: &RgbaImage) -> Vec<u8> {
+    let mut png = Vec::new();
+    PngEncoder::new_with_quality(&mut png, CompressionType::Best, FilterType::Adaptive)
+        .write_image(
+            icon.as_raw(),
+            icon.width(),
+            icon.height(),
+            ExtendedColorType::Rgba8,
+        )
+        .expect("An image of its own size encodes in memory.");
+
+    png
 }
 
 /// The image of the PNG file `png`.
@@ -217,6 +243,16 @@ mod tests {
         assert_eq!(*launcher.get_pixel(96, 30), TRANSPARENT);
         assert_eq!(*launcher.get_pixel(96, 96), RED);
         assert_eq!(*launcher.get_pixel(20, 96), RED);
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn the_whole_icon_has_no_margin() {
+        let png = pixels(&icon(&RgbaImage::from_pixel(512, 512, RED)).png(256));
+
+        assert_eq!(png.dimensions(), (256, 256));
+        assert_eq!(*png.get_pixel(0, 0), RED);
+        assert_eq!(*png.get_pixel(255, 255), RED);
     }
 
     #[test]

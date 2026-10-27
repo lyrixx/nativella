@@ -13,6 +13,7 @@ use nativella_lib::{Project, embedded, notices};
 const USAGE: &str = "Usage:
   nativella run [<project-dir>]                    Run a PHP project as a desktop application
   nativella build [<project-dir>] [-o <output>]    Build a standalone executable of the project
+  nativella deb [<project-dir>] [-o <output>]      Build a Debian package of the project (Linux)
   nativella android [<project-dir>] --template <apk> [--key <pem>] [-o <output>]
                                                    Make an Android application (APK) of the project
   nativella ios [<project-dir>] --template <zip> [--certificate <p12> --profile <mobileprovision>] [-o <output>]
@@ -44,6 +45,7 @@ fn main() -> ExitCode {
     match command.as_deref() {
         Some("run") => load(args.next()).map_or_else(|error| fail(&error), run),
         Some("build") => package(args, Package::Executable),
+        Some("deb") => package(args, Package::Deb),
         Some("android") => package(args, Package::Android),
         Some("ios") => package(args, Package::Ios),
         Some("licenses") => licenses(),
@@ -75,6 +77,8 @@ fn run(project: Project) -> ExitCode {
 enum Package {
     /// A standalone executable: this one, with the project appended.
     Executable,
+    /// A Debian package of the standalone executable.
+    Deb,
     /// An Android application: the template APK, with the project.
     Android,
     /// An iOS app: a template app, with the project.
@@ -116,6 +120,7 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
         PathBuf::from("dist").join(match package {
             Package::Executable if cfg!(windows) => format!("{name}.exe"),
             Package::Executable => name,
+            Package::Deb => deb_name(&project),
             Package::Android => format!("{name}.apk"),
             // Signed for devices, or for the simulator.
             Package::Ios if certificate.is_some() => format!("{name}.ipa"),
@@ -132,6 +137,7 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
     let result = match package {
         Package::Executable => embedded::build(&project, &output)
             .and_then(|local_overrides| write_notices(&output).map(|()| local_overrides)),
+        Package::Deb => deb(&project, &output),
         Package::Android => android(&project, template.as_deref(), key.as_deref(), &output),
         Package::Ios => ios(
             &project,
@@ -155,6 +161,44 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
         }
         Err(error) => fail(&format!("The packaging failed: {error}")),
     }
+}
+
+/// `notes_1.2.0_amd64.deb`, as Debian names its packages.
+#[cfg(target_os = "linux")]
+fn deb_name(project: &Project) -> String {
+    let architecture = nativella_lib::deb::architecture().unwrap_or("unknown");
+
+    format!(
+        "{}_{}_{architecture}.deb",
+        nativella_lib::deb::package_name(&project.manifest),
+        project.manifest.version
+    )
+}
+
+#[cfg(not(target_os = "linux"))]
+fn deb_name(_project: &Project) -> String {
+    String::new()
+}
+
+/// The package of `project`. Returns the local overrides it left out.
+#[cfg(target_os = "linux")]
+fn deb(project: &Project, output: &Path) -> io::Result<Vec<String>> {
+    if notices::text()?.is_none() {
+        eprintln!(
+            "Warning: this nativella is a development build, linked to the PHP of this machine: the package will not run elsewhere. Build the packages you distribute with a release, or with castor nativella:build."
+        );
+    }
+
+    nativella_lib::deb::build(project, output)
+}
+
+/// The executable is a copy of this one: a package of Linux holds a
+/// nativella of Linux.
+#[cfg(not(target_os = "linux"))]
+fn deb(_project: &Project, _output: &Path) -> io::Result<Vec<String>> {
+    Err(io::Error::other(
+        "Debian packages are built on Linux, with the nativella of Linux.",
+    ))
 }
 
 /// Prints the third-party notices this executable carries.

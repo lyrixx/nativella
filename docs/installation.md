@@ -43,7 +43,7 @@ The executable carries PHP 8.5, linked statically, built with [static-php-cli](h
 nativella --version
 ```
 
-`nativella --help` lists the commands: `run` opens a project in a window, `build` makes a [standalone executable](building.md) of it, `android` and `ios` make an [Android or iOS application](mobile.md) of it, `licenses` prints the [licenses](building.md#licenses) of the software the executable contains, PHP and its libraries included.
+`nativella --help` lists the commands: `run` opens a project in a window, `build` makes a [standalone executable](building.md) of it, `deb` a [Debian package](building.md#debian-packages) on Linux, `android` and `ios` make an [Android or iOS application](mobile.md) of it, `licenses` prints the [licenses](building.md#licenses) of the software the executable contains, PHP and its libraries included.
 
 ## The PHP package
 

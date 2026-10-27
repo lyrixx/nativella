@@ -152,7 +152,7 @@ nativella build hello
 ./dist/hello
 ```
 
-`dist/hello` is one executable carrying the whole project; `dist/` itself is never packed, so building from the project directory works too. [Building a standalone app](building.md) says what goes in, and what the machine still needs.
+`dist/hello` is one executable carrying the whole project; `dist/` itself is never packed, so building from the project directory works too. On Linux, `nativella deb hello` makes a Debian package of it. [Building a standalone app](building.md) says what goes in, and what the machine still needs.
 
 ## Where to go next
 
