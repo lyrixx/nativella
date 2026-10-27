@@ -1,6 +1,7 @@
 //! What the pages may ask of the webview: the camera and the microphone, for
-//! `getUserMedia()`, when the application asks for the `camera` and
-//! `microphone` permissions. Nothing else is decided here.
+//! `getUserMedia()`, and the location, for `navigator.geolocation`, when the
+//! application asks for the `camera`, `microphone` and `geolocation`
+//! permissions. Nothing else is decided here.
 //!
 //! On a phone, allowing is the start: the webview then asks the user, with
 //! the question of the system (Android's runtime permissions, iOS's alert),
@@ -16,6 +17,7 @@ use crate::project::Permission;
 pub(crate) fn respond(asked: &[Permission], kind: PermissionKind) -> PermissionResponse {
     let needed = match kind {
         PermissionKind::Camera => Permission::Camera,
+        PermissionKind::Geolocation => Permission::Geolocation,
         PermissionKind::Microphone => Permission::Microphone,
         _ => return PermissionResponse::Default,
     };
@@ -47,6 +49,10 @@ mod tests {
             respond(&[], PermissionKind::Microphone),
             PermissionResponse::Deny
         );
+        assert_eq!(
+            respond(&[Permission::Geolocation], PermissionKind::Geolocation),
+            PermissionResponse::Allow
+        );
     }
 
     #[test]
@@ -54,7 +60,6 @@ mod tests {
         let asked = [Permission::Camera, Permission::Microphone];
 
         for kind in [
-            PermissionKind::Geolocation,
             PermissionKind::Notifications,
             PermissionKind::DisplayCapture,
         ] {

@@ -9,7 +9,7 @@ Phones can do what computers cannot: vibrate, locate themselves, recognize the f
 | `Nativella\Biometrics` | Fingerprint or face authentication. | `biometrics` |
 | `Nativella\BarcodeScanner` | Barcodes and QR codes, read by the camera. | `barcodeScanner` |
 
-Two more permissions have no API of PHP: `camera` and `microphone` let the [pages](#camera-and-microphone-in-the-pages) use them.
+Two more permissions have no API of PHP: `camera` and `microphone` let the [pages](#camera-and-microphone-in-the-pages) use them. `geolocation` lets the [pages](#location-in-the-pages) locate the device too.
 
 ## Permissions
 
@@ -141,6 +141,19 @@ document.querySelector('video').srcObject = stream;
 A page that asks for what the application did not ask for gets a `NotAllowedError`. The user is asked on the first use, as in a browser: by Android for the camera and the microphone, by iOS with the reason of the `Info.plist`. Computers have no question: Linux's webview lets the page use the devices once the application asked for them, and nothing tried it on macOS or Windows.
 
 These two are not phone APIs: they work on computers too, and need no PHP.
+
+## Location in the pages
+
+`geolocation` lets the pages locate the device themselves, with `navigator.geolocation`, on computers too:
+
+```js
+navigator.geolocation.getCurrentPosition(
+    (position) => showOnMap(position.coords.latitude, position.coords.longitude),
+    (error) => console.warn(error.message),
+);
+```
+
+Without `geolocation` in the `permissions`, the page gets a `PERMISSION_DENIED` error. With it, the system has the last word: Linux's webview asks GeoClue, the location service of the desktop, which fails with `POSITION_UNAVAILABLE` when the location services are off in the settings. Nothing tried it on Android, iOS, macOS or Windows yet.
 
 ## In the demos
 
