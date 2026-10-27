@@ -33,7 +33,7 @@ Nativella is experimental. This page lists what does not work, what is untested 
 - **Redirect loops.** A `fetch()` gives up after 20 redirects, but a page that redirects to itself keeps reloading, where a browser would stop with an error.
 - **Absolute URLs.** PHP believes it is served from `http://localhost/`. The runtime rewrites such URLs in the URL attributes of HTML and the `url()` of CSS that PHP answers, and brings back the requests `fetch()`, `XMLHttpRequest` and `EventSource` send there, not more: an absolute URL in a static file of `public/`, or one a script uses otherwise (the `src` of an image), still points to where nothing listens. Prefer relative URLs there.
 - **Static files are read whole**, by the thread that receives the request, and `Range` requests are not supported: fine for styles, scripts and images, not for a large video.
-- **Uploads are untested.** `$_FILES` goes through the same path as any POST body, but nobody has tried it yet. [File dialogs](dialogs.md) give PHP the path of a file instead.
+- **Uploads break on Linux.** wry, the webview library of Tauri, stops reading the body of a request at the first short read: a form with a file reaches PHP cut after its first part, and `$_FILES` holds `UPLOAD_ERR_PARTIAL`. The fix is proposed upstream, [tauri-apps/wry#1911](https://github.com/tauri-apps/wry/pull/1911). Until it ships, [file dialogs](dialogs.md) give PHP the path of a file instead. Untested elsewhere.
 
 ## The native side
 

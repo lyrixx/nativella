@@ -27,9 +27,11 @@ A call that the platform cannot answer throws a `Nativella\Exception\NativeCallE
 | [Pages and JavaScript](javascript.md) | Yes. | Yes. |
 | [Downloads](downloads.md) | Yes. | — |
 | [Updates](updates.md) | Standalone executables. Linux tested. | — |
-| [Phone APIs](phone-apis.md): `Haptics`, `Geolocation`, `Biometrics`, `Share` | — | Android. iOS: untested. |
+| [Phone APIs](phone-apis.md): `Haptics`, `Geolocation`, `Biometrics`, `BarcodeScanner`, `Share` | — | Android. iOS: untested. |
 | [Phone APIs](phone-apis.md#nfc): `Nfc` | — | Untested: emulators have no NFC. iOS needs an entitlement `nativella ios` does not set. |
+| The camera and the microphone, for the pages, with `getUserMedia()` | Yes, with the `camera` and `microphone` [permissions](configuration.md#permissions). Tried on Linux only. | Yes, with the same permissions. |
+| The location, for the pages, with `navigator.geolocation` | With the `geolocation` [permission](configuration.md#permissions). Tried on Linux only. | Not tried. |
 
 ## What there is no API for
 
-There is no PHP API for the camera, the microphone or push notifications, on any platform: [Phone APIs](phone-apis.md#not-there-yet) says what is missing. [Limitations and roadmap](limitations.md) lists the rest.
+There is no PHP API for photos and videos, the microphone or push notifications, on any platform: [Phone APIs](phone-apis.md#not-there-yet) says what a page can do in the meantime. [Limitations and roadmap](limitations.md) lists the rest.
