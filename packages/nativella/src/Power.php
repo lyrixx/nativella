@@ -5,9 +5,9 @@ namespace Nativella;
 use Nativella\Power\Battery;
 
 /**
- * The battery and the power source of the computer. Events tell when they
- * change: Event\PowerSourceChanged, and Event\PowerResumed when the computer
- * wakes from sleep. Desktop only.
+ * The battery and the power source of the computer, and keeping it awake.
+ * Events tell when they change: Event\PowerSourceChanged, and
+ * Event\PowerResumed when the computer wakes from sleep. Desktop only.
  */
 final readonly class Power
 {
@@ -30,5 +30,21 @@ final readonly class Power
         $battery = $this->client->call('power.status')['battery'];
 
         return null === $battery ? null : Battery::fromArray($battery);
+    }
+
+    /**
+     * Keeps the screen on and the computer awake until allowSleep(), or until
+     * the application quits: during a presentation, a long export.
+     *
+     * @param string $reason what the system shows the user, as "Exporting the notes"
+     */
+    public function keepAwake(string $reason): void
+    {
+        $this->client->call('power.keepAwake', ['reason' => $reason]);
+    }
+
+    public function allowSleep(): void
+    {
+        $this->client->call('power.allowSleep');
     }
 }

@@ -73,6 +73,9 @@ pub(crate) struct State {
     pub(crate) shortcuts: Mutex<HashMap<u32, String>>,
     #[cfg(desktop)]
     pub(crate) tray: Mutex<Option<tauri::tray::TrayIcon<Wry>>>,
+    /// What keeps the computer awake, until dropped.
+    #[cfg(desktop)]
+    pub(crate) awake: Mutex<Option<keepawake::KeepAwake>>,
 }
 
 impl State {
@@ -97,6 +100,8 @@ impl State {
             shortcuts: Mutex::default(),
             #[cfg(desktop)]
             tray: Mutex::default(),
+            #[cfg(desktop)]
+            awake: Mutex::default(),
         }
     }
 

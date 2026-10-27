@@ -33,6 +33,20 @@ final class PowerTest extends TestCase
         $this->assertNull($power->battery());
     }
 
+    public function testKeepAwakeGivesTheReason(): void
+    {
+        $client = new FakeClient();
+        $power = new Power($client);
+
+        $power->keepAwake('Exporting the notes');
+        $power->allowSleep();
+
+        $this->assertSame([
+            ['method' => 'power.keepAwake', 'payload' => ['reason' => 'Exporting the notes']],
+            ['method' => 'power.allowSleep', 'payload' => []],
+        ], $client->calls());
+    }
+
     public function testTheEventsOfThePower(): void
     {
         $this->assertEquals(new PowerSourceChanged(true), EventFactory::create('power.sourceChanged', ['onBattery' => true]));
