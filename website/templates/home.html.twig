@@ -17,7 +17,7 @@
     {slug: 'secrets', name: 'Secrets', description: 'Tokens and passwords in the keychain of the system, encrypted by it.', example: "$secrets->get('token')"},
     {slug: 'timers', name: 'Timers', description: 'Wake PHP up for periodic work: a sync, a cleanup, a reminder.', example: "$timer->every('sync', 300)"},
     {slug: 'child-processes', name: 'Child processes', description: 'Start a worker or a tool. Its output and its end come back as events.', example: 'ChildProcessOutput $event'},
-    {slug: 'power', name: 'Power', description: 'Battery level, power source, and an event when the computer wakes up.', example: '$power->isOnBattery()'},
+    {slug: 'power', name: 'Power', description: 'Battery level, power source, an event when the computer wakes up, and keeping it awake.', example: '$power->isOnBattery()'},
     {slug: 'shell', name: 'Shell', description: 'Open URLs in the browser, files with their application, folders in the file manager.', example: '$shell->openUrl($url)'},
     {slug: 'screens', name: 'Screens', description: 'Displays, work areas, scale factors and the cursor.', example: '$screen->primary()'},
     {slug: 'system', name: 'System', description: 'The operating system, its locale, and the light or dark theme.', example: '$system->theme()'},
@@ -26,9 +26,9 @@
     {slug: 'lifecycle', name: 'Native events', description: 'Menu clicks, shortcuts, dropped files, focus and theme changes, as typed objects.', example: 'MenuItemClicked $event'},
     {slug: 'database', name: 'Database', description: 'SQLite in the data directory, migrated when the app starts.', example: 'NATIVELLA_DATA_DIR'},
     {slug: 'configuration', name: 'Deep links', description: 'notes://42 in a browser or a mail opens the app, and PHP gets the URL.', example: 'AppUrlsOpened $event'},
-    {slug: 'building', name: 'Standalone build', description: 'One executable that carries your whole project, and its PHP.', example: 'nativella build notes'},
+    {slug: 'building', name: 'Standalone build', description: 'One executable that carries your whole project and its PHP, a Debian package of it, and updates you sign.', example: 'nativella build notes'},
     {slug: 'mobile', name: 'Android and iOS', description: 'The same project in an APK or an iOS app, experimentally.', example: 'castor mobile:android symfony'},
-    {slug: 'phone-apis', name: 'Phone APIs', description: 'Vibrations, the location of the phone, fingerprint and face authentication, barcodes.', example: "$biometrics->authenticate('Unlock')"},
+    {slug: 'phone-apis', name: 'Phone APIs', description: 'Vibrations, the location of the phone, fingerprint and face authentication, barcodes, NFC tags, the share sheet.', example: "$biometrics->authenticate('Unlock')"},
 ] %}
 <main id="content">
     <section class="hero">
@@ -439,10 +439,11 @@
                     <h3>Works today</h3>
                     <ul>
                         <li>Symfony, Laravel and plain PHP, front controller untouched</li>
-                        <li>Forms, sessions, cookies and redirects</li>
-                        <li>Twenty native APIs, nineteen native events</li>
+                        <li>Forms, sessions, cookies, redirects and downloads</li>
+                        <li>Twenty-four native APIs, twenty-two native events</li>
                         <li>SQLite in the data directory, migrated at boot</li>
-                        <li>A single executable carrying the project and its own PHP</li>
+                        <li>A single executable carrying the project and its own PHP, which updates itself</li>
+                        <li>Debian packages, on Linux</li>
                         <li>Android, experimentally: the three demos, in arm64 APKs</li>
                         <li>iOS, experimentally: the Symfony demo, in the simulator</li>
                     </ul>
@@ -453,7 +454,9 @@
                         <li>macOS: no window opened yet; Windows: never built; iOS: no device</li>
                         <li>One PHP thread: a dialog holds back every other request</li>
                         <li>No worker mode: the framework boots on every request</li>
-                        <li>Installers, code signing and updates</li>
+                        <li>File uploads on Linux, until a fix of the webview library ships</li>
+                        <li>Installers for macOS and Windows, code signing</li>
+                        <li>No PHP API for photos or the microphone: pages use <code>getUserMedia()</code></li>
                         <li>No screen readers on Linux, to dodge a WebKitGTK crash</li>
                     </ul>
                 </div>
