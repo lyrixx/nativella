@@ -55,6 +55,10 @@ use App\Controller\SnippetController;
                                 <button type="submit">Copy</button>
                             </form>
                         <?php endif ?>
+                        <?php /* Phones save no download yet. */ ?>
+                        <?php if (!$isMobile): ?>
+                            <a class="button" href="/snippets/<?= $snippet->id ?>/download">Download</a>
+                        <?php endif ?>
                         <?php /* Nativella asks with a native dialog, a browser with confirm(). */ ?>
                         <form method="post" action="/snippets/<?= $snippet->id ?>/delete"<?php if (!$isNative): ?> data-confirm="<?= $this->e(sprintf(SnippetController::DELETE_QUESTION, $snippet->title)) ?>"<?php endif ?>>
                             <input type="hidden" name="q" value="<?= $this->e($query) ?>">

@@ -51,6 +51,7 @@ Every [native event](lifecycle.md#native-events) reaches the pages too, before P
 | `nativella:app.reopened` | `{args, cwd}` |
 | `nativella:window.focused`, `nativella:window.blurred`, `nativella:window.closed` | `{window}` |
 | `nativella:window.themeChanged` | `{window, theme}` |
+| `nativella:window.downloaded` | `{window, path}` |
 | `nativella:window.dragEntered` | `{window, paths}` |
 | `nativella:window.dragLeft` | `{window}` |
 | `nativella:window.filesDropped` | `{window, paths}` |

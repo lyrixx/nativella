@@ -89,6 +89,18 @@ final readonly class SnippetController
         return Response::redirect('/');
     }
 
+    public function download(Request $request): Response
+    {
+        $snippet = $this->repository->find($request->id());
+        if (null === $snippet) {
+            return $this->notFound();
+        }
+
+        $fileName = str_replace(['/', '\\'], '-', $snippet->title).'.txt';
+
+        return Response::download($snippet->content, $fileName, 'text/plain; charset=UTF-8');
+    }
+
     public function delete(Request $request): Response
     {
         $snippet = $this->repository->find($request->id());

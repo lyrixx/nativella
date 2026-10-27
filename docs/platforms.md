@@ -25,6 +25,7 @@ A call that the platform cannot answer throws a `Nativella\Exception\NativeCallE
 | [System](system.md) | Yes. | Yes. |
 | [Power](power.md) | Yes. | — |
 | [Pages and JavaScript](javascript.md) | Yes. | Yes. |
+| [Downloads](downloads.md) | Yes. | — |
 | [Phone APIs](phone-apis.md): `Haptics`, `Geolocation`, `Biometrics` | — | Android. iOS: untested. |
 
 ## What there is no API for

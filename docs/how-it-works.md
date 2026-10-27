@@ -51,6 +51,7 @@ Serving a web application through a custom scheme, rather than over HTTP, works 
 3. **No `Sec-Fetch-*` headers.** Nothing tells a navigation from a `fetch()`, except `Upgrade-Insecure-Requests`, which navigations carry and `fetch()` never sends. That is what the runtime goes by.
 4. **No `Host` header.** The runtime sets `HTTP_HOST` to `localhost`, the host of the URL.
 5. **A crash in the accessibility bridge.** WebKitGTK 2.52, on Ubuntu 26.04, segfaults in the AT-SPI bridge as soon as a page loads, with or without PHP: [`examples/plain.rs`](../crates/nativella/examples/plain.rs) reproduces it with a plain Tauri window. `NO_AT_BRIDGE=1` avoids it, at the cost of screen readers. Nativella sets it on Linux, unless you set it yourself.
+6. **No downloads.** WebKitGTK cannot download from a custom scheme: it drops an attachment, and fails a link with a `download` attribute without a request. Nativella saves them itself, and answers the webview an empty response of a type it cannot show, so that it stays on the page: a `204 No Content`, which keeps the page over HTTP, shows an empty one on a custom scheme. See [Downloads](downloads.md).
 
 ## What PHP needed
 

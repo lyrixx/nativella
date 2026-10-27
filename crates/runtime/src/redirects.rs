@@ -22,7 +22,7 @@ pub(crate) enum Next {
 
 /// WebKit sends no `Sec-Fetch-Mode` to a custom scheme, but navigations carry
 /// `Upgrade-Insecure-Requests` and `fetch()` never does.
-pub(crate) fn is_navigation(request: &Request<Vec<u8>>) -> bool {
+pub fn is_navigation(request: &Request<Vec<u8>>) -> bool {
     request.headers().contains_key("upgrade-insecure-requests")
 }
 

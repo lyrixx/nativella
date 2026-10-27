@@ -46,6 +46,7 @@ The runtime marks it with `$_SERVER['NATIVELLA_INTERNAL'] = '1'`, which a page c
 | `window.blurred` | `WindowBlurred` | `window` | A window lost the focus. |
 | `window.closed` | `WindowClosed` | `window` | A window was closed. |
 | `window.themeChanged` | `WindowThemeChanged` | `window`, `theme` | The theme of the system changed between light and dark. |
+| `window.downloaded` | `WindowDownloaded` | `window`, `path` | A [download](downloads.md) was saved where the user chose. |
 | `window.dragEntered` | `WindowDragEntered` | `window`, `paths` | Files dragged from the system entered a window. |
 | `window.dragLeft` | `WindowDragLeft` | `window` | They left it without being dropped. |
 | `window.filesDropped` | `WindowFilesDropped` | `window`, `paths` | Files from the system were dropped on a window. |
@@ -53,7 +54,7 @@ The runtime marks it with `$_SERVER['NATIVELLA_INTERNAL'] = '1'`, which a page c
 | `tray.clicked` | `TrayClicked` | `button` | The tray icon was clicked. Not on Linux. |
 | `globalShortcut.pressed` | `GlobalShortcutPressed` | `accelerator` | A [global shortcut](global-shortcuts.md) was pressed. |
 
-All the classes live in `Nativella\Event`. `window` is a window label, `theme` a `Nativella\System\Theme`, `paths` a list of absolute paths, `checked` the new state of a checkbox item (null for other items), `button` one of `left`, `right` and `middle`.
+All the classes live in `Nativella\Event`. `window` is a window label, `theme` a `Nativella\System\Theme`, `paths` a list of absolute paths, `path` an absolute path, `checked` the new state of a checkbox item (null for other items), `button` one of `left`, `right` and `middle`.
 
 An event this version of the package does not know arrives as a `NativeEvent`, with its `name` and its raw `payload`: a newer runtime can add events without breaking an older application.
 

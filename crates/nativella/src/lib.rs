@@ -11,6 +11,8 @@ mod absolute_urls;
 pub mod apk;
 #[cfg(any(test, target_os = "android"))]
 mod deadline;
+#[cfg(desktop)]
+mod downloads;
 pub mod embedded;
 mod events;
 #[cfg(desktop)]
@@ -188,7 +190,8 @@ fn start(
                 .build(),
         )
         .plugin(tauri_plugin_window_state::Builder::new().build())
-        .on_menu_event(native::menu::on_menu_event);
+        .on_menu_event(native::menu::on_menu_event)
+        .manage(downloads::Pending::default());
 
     // Reads the files picked in dialogs (content URIs), see native/dialog.rs.
     #[cfg(mobile)]
@@ -268,6 +271,13 @@ fn start(
                 return;
             }
             let respond = move |response| responder.respond(response);
+            #[cfg(desktop)]
+            let respond = downloads::intercept(
+                context.app_handle(),
+                context.webview_label(),
+                &request,
+                respond,
+            );
             #[cfg(target_os = "android")]
             let respond = deadline::guard(&request, page, respond);
             context

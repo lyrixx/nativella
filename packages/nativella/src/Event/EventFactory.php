@@ -38,6 +38,7 @@ final class EventFactory
             'tray.clicked' => new TrayClicked($payload['button']),
             'window.blurred' => new WindowBlurred($payload['window']),
             'window.closed' => new WindowClosed($payload['window']),
+            'window.downloaded' => new WindowDownloaded($payload['window'], $payload['path']),
             'window.dragEntered' => new WindowDragEntered($payload['window'], $payload['paths']),
             'window.dragLeft' => new WindowDragLeft($payload['window']),
             'window.filesDropped' => new WindowFilesDropped($payload['window'], $payload['paths']),

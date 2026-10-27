@@ -109,6 +109,7 @@ The size and position are null when the system does not report them.
 | `WindowBlurred` | The window lost the focus. |
 | `WindowClosed` | The window was closed. |
 | `WindowThemeChanged` | The system switched between light and dark: `$event->theme`. |
+| `WindowDownloaded` | A [download](downloads.md) of the window was saved: `$event->path`, absolute. |
 | `WindowDragEntered` | Files dragged from the system entered the window: `$event->paths`. |
 | `WindowDragLeft` | They left it without being dropped. |
 | `WindowFilesDropped` | Files were dropped on the window: `$event->paths`, absolute. |

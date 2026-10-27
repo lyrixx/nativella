@@ -337,6 +337,8 @@ fn with_desktop_options<'a>(
     }
 
     builder
+        .initialization_script(crate::downloads::SCRIPT)
+        .on_download(crate::downloads::on_download)
 }
 
 #[cfg(mobile)]
