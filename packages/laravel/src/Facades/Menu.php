@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Facade;
  *
  * @method static void set(\Nativella\Menu\MenuItem ...$items)
  * @method static void remove()
+ * @method static void update(string $id, ?string $label = null, ?bool $enabled = null, ?bool $checked = null)
  * @method static void popup(\Nativella\Menu\MenuItem ...$items)
  *
  * @see \Nativella\Menu
