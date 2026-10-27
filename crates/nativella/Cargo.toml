@@ -45,6 +45,7 @@ des = "0.8"
 hmac = "0.12"
 image = { version = "0.25", default-features = false, features = ["png"] }
 keepawake = "0.6"
+minisign-verify = "0.3"
 notify = "8"
 p256 = "0.14"
 pkcs12 = { version = "0.1", features = ["kdf"] }
@@ -52,6 +53,7 @@ pkcs5 = { version = "0.7", features = ["alloc", "pbes2", "sha1-insecure"] }
 plist = "1"
 rc2 = "0.8"
 rsa = { version = "0.9", features = ["sha2"] }
+semver = "1"
 sha1 = "0.10"
 sha2 = "0.11"
 starship-battery = "0.12"
@@ -61,6 +63,10 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tauri-plugin-window-state = "2"
 trash = "5"
+# What the updater fetches the releases with (src/native/updater.rs), with
+# the certificates of the Mozilla root store: the system has none to give
+# on some Linux distributions.
+ureq = { version = "3", default-features = false, features = ["rustls"] }
 x509-cert = "0.2"
 
 [target.'cfg(unix)'.dependencies]

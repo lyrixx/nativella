@@ -367,6 +367,7 @@ fn start(
                 project.dir.clone(),
                 data_dir,
                 project.manifest.window.clone(),
+                project.manifest.updates.clone(),
             ));
             // Before PHP: it keeps the handlers it finds and calls them, a
             // default action otherwise, which would kill the application.

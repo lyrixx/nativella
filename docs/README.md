@@ -25,6 +25,7 @@ Nativella is young and experimental. Linux is the platform it is built and teste
 - [Downloads](downloads.md): attachments and `download` links, saved where the user chooses.
 - [Testing](testing.md): the fake client, and running the application outside Nativella.
 - [Building a standalone app](building.md): `nativella build`, and what ships in the executable.
+- [Updates](updates.md): standalone executables that update themselves from your releases.
 - [Mobile](mobile.md): `nativella android` and `nativella ios`, what changes on a phone, what is tested.
 
 ## Native APIs

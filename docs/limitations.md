@@ -44,7 +44,7 @@ Nativella is experimental. This page lists what does not work, what is untested 
 ## Distribution
 
 - **A fixed PHP.** The executable carries [the PHP of the `nativella` command](building.md#the-php-inside), and an Android application the one of its template, with the same extensions: those of the build. It has no `php.ini`.
-- **Few installers.** Linux has [Debian packages](building.md#debian-packages); no `.dmg` or `.msi` yet, no code signing, no updates.
+- **Few installers.** Linux has [Debian packages](building.md#debian-packages); no `.dmg` or `.msi` yet, no code signing. Standalone executables [update themselves](updates.md).
 - **No secrets.** Everything in the project ships, readable by anyone who has the executable.
 
 ## Roadmap
@@ -55,7 +55,7 @@ Next:
 - **ZTS and several PHP threads**, so that a slow request or a dialog does not hold back the others.
 - **macOS and Windows**: build, test, fix.
 - **Extensions and `php.ini`**: let an application pick the extensions of its PHP, to add one or to leave intl and the data of ICU out of a smaller executable, and its settings.
-- **Installers**: `.dmg` and `.msi`, and updates.
+- **Installers**: `.dmg` and `.msi`.
 - **Mobile**: more [phone APIs](phone-apis.md) (photos and videos, push notifications), an iOS app tried on a device, the JIT of PCRE on Android. See [Mobile](mobile.md).
 
 Found something that is not on this page? [Open an issue](https://github.com/lyrixx/nativella/issues).

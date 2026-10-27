@@ -93,7 +93,7 @@ It has the extensions a Symfony, Laravel or Doctrine application needs (bcmath, 
 Android and iOS applications carry the same PHP, with the same extensions, built for the phone: see [PHP for the phone](mobile.md#php-for-the-phone).
 
 > [!NOTE]
-> Linux has [Debian packages](#debian-packages). Other installers (`.dmg`, `.msi`), code signing and updates are not there yet. See [Limitations and roadmap](limitations.md#distribution).
+> Linux has [Debian packages](#debian-packages). Other installers (`.dmg`, `.msi`) and code signing are not there yet; standalone executables [update themselves](updates.md). See [Limitations and roadmap](limitations.md#distribution).
 
 ## Debian packages
 

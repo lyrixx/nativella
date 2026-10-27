@@ -36,6 +36,7 @@ final readonly class Nativella
     public System $system;
     public Timer $timer;
     public Tray $tray;
+    public Updater $updater;
     public Window $window;
 
     public function __construct(Client $client)
@@ -62,6 +63,7 @@ final readonly class Nativella
         $this->system = new System($client);
         $this->timer = new Timer($client);
         $this->tray = new Tray($client);
+        $this->updater = new Updater($client);
         $this->window = new Window($client);
     }
 

@@ -57,6 +57,8 @@ Every [native event](lifecycle.md#native-events) reaches the pages too, before P
 | `nativella:window.filesDropped` | `{window, paths}` |
 | `nativella:menu.itemClicked` | `{id, checked}` |
 | `nativella:tray.clicked` | `{button}` |
+| `nativella:updater.installed` | `{version}` |
+| `nativella:updater.failed` | `{version, message}` |
 | `nativella:globalShortcut.pressed` | `{accelerator}` |
 
 Every window gets every event: compare `detail.window` with the label of the window when it matters. A page knows its own label if PHP prints it, from `Nativella\Runtime::window()`:

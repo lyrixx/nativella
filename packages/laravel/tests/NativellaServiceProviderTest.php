@@ -31,6 +31,7 @@ use Nativella\Shell;
 use Nativella\System;
 use Nativella\Timer;
 use Nativella\Tray;
+use Nativella\Updater;
 use Nativella\Window;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -57,7 +58,7 @@ final class NativellaServiceProviderTest extends TestCase
      */
     public static function provideApis(): iterable
     {
-        foreach ([App::class, BarcodeScanner::class, Biometrics::class, ChildProcess::class, Clipboard::class, Dialog::class, Geolocation::class, GlobalShortcut::class, Haptics::class, Menu::class, Nativella::class, Nfc::class, Notification::class, Page::class, Power::class, Screen::class, Secrets::class, Settings::class, Share::class, Shell::class, System::class, Timer::class, Tray::class, Window::class] as $api) {
+        foreach ([App::class, BarcodeScanner::class, Biometrics::class, ChildProcess::class, Clipboard::class, Dialog::class, Geolocation::class, GlobalShortcut::class, Haptics::class, Menu::class, Nativella::class, Nfc::class, Notification::class, Page::class, Power::class, Screen::class, Secrets::class, Settings::class, Share::class, Shell::class, System::class, Timer::class, Tray::class, Updater::class, Window::class] as $api) {
             yield $api => [$api];
         }
     }

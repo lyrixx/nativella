@@ -10,7 +10,8 @@
 //!         "icon": "assets/icon.png",
 //!         "window": { "title": "Notes", "width": 1000, "height": 700 },
 //!         "deepLinks": ["notes"],
-//!         "permissions": ["haptics"]
+//!         "permissions": ["haptics"],
+//!         "updates": { "endpoint": "https://notes.example/latest.json", "publicKey": "…" }
 //!     }
 //! }
 //! ```
@@ -55,6 +56,21 @@ pub struct Manifest {
     /// and only them.
     #[serde(default)]
     pub permissions: Vec<Permission>,
+    /// Where standalone executables find their updates.
+    #[serde(default)]
+    pub updates: Option<Updates>,
+}
+
+/// Where the application publishes its releases, and the key that signs
+/// them: see native/updater.rs.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Updates {
+    /// The URL of a JSON document in the format of Tauri's updater.
+    pub endpoint: String,
+    /// The minisign public key, as Tauri's signer prints it (base64), or
+    /// as minisign writes it.
+    pub public_key: String,
 }
 
 /// The enum of the APIs of phones, and the list of them all, from the same
@@ -109,6 +125,7 @@ struct Section {
     deep_links: Vec<String>,
     #[serde(default)]
     permissions: Vec<Permission>,
+    updates: Option<Updates>,
 }
 
 impl Project {
@@ -189,6 +206,9 @@ impl Manifest {
         for scheme in &section.deep_links {
             validate_scheme(scheme)?;
         }
+        if let Some(updates) = &section.updates {
+            validate_endpoint(&updates.endpoint)?;
+        }
 
         Ok(Self {
             name,
@@ -198,6 +218,7 @@ impl Manifest {
             window: section.window,
             deep_links: section.deep_links,
             permissions: section.permissions,
+            updates: section.updates,
         })
     }
 }
@@ -243,6 +264,25 @@ fn validate_scheme(scheme: &str) -> io::Result<()> {
         format!(
             "\"{scheme}\" cannot be a deep link scheme: use lowercase letters, digits, \"+\", \"-\" and \".\", starting with a letter, and not a web scheme."
         ),
+    ))
+}
+
+/// Releases come over HTTPS: the signature proves who made them, not that
+/// they are the latest. Plain HTTP is for testing, on this machine.
+fn validate_endpoint(endpoint: &str) -> io::Result<()> {
+    let local = [
+        "http://localhost:",
+        "http://localhost/",
+        "http://127.0.0.1:",
+        "http://127.0.0.1/",
+    ];
+    if endpoint.starts_with("https://") || local.iter().any(|prefix| endpoint.starts_with(prefix)) {
+        return Ok(());
+    }
+
+    Err(io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!("The updates endpoint \"{endpoint}\" must be an HTTPS URL."),
     ))
 }
 
@@ -341,6 +381,38 @@ mod tests {
             let error = manifest(json!({ "extra": { "nativella": { "deepLinks": [scheme] } } }))
                 .unwrap_err();
             assert_eq!(error.kind(), io::ErrorKind::InvalidData, "{scheme}");
+        }
+    }
+
+    #[test]
+    fn updates_come_over_https() {
+        let updates = |endpoint: &str| {
+            manifest(json!({ "extra": { "nativella": { "updates": {
+                "endpoint": endpoint,
+                "publicKey": "RWRaYr1+H4hOAQ",
+            } } } }))
+        };
+
+        assert_eq!(
+            updates("https://notes.example/latest.json")
+                .unwrap()
+                .updates,
+            Some(Updates {
+                endpoint: "https://notes.example/latest.json".to_owned(),
+                public_key: "RWRaYr1+H4hOAQ".to_owned(),
+            })
+        );
+        assert!(updates("http://127.0.0.1:8000/latest.json").is_ok());
+        for endpoint in [
+            "http://notes.example/latest.json",
+            "http://localhost.example/",
+            "ftp://notes",
+        ] {
+            assert_eq!(
+                updates(endpoint).unwrap_err().kind(),
+                io::ErrorKind::InvalidData,
+                "{endpoint}"
+            );
         }
     }
 

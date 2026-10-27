@@ -40,6 +40,8 @@ pub(crate) mod system;
 pub(crate) mod timer;
 #[cfg(desktop)]
 pub(crate) mod tray;
+#[cfg(desktop)]
+pub(crate) mod updater;
 pub(crate) mod window;
 
 #[cfg(desktop)]
@@ -57,6 +59,7 @@ use tauri::menu::CheckMenuItem;
 use tauri::{AppHandle, Manager, WebviewWindow};
 
 use crate::MAIN_WINDOW;
+use crate::project::Updates;
 
 /// What the native methods remember between calls.
 pub(crate) struct State {
@@ -64,6 +67,9 @@ pub(crate) struct State {
     pub(crate) child_processes: child_process::ChildProcesses,
     data_dir: PathBuf,
     default_window: Map<String, Value>,
+    /// Where the releases of the application are: `updater.*`.
+    #[cfg(desktop)]
+    updates: Option<Updates>,
     pub(crate) settings: settings::Store,
     pub(crate) timers: timer::Timers,
     /// Menu item id → the URL its click navigates to.
@@ -87,11 +93,18 @@ pub(crate) struct State {
 }
 
 impl State {
-    #[cfg_attr(mobile, expect(unused_variables, reason = "Phones start no process."))]
+    #[cfg_attr(
+        mobile,
+        expect(
+            unused_variables,
+            reason = "Phones start no process, and update through their store."
+        )
+    )]
     pub(crate) fn new(
         project_dir: PathBuf,
         data_dir: PathBuf,
         default_window: Map<String, Value>,
+        updates: Option<Updates>,
     ) -> Self {
         Self {
             #[cfg(desktop)]
@@ -100,6 +113,8 @@ impl State {
             timers: timer::Timers::default(),
             data_dir,
             default_window,
+            #[cfg(desktop)]
+            updates,
             #[cfg(desktop)]
             menu_links: Mutex::default(),
             #[cfg(desktop)]
@@ -121,6 +136,11 @@ impl State {
 
     pub(crate) fn default_window(&self) -> &Map<String, Value> {
         &self.default_window
+    }
+
+    #[cfg(desktop)]
+    pub(crate) fn updates(&self) -> Option<&Updates> {
+        self.updates.as_ref()
     }
 
     pub(crate) fn has_tray(&self) -> bool {
@@ -225,9 +245,11 @@ pub(crate) fn call(app: &AppHandle, call: NativeCall<'_>) -> Result<Value, Strin
         "timer" => timer::call(&call, method),
         #[cfg(desktop)]
         "tray" => tray::call(&call, method),
+        #[cfg(desktop)]
+        "updater" => updater::call(&call, method),
         "window" => window::call(&call, method),
         #[cfg(mobile)]
-        "childProcess" | "globalShortcut" | "menu" | "power" | "secrets" | "tray" => {
+        "childProcess" | "globalShortcut" | "menu" | "power" | "secrets" | "tray" | "updater" => {
             Some(Err(format!(
                 "\"{full_method}\" is not available on mobile: check Nativella\\Runtime::isMobile() first."
             )))
