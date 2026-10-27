@@ -52,6 +52,8 @@ The runtime marks it with `$_SERVER['NATIVELLA_INTERNAL'] = '1'`, which a page c
 | `window.filesDropped` | `WindowFilesDropped` | `window`, `paths` | Files from the system were dropped on a window. |
 | `menu.itemClicked` | `MenuItemClicked` | `id`, `checked` | An item of the application menu, a context menu or the tray menu was clicked. |
 | `tray.clicked` | `TrayClicked` | `button` | The tray icon was clicked. Not on Linux. |
+| `updater.installed` | `UpdateInstalled` | `version` | The next start runs this [update](updates.md). |
+| `updater.failed` | `UpdateFailed` | `version`, `message` | The update was not installed. |
 | `globalShortcut.pressed` | `GlobalShortcutPressed` | `accelerator` | A [global shortcut](global-shortcuts.md) was pressed. |
 
 All the classes live in `Nativella\Event`. `window` is a window label, `theme` a `Nativella\System\Theme`, `paths` a list of absolute paths, `path` an absolute path, `checked` the new state of a checkbox item (null for other items), `button` one of `left`, `right` and `middle`.

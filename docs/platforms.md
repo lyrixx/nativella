@@ -26,6 +26,7 @@ A call that the platform cannot answer throws a `Nativella\Exception\NativeCallE
 | [Power](power.md) | Yes. | — |
 | [Pages and JavaScript](javascript.md) | Yes. | Yes. |
 | [Downloads](downloads.md) | Yes. | — |
+| [Updates](updates.md) | Standalone executables. Linux tested. | — |
 | [Phone APIs](phone-apis.md): `Haptics`, `Geolocation`, `Biometrics`, `Share` | — | Android. iOS: untested. |
 | [Phone APIs](phone-apis.md#nfc): `Nfc` | — | Untested: emulators have no NFC. iOS needs an entitlement `nativella ios` does not set. |
 

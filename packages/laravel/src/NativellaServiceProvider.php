@@ -36,6 +36,7 @@ use Nativella\Shell;
 use Nativella\System;
 use Nativella\Timer;
 use Nativella\Tray;
+use Nativella\Updater;
 use Nativella\Window;
 
 /**
@@ -72,6 +73,7 @@ final class NativellaServiceProvider extends ServiceProvider
         System::class,
         Timer::class,
         Tray::class,
+        Updater::class,
         Window::class,
     ];
 

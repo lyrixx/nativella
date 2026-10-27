@@ -36,6 +36,8 @@ final class EventFactory
             'power.sourceChanged' => new PowerSourceChanged($payload['onBattery']),
             'timer.fired' => new TimerFired($payload['name']),
             'tray.clicked' => new TrayClicked($payload['button']),
+            'updater.failed' => new UpdateFailed($payload['version'], $payload['message']),
+            'updater.installed' => new UpdateInstalled($payload['version']),
             'window.blurred' => new WindowBlurred($payload['window']),
             'window.closed' => new WindowClosed($payload['window']),
             'window.downloaded' => new WindowDownloaded($payload['window'], $payload['path']),

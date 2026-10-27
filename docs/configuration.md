@@ -47,7 +47,7 @@ On iOS, the bundle ID is the identifier as it is: Apple accepts letters, digits,
 
 ## `version`
 
-The version of the application, as [`App::info()`](app.md) reports it. Defaults to the `version` of `composer.json`, then to `0.1.0`.
+The version of the application, as [`App::info()`](app.md) reports it. Defaults to the `version` of `composer.json`, then to `0.1.0`. [Updates](updates.md) compare it as a semantic version: `1.2.0`.
 
 ## `icon`
 
@@ -87,6 +87,10 @@ Schemes are lowercase letters, digits, `+`, `-` and `.`, starting with a letter;
 ## `permissions`
 
 The [phone APIs](phone-apis.md) the application uses: `barcodeScanner`, `biometrics`, `geolocation`, `haptics`, `nfc`, and what its pages may use of the device: `camera`, `microphone`, and the location, with `geolocation` too. Mobile applications have the phone APIs it lists, and only those: on Android, with the permissions they declare. Computers ignore the phone APIs, but not what the pages may use.
+
+## `updates`
+
+Where a standalone executable finds its updates: the `endpoint` of a document that describes the latest release, and the `publicKey` its executables are signed with. See [Updates](updates.md).
 
 ## The data directory
 
