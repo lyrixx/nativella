@@ -84,7 +84,8 @@ permissions! {
     /// native/mod.rs, android_permissions() in apk/mod.rs,
     /// usage_description() in ios/mod.rs and PHONE_APIS in
     /// .castor/mobile.php: `camera` and `microphone` are for the pages
-    /// (see webview_permissions.rs), without a feature or a domain.
+    /// (see webview_permissions.rs), without a feature or a domain;
+    /// `geolocation` is for both.
     BarcodeScanner,
     Biometrics,
     Camera,
