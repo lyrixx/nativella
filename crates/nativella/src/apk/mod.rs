@@ -21,7 +21,7 @@
 //! in its JNI functions: only the application ID changes, as when the
 //! `applicationId` of a Gradle build differs from its `namespace`.
 
-mod icon;
+pub(crate) mod icon;
 mod manifest;
 mod resources;
 mod signing;

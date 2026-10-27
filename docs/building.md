@@ -93,7 +93,35 @@ It has the extensions a Symfony, Laravel or Doctrine application needs (bcmath, 
 Android and iOS applications carry the same PHP, with the same extensions, built for the phone: see [PHP for the phone](mobile.md#php-for-the-phone).
 
 > [!NOTE]
-> Installers (`.deb`, `.dmg`, `.msi`), code signing and updates are not there yet. See [Limitations and roadmap](limitations.md#distribution).
+> Linux has [Debian packages](#debian-packages). Other installers (`.dmg`, `.msi`), code signing and updates are not there yet. See [Limitations and roadmap](limitations.md#distribution).
+
+## Debian packages
+
+On Linux, `nativella deb` makes a Debian package of the project, for Debian, Ubuntu and the distributions made of them: the users install it with their package manager, which brings the webview along, and find the application among the others.
+
+```bash
+nativella deb notes
+```
+
+```text
+Packaging Notes 1.2.0 into dist/notes_1.2.0_amd64.deb…
+Done: dist/notes_1.2.0_amd64.deb
+```
+
+```text
+nativella deb [<project-dir>] [-o <output>]
+```
+
+| The package holds | |
+|---|---|
+| `/usr/bin/<package>` | The executable of `nativella build`. |
+| `/usr/share/applications/<package>.desktop` | The entry of the application, with its [deep link schemes](configuration.md#deeplinks). |
+| `/usr/share/icons/hicolor/*/apps/<package>.png` | The [icon](configuration.md#icon), from 32 to 512 pixels: give it 512 pixels or more. |
+| `/usr/share/doc/<package>/THIRD_PARTY_NOTICES.txt` | The [licenses](#licenses) of the software inside. |
+
+The package is named after the [`name`](configuration.md#name) of the application, in lower case with dashes, and so are its executable and its entry: the desktop matches the windows to the entry, and so to the icon, by that name. Its version is the [`version`](configuration.md#version), which has to start with a digit. composer.json gives the rest: the `description`, the `homepage`, and the first of the `authors` as the maintainer, or the name of the application.
+
+It depends on `libwebkit2gtk-4.1-0` and a glibc 2.35 or later (Ubuntu 22.04, Debian 12), and recommends `libayatana-appindicator3-1`, for a [tray](tray.md) icon. It is made for the processor of the machine that builds it, `amd64` or `arm64`: build it with the `nativella` of the [releases](installation.md), whose PHP is linked statically. A development build of `nativella` links the PHP of its machine, and warns that its packages will not run elsewhere.
 
 ## Licenses
 

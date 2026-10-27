@@ -13,6 +13,8 @@ pub mod apk;
 mod before_unload;
 #[cfg(any(test, target_os = "android"))]
 mod deadline;
+#[cfg(target_os = "linux")]
+pub mod deb;
 #[cfg(desktop)]
 mod downloads;
 pub mod embedded;
