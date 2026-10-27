@@ -20,6 +20,8 @@ mod logcat;
 mod native;
 pub mod notices;
 pub mod project;
+#[cfg(desktop)]
+mod reload;
 #[cfg(target_os = "android")]
 mod request_bodies;
 mod secret;
@@ -313,6 +315,11 @@ fn start(
                     .with_ini("upload_tmp_dir", cache_dir.to_string_lossy())
                     .with_ini("opcache.lockfile_path", cache_dir.to_string_lossy());
             }
+            // `nativella run`: a reloaded page runs the code that changed, as
+            // opcache checks the files on every request.
+            if !extracted {
+                php_app = php_app.with_ini("opcache.revalidate_freq", "0");
+            }
             // Dates in the user's time zone, not UTC.
             match iana_time_zone::get_timezone() {
                 Ok(time_zone) => php_app = php_app.with_ini("date.timezone", time_zone),
@@ -326,6 +333,10 @@ fn start(
                 .with_server_variable("NATIVELLA_PLATFORM", env::consts::OS)
                 .with_server_variable("NATIVELLA_VERSION", env!("CARGO_PKG_VERSION"));
 
+            #[cfg(desktop)]
+            if !extracted && reload::enabled() {
+                reload::watch(app.handle(), &project.dir, &data_dir);
+            }
             app.manage(State::new(
                 project.dir.clone(),
                 data_dir,

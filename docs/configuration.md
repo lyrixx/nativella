@@ -110,6 +110,7 @@ Nativella creates it at startup and prints it on the standard error output. PHP 
 | Variable | Effect |
 |---|---|
 | `NATIVELLA_DATA_DIR` | Moves the data directory: handy to start from a clean state while developing, or to run two copies side by side. |
+| `NATIVELLA_RELOAD` | `0` stops `nativella run` from [reloading the windows](getting-started.md#reloading) when a file of the project changes. |
 | `NO_AT_BRIDGE` | Nativella sets it to `1` on Linux unless it is already set, to work around a crash of WebKitGTK in the accessibility bridge. See [Limitations](limitations.md#linux). |
 
 Like PHP-FPM without `clear_env`, PHP gets the environment of the process in `$_SERVER`: `APP_ENV=prod nativella run .` works as you would expect.

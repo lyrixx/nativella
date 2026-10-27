@@ -43,6 +43,7 @@ der = { version = "0.7", features = ["oid"] }
 des = "0.8"
 hmac = "0.12"
 image = { version = "0.25", default-features = false, features = ["png"] }
+notify = "8"
 p256 = "0.14"
 pkcs12 = { version = "0.1", features = ["kdf"] }
 pkcs5 = { version = "0.7", features = ["alloc", "pbes2", "sha1-insecure"] }
