@@ -33,6 +33,18 @@ final readonly class Menu
     }
 
     /**
+     * Changes the item `$id` in the application menu and the tray menu, without
+     * setting them again: what is null stays as it is.
+     */
+    public function update(string $id, ?string $label = null, ?bool $enabled = null, ?bool $checked = null): void
+    {
+        $this->client->call('menu.update', array_filter(
+            ['id' => $id, 'label' => $label, 'enabled' => $enabled, 'checked' => $checked],
+            static fn (string|bool|null $value): bool => null !== $value,
+        ));
+    }
+
+    /**
      * Opens a context menu at the mouse cursor, in the window that made the
      * request.
      */

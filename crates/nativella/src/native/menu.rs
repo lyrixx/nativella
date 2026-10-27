@@ -4,8 +4,8 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tauri::menu::{
-    AboutMetadata, CheckMenuItem, IsMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem,
-    Submenu,
+    AboutMetadata, CheckMenuItem, IsMenuItem, Menu, MenuEvent, MenuItem, MenuItemKind,
+    PredefinedMenuItem, Submenu,
 };
 use tauri::{AppHandle, Manager, Wry};
 
@@ -81,6 +81,16 @@ struct Set {
     items: Vec<Item>,
 }
 
+/// What changes in an item: what is absent stays as it is.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Update {
+    id: String,
+    label: Option<String>,
+    enabled: Option<bool>,
+    checked: Option<bool>,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Popup {
@@ -96,6 +106,9 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
             Ok(json!({}))
         }),
         "remove" => call.app.remove_menu().map(|_| json!({})).map_err(failed),
+        "update" => call
+            .payload::<Update>()
+            .and_then(|payload| update(call, &payload)),
         "popup" => call.payload::<Popup>().and_then(|payload| {
             let window = call.target_window(payload.window.as_deref())?;
             let menu = build(call, &payload.items)?;
@@ -104,6 +117,78 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
         }),
         _ => return None,
     })
+}
+
+/// Updates the items with the id of `update`, in the application menu and the
+/// tray menu: an id may be in both. Context menus are gone once closed.
+fn update(call: &Call<'_>, update: &Update) -> Result<Value, String> {
+    let tray_menu = lock(&call.state().tray_menu).clone();
+    let mut items = Vec::new();
+    for menu in [call.app.menu(), tray_menu].into_iter().flatten() {
+        find(menu.items().map_err(failed)?, &update.id, &mut items)?;
+    }
+
+    if items.is_empty() {
+        return Err(format!(
+            "There is no menu item \"{}\" in the application menu or the tray menu.",
+            update.id
+        ));
+    }
+    if update.checked.is_some()
+        && items
+            .iter()
+            .any(|item| !matches!(item, MenuItemKind::Check(_)))
+    {
+        return Err(format!(
+            "The menu item \"{}\" is not a checkbox: it cannot be checked.",
+            update.id
+        ));
+    }
+
+    for item in items {
+        match item {
+            MenuItemKind::MenuItem(item) => {
+                if let Some(label) = &update.label {
+                    item.set_text(label).map_err(failed)?;
+                }
+                if let Some(enabled) = update.enabled {
+                    item.set_enabled(enabled).map_err(failed)?;
+                }
+            }
+            MenuItemKind::Check(item) => {
+                if let Some(label) = &update.label {
+                    item.set_text(label).map_err(failed)?;
+                }
+                if let Some(enabled) = update.enabled {
+                    item.set_enabled(enabled).map_err(failed)?;
+                }
+                if let Some(checked) = update.checked {
+                    item.set_checked(checked).map_err(failed)?;
+                }
+            }
+            // PHP gives ids to actions and checkboxes only.
+            _ => {}
+        }
+    }
+
+    Ok(json!({}))
+}
+
+/// Adds the items of `items` with the id `id` to `found`, down the submenus.
+fn find(
+    items: Vec<MenuItemKind<Wry>>,
+    id: &str,
+    found: &mut Vec<MenuItemKind<Wry>>,
+) -> Result<(), String> {
+    for item in items {
+        if let MenuItemKind::Submenu(submenu) = &item {
+            find(submenu.items().map_err(failed)?, id, found)?;
+        } else if item.id() == id {
+            found.push(item);
+        }
+    }
+
+    Ok(())
 }
 
 /// Builds a Tauri menu, remembering the links and checkboxes of its items.

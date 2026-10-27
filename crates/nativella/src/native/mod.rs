@@ -76,6 +76,10 @@ pub(crate) struct State {
     /// What keeps the computer awake, until dropped.
     #[cfg(desktop)]
     pub(crate) awake: Mutex<Option<keepawake::KeepAwake>>,
+    /// The menu of the tray icon, whose items `menu.update` finds: the icon
+    /// does not give it back.
+    #[cfg(desktop)]
+    pub(crate) tray_menu: Mutex<Option<tauri::menu::Menu<Wry>>>,
 }
 
 impl State {
@@ -102,6 +106,8 @@ impl State {
             tray: Mutex::default(),
             #[cfg(desktop)]
             awake: Mutex::default(),
+            #[cfg(desktop)]
+            tray_menu: Mutex::default(),
         }
     }
 

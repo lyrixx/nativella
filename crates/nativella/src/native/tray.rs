@@ -35,6 +35,7 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
             // Dropped once the lock is released, as Tauri calls go.
             let tray = lock(&call.state().tray).take();
             drop(tray);
+            *lock(&call.state().tray_menu) = None;
             call.app.remove_tray_by_id(TRAY);
             Ok(json!({}))
         }
@@ -62,6 +63,7 @@ fn set(call: &Call<'_>, payload: Set) -> Result<Value, String> {
     // main thread may wait for this lock (`has_tray()` when the last window
     // closes): never hold it across them.
     let state = call.state();
+    lock(&state.tray_menu).clone_from(&menu);
     let existing = lock(&state.tray).clone();
     if let Some(existing) = existing {
         existing.set_icon(Some(icon)).map_err(failed)?;

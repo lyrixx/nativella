@@ -22,7 +22,12 @@ $menu->set(
 );
 ```
 
-Set the menu while handling [`AppBooted`](lifecycle.md#booting), so that it is there when the first window opens. Calling `set()` again replaces it: to disable an item or rename it, set the menu again.
+Set the menu while handling [`AppBooted`](lifecycle.md#booting), so that it is there when the first window opens. Calling `set()` again replaces it; `update()` changes one item, to disable it, rename it or check it:
+
+```php
+$menu->update('export', enabled: $notes->count() > 0);
+$menu->update('sidebar', checked: false);
+```
 
 On Linux and Windows, each window shows the menu under its title bar. On macOS, the menu bar belongs to the application, its top level only holds submenus, and the first one is named after the application: start with `MenuItem::appMenu('Notes')` there.
 
@@ -32,6 +37,7 @@ On Linux and Windows, each window shows the menu under its title bar. On macOS, 
 |---|---|
 | `set(MenuItem ...$items): void` | Sets the application menu. On macOS, the top level only holds submenus. |
 | `remove(): void` | Removes the application menu. |
+| `update(string $id, ?string $label = null, ?bool $enabled = null, ?bool $checked = null): void` | Changes the item `$id`, in the application menu and the [tray](tray.md) menu; what is null stays as it is. Throws when neither has it, or for `$checked` when it is not a checkbox. Context menus are gone once closed: open another. |
 | `popup(MenuItem ...$items): void` | Opens a context menu at the mouse cursor, in the window that made the request. |
 
 ## Menu items

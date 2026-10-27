@@ -26,7 +26,7 @@ While the tray icon exists, closing the last window does not quit the applicatio
 | `set(?string $tooltip = null, list<MenuItem> $menu = [], ?string $icon = null, ?string $title = null): void` | Creates the tray icon, or updates it. |
 | `remove(): void` | Removes the tray icon. Closing the last window quits the application again. |
 
-`set()` replaces everything at once: call it again with new values to change the tooltip, the icon or the menu.
+`set()` replaces everything at once: call it again with new values to change the tooltip, the icon or the menu. [`Menu::update()`](menus.md#methods) changes one item of its menu.
 
 | Argument | |
 |---|---|
