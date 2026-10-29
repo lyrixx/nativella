@@ -152,7 +152,7 @@ Each one returns null, or false, outside Nativella.
 
 ## `php.ini`
 
-The embedded PHP reads the configuration of the embed SAPI of the system: `/etc/php/8.5/embed/php.ini` and `/etc/php/8.5/embed/conf.d/` on Ubuntu. Settings that matter for a web server matter here too: `memory_limit`, `opcache.enable`, `display_errors`…
+PHP reads the php.ini of Nativella, [`crates/runtime/php.ini`](../crates/runtime/php.ini), compiled into the `nativella` command, and no other: neither a php.ini of the machine, which belongs to another PHP, nor the files `PHPRC` and `PHP_INI_SCAN_DIR` point to. It keeps the defaults of PHP, except for `hard_timeout` (see below). An application changes the settings it needs with `ini_set()`, at the top of its front controller: `memory_limit`, `display_errors`…
 
 Nativella overrides two of them, which point at the system otherwise:
 
@@ -161,4 +161,6 @@ Nativella overrides two of them, which point at the system otherwise:
 | `date.timezone` | The time zone of the user, so that dates are local. |
 | `session.save_path` | `sessions/` in the cache directory of the application. |
 
-`max_execution_time` applies as usual, except that a native call that waited more than a second for the user starts its count again: a user may leave a [dialog](dialogs.md) open as long as they like, as `sleep()` does not count on Linux either. Quick native calls do not: a loop of them still times out.
+`max_execution_time` applies as usual, except that a native call that waited more than a second for the user starts its count again: a user may leave a [dialog](dialogs.md) open as long as they like, as `sleep()` does not count on Linux either. Quick native calls do not: a loop of them still times out. The hard timeout is off, `hard_timeout = 0`: PHP counts the time of the whole process, and would kill it, the application with it, two seconds after the limit.
+
+A `nativella` linked with [the PHP of the system](development.md#the-php-of-the-system), in development, reads the php.ini of that PHP first, which loads its extensions: `/etc/php/8.5/embed/php.ini` and `/etc/php/8.5/embed/conf.d/` on Ubuntu. The one of Nativella applies over it.

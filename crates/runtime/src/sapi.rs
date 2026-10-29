@@ -25,6 +25,10 @@ use crate::runtime::{PhpApp, RequestOrigin};
 /// `SG(request_info).proto_num` for HTTP/1.1, encoded the way PHP's own SAPIs do.
 const HTTP_1_1: u16 = 1001;
 
+/// The php.ini of Nativella, which PHP reads before the settings of the
+/// application.
+const PHP_INI: &str = include_str!("../php.ini");
+
 /// The PHP engine, started once on the PHP thread.
 pub(crate) struct Engine {
     module: *mut SapiModule,
@@ -33,29 +37,33 @@ pub(crate) struct Engine {
 }
 
 impl Engine {
-    /// `ini` settings apply on top of php.ini, as `php -d` would.
+    /// `ini` settings apply on top of the php.ini of Nativella, as `php -d`
+    /// would.
     pub(crate) fn start(ini: &[(String, String)]) -> Self {
         let mut module = NativeSapi::build_module().expect("The SAPI names contain no NUL byte.");
         // ext-php-rs answers with a new C string for every request and PHP
         // never frees it: hand PHP the one the request context owns instead.
         module.read_cookies = Some(read_cookies);
 
-        // Before the settings of the application, which may override it.
-        //
-        // PHP built without threads times a request with ITIMER_PROF: the CPU
-        // time of the whole process, the GTK thread included, which runs
-        // while a dialog waits for the user. Past max_execution_time, the
-        // hard timeout kills the process (exit 124), the application with
-        // it: only the error of max_execution_time remains, which PHP raises
-        // once the dialog is answered, and which bridge::restart_time_limit()
-        // prevents.
-        let defaults = [("hard_timeout".to_owned(), "0".to_owned())];
-        let entries: String = defaults
+        // The static PHP looks for /usr/local/etc/php/php.ini and its conf.d/,
+        // where static-php-cli built it to, and for PHPRC and PHP_INI_SCAN_DIR:
+        // on the machine of a user, they belong to another PHP, with
+        // extensions this one does not have. The PHP of the system needs its
+        // own php.ini, which loads its extensions.
+        if cfg!(nativella_static_php) {
+            module.php_ini_ignore = 1;
+        }
+
+        // The php.ini of Nativella, then the settings of the application,
+        // which override it
+        let entries: String = ini
             .iter()
-            .chain(ini)
             .map(|(name, value)| format!("{name}=\"{}\"\n", value.replace('"', "")))
             .collect();
-        let ini_entries = Some(CString::new(entries).expect("INI settings contain no NUL byte."));
+        let ini_entries = Some(
+            CString::new(format!("{PHP_INI}\n{entries}"))
+                .expect("INI settings contain no NUL byte."),
+        );
         let module = Box::into_raw(Box::new(module));
 
         unsafe {
