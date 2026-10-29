@@ -43,7 +43,7 @@ Nativella is experimental. This page lists what does not work, what is untested 
 
 ## Distribution
 
-- **A fixed PHP.** The executable carries [the PHP of the `nativella` command](building.md#the-php-inside), and an Android application the one of its template, with the same extensions: those of the build. It has no `php.ini`.
+- **A fixed PHP.** The executable carries [the PHP of the `nativella` command](building.md#the-php-inside), and an Android application the one of its template, with the same extensions: those of the build. It reads the [`php.ini`](configuration.md#phpini) of Nativella only. Another PHP takes [building `nativella`](custom-php.md) again.
 - **Few installers.** Linux has [Debian packages](building.md#debian-packages); no `.dmg` or `.msi` yet, no code signing. Standalone executables [update themselves](updates.md).
 - **No secrets.** Everything in the project ships, readable by anyone who has the executable.
 
@@ -54,7 +54,7 @@ Next:
 - **Worker mode**: boot the framework once, and loop over requests. ext-php-rs ships `worker_request_startup()` and `worker_request_shutdown()`; on the PHP side, it is a `symfony/runtime` runner, as with FrankenPHP.
 - **ZTS and several PHP threads**, so that a slow request or a dialog does not hold back the others.
 - **macOS and Windows**: build, test, fix.
-- **Extensions and `php.ini`**: let an application pick the extensions of its PHP, to add one or to leave intl and the data of ICU out of a smaller executable, and its settings.
+- **Extensions and `php.ini`**: let an application pick the extensions of its PHP at `nativella build`, without [building `nativella`](custom-php.md), to add one or to leave intl and the data of ICU out of a smaller executable, and its settings.
 - **Installers**: `.dmg` and `.msi`.
 - **Mobile**: more [phone APIs](phone-apis.md) (photos and videos, push notifications), an iOS app tried on a device, the JIT of PCRE on Android. See [Mobile](mobile.md).
 

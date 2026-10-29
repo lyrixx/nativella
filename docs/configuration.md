@@ -152,7 +152,7 @@ Each one returns null, or false, outside Nativella.
 
 ## `php.ini`
 
-PHP reads the php.ini of Nativella, [`crates/runtime/php.ini`](../crates/runtime/php.ini), compiled into the `nativella` command, and no other: neither a php.ini of the machine, which belongs to another PHP, nor the files `PHPRC` and `PHP_INI_SCAN_DIR` point to. It keeps the defaults of PHP, except for `hard_timeout` (see below). An application changes the settings it needs with `ini_set()`, at the top of its front controller: `memory_limit`, `display_errors`…
+PHP reads the php.ini of Nativella, [`crates/runtime/php.ini`](../crates/runtime/php.ini), compiled into the `nativella` command, and no other: neither a php.ini of the machine, which belongs to another PHP, nor the files `PHPRC` and `PHP_INI_SCAN_DIR` point to. It keeps the defaults of PHP, except for `hard_timeout` (see below). An application changes the settings it needs with `ini_set()`, at the top of its front controller: `memory_limit`, `display_errors`… The ones PHP reads only when it starts, like the size of the memory of opcache, take a change of that file, in a `nativella` [of your own](custom-php.md).
 
 Nativella overrides two of them, which point at the system otherwise:
 

@@ -24,7 +24,8 @@ Nativella is young and experimental. Linux is the platform it is built and teste
 - [Database](database.md): SQLite in the data directory, migrated when the application starts.
 - [Downloads](downloads.md): attachments and `download` links, saved where the user chooses.
 - [Testing](testing.md): the fake client, and running the application outside Nativella.
-- [Building a standalone app](building.md): `nativella build`, and what ships in the executable.
+- [Building a standalone app](building.md): `nativella build`, what ships in the executable, its size and its memory.
+- [Your own PHP](custom-php.md): another version of PHP, other extensions, in a `nativella` built from the repository.
 - [Updates](updates.md): standalone executables that update themselves from your releases.
 - [Mobile](mobile.md): `nativella android` and `nativella ios`, what changes on a phone, what is tested.
 
