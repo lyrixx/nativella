@@ -86,14 +86,37 @@ The executable carries the project and PHP: the machine needs neither PHP nor Co
 
 ## The PHP inside
 
-The executable carries the PHP of the `nativella` command that built it: for the [releases](https://github.com/lyrixx/nativella/releases), PHP 8.5, linked statically, built with [static-php-cli](https://github.com/crazywhalecc/static-php-cli). The Symfony demo makes a 91 MB executable.
+The executable carries the PHP of the `nativella` command that built it: for the [releases](https://github.com/lyrixx/nativella/releases), PHP 8.5, linked statically, built with [static-php-cli](https://github.com/crazywhalecc/static-php-cli), in the latest patch release of the day of the build: 8.5.11 for 0.4.0. `nativella licenses` starts with it, and `phpinfo()`, in the application, gives the versions of the libraries too. The Symfony demo makes a 91 MB executable: see [Size and memory](#size-and-memory).
 
-It has the extensions a Symfony, Laravel or Doctrine application needs (bcmath, ctype, curl, dom, fileinfo, filter, iconv, intl, mbstring, opcache, openssl, pdo_sqlite, phar, session, simplexml, sodium, sqlite3, tokenizer, xml, xmlreader, xmlwriter, zip, zlib), and no `php.ini`: PHP runs with its defaults, plus the settings Nativella sets (sessions in the cache directory of the application, the time zone of the system). intl carries ICU and its data, for every locale: 36 MB of the executable.
+It has the extensions a Symfony, Laravel or Doctrine application needs (bcmath, ctype, curl, dom, fileinfo, filter, iconv, intl, mbstring, opcache, openssl, pdo_sqlite, phar, session, simplexml, sodium, sqlite3, tokenizer, xml, xmlreader, xmlwriter, zip, zlib), and the [`php.ini`](configuration.md#phpini) of Nativella only: PHP runs with its defaults, plus the settings Nativella sets (sessions in the cache directory of the application, the time zone of the system). intl carries ICU and its data, for every locale: 36 MB of the executable.
 
 Android and iOS applications carry the same PHP, with the same extensions, built for the phone: see [PHP for the phone](mobile.md#php-for-the-phone).
 
+Another version of PHP, or other extensions, take a `nativella` built with them, from the repository: see [Your own PHP](custom-php.md).
+
 > [!NOTE]
 > Linux has [Debian packages](#debian-packages). Other installers (`.dmg`, `.msi`) and code signing are not there yet; standalone executables [update themselves](updates.md). See [Limitations and roadmap](limitations.md#distribution).
+
+## Size and memory
+
+The executables of the [0.4.0 release](https://github.com/lyrixx/nativella/releases/tag/v0.4.0), and the memory the demos take on Linux x86_64, with their first page open (Ubuntu 26.04, GNOME on Wayland, WebKitGTK 2.52):
+
+| | `nativella` | Vanilla demo | Symfony demo | Laravel demo |
+|---|---|---|---|---|
+| Executable, Linux x86_64 | 86.9 MB | 87.2 MB | 90.8 MB | 91.8 MB |
+| The same, compressed (gzip) | 29.5 MB | 29.9 MB | 33.4 MB | 34.4 MB |
+| Executable, macOS arm64 | 74.4 MB | 74.7 MB | 78.3 MB | 79.3 MB |
+| APK, Android arm64 | 80.2 MB, the template | 80.5 MB | 84.1 MB | 85.0 MB |
+| Project, [extracted](#at-startup), on disk | | 4 MB | 42 MB | 49 MB |
+| Memory: the application process | | 130 MB | 135 MB | 130 MB |
+| Memory: the processes WebKit starts | | 140 MB | 130 MB | 125 MB |
+| **Memory: total** | | **270 MB** | **265 MB** | **255 MB** |
+
+The sizes are those GitHub shows, in MB of 1,048,576 bytes.
+
+Nearly all of an executable is the `nativella` command: PHP and its libraries, ICU and its data for intl (36 MB), and the Rust shell around the webview. The project adds its own size, compressed: 0.3 MB for the vanilla demo, 4 to 5 MB for the Symfony and Laravel ones, `vendor/` included. The webview is the one of the system, and is not part of it. A `nativella` with [your own PHP](custom-php.md), without intl, makes smaller executables.
+
+The memory is the PSS of each process (`Pss` in `/proc/<pid>/smaps_rollup`): its own memory, plus its share of what it shares with other processes, like the libraries of the system. The application holds the Rust shell, GTK, the side of WebKit that drives the windows, and PHP. WebKit starts a web process, which renders the pages and runs their JavaScript, a network process, and the sandboxes of both. The pages of the demos are light: heavier ones take more of the memory of WebKit, as in a browser. The RSS of these processes, which counts the shared libraries in full in each one, adds up to about 500 MB. The memory on macOS and on phones is not measured yet.
 
 ## Debian packages
 

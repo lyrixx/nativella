@@ -49,7 +49,7 @@ A desktop application has no server to deploy to and no database server to conne
 
 ## One file to hand over
 
-`nativella build` writes a single executable that carries your project and PHP itself, linked statically: your users install neither PHP nor Composer. On Linux, the webview of the system is all it needs. See [Building a standalone app](building.md).
+`nativella build` writes a single executable that carries your project and PHP itself, linked statically: your users install neither PHP nor Composer. On Linux, the webview of the system is all it needs. See [Building a standalone app](building.md): the executable of the Symfony demo weighs 91 MB, and takes 265 MB of memory with its window open ([Size and memory](building.md#size-and-memory)).
 
 ## On a phone, too
 

@@ -60,7 +60,7 @@ impl PhpApp {
         self
     }
 
-    /// Sets a php.ini setting, over the php.ini file if there is one.
+    /// Sets a php.ini setting, over the php.ini of Nativella.
     #[must_use]
     pub fn with_ini(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         self.ini.push((name.into(), value.into()));
