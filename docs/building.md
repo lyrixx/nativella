@@ -31,18 +31,27 @@ The whole project directory, `vendor/` included, as a compressed archive, except
 |---|---|
 | `.git`, `.idea`, `dist`, `node_modules`, `tests` | At the root of the project. `dist` is where `nativella build` writes: a `dist` directory of your own there does not ship either, but `public/dist` does. |
 | `.env.local`, and every path ending with `.local` | Local overrides, which tend to hold secrets. The build lists the ones it leaves out. |
+| `.pem`, `.key` and `.p8` files that hold a private key; `.p12`, `.pfx`, `.jks`, `.keystore` and `.mobileprovision` files; `auth.json`, at the root of the project | Private keys, keystores, provisioning profiles, and the tokens of Composer. Anywhere in the project: the certificates of a `.pem` file without a private key ship, like the ones of `composer/ca-bundle`. The build lists the ones it leaves out. |
+| `.db`, `.sqlite` and `.sqlite3` files, and their `-journal`, `-wal` and `-shm` files | SQLite databases, the ones of your machine: the application makes its own, in its [data directory](configuration.md#the-data-directory). The build lists the ones it leaves out. |
 
 | Shipped empty | |
 |---|---|
-| `var/cache`, `var/log` | Symfony's cache and logs. |
-| `storage/framework/cache`, `storage/framework/sessions`, `storage/framework/views`, `storage/logs` | Laravel's caches, sessions and logs. |
+| `var` | What Symfony writes, its cache and its logs, and what the application writes there, like a SQLite database. Symfony makes the directories it needs. |
+| `storage/app`, `storage/framework/cache`, `storage/framework/sessions`, `storage/framework/views`, `storage/logs` | What Laravel writes: its files, caches, sessions and logs. |
 
-The caches, logs and sessions of your machine stay behind, but the directories ship: the frameworks expect them to exist.
+What your application wrote on your machine stays behind, but the directories ship: the frameworks expect them to exist.
+
+```text
+Packaging Notes 1.2.0 into dist/notes…
+Left out .env.local: local overrides never ship. Set the production environment in a file that does, like the .env.local.php of `composer dump-env prod` with Symfony.
+Left out auth.json, config/jwt/private.pem: private keys and credentials never ship, as anyone who has the application could read them.
+Done: dist/notes
+```
 
 Symbolic links are followed, so the packages Composer links from [path repositories](https://getcomposer.org/doc/05-repositories.md#path) ship as real files.
 
 > [!WARNING]
-> Everything else ships, and anyone who has the executable can read it: `.env` files, keys, credentials. A desktop application has no secrets from its users. Keep out of the project anything they should not see: [Credentials](#credentials) says where each kind goes.
+> Everything else ships, and anyone who has the executable can read it: `.env` files, and the keys and credentials of any other file. A desktop application has no secrets from its users. Keep out of the project anything they should not see: [Credentials](#credentials) says where each kind goes.
 
 ## Preparing the project
 

@@ -33,7 +33,7 @@ use std::path::Path;
 
 use self::icon::Icon;
 pub use self::signing::Key;
-use crate::embedded::{self, PACKAGED_BUNDLE};
+use crate::embedded::{self, LeftOut, PACKAGED_BUNDLE};
 use crate::project::{Permission, Project};
 use crate::zip;
 
@@ -45,14 +45,13 @@ const RESOURCES: &str = "resources.arsc";
 const DENSITIES: std::ops::RangeInclusive<u16> = 120..=640;
 
 /// Writes the APK of `project` to `output`, made from `template` and signed
-/// with `key`. Returns the local overrides it left out, relative to the
-/// project.
+/// with `key`. Returns what it left out of the project.
 pub fn package(
     project: &Project,
     template: &Path,
     output: &Path,
     key: &Key,
-) -> io::Result<Vec<String>> {
+) -> io::Result<LeftOut> {
     let application_id = application_id(&project.manifest.identifier)?;
     let version_code = version_code(&project.manifest.version)?;
     let icon = Icon::of(project)?;
@@ -131,15 +130,15 @@ pub fn package(
     // Stored, for the library to read it in place, and written as it goes.
     // It leaves out what the packaging writes and reads, should it be inside
     // the project: the APK, which exists by now, the template and the key.
-    let mut local_overrides = Vec::new();
+    let mut left_out = LeftOut::default();
     writer.add_stored_with(&asset, |out| {
-        local_overrides = embedded::write_bundle(project, out, &[output, template, key.path()])?;
+        left_out = embedded::write_bundle(project, out, &[output, template, key.path()])?;
         Ok(())
     })?;
     let unfinished = writer.finish()?;
     signing::sign(&mut apk, &unfinished, key)?;
 
-    Ok(local_overrides)
+    Ok(left_out)
 }
 
 /// The launcher icons of the template, the files of the icon of its manifest
@@ -546,7 +545,9 @@ mod tests {
         let output = project_dir.join("dist/note-taker.apk");
 
         assert_eq!(
-            package(&project, &project_dir.join("template.apk"), &output, &key).unwrap(),
+            package(&project, &project_dir.join("template.apk"), &output, &key)
+                .unwrap()
+                .local_overrides,
             [".env.local"],
             "Local overrides never ship."
         );

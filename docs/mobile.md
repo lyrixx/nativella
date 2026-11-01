@@ -53,7 +53,7 @@ adb install dist/notes.apk
 
 The APK is the template, with:
 
-- the bundle of the project, as the asset `nativella.bundle`, which the application reads in place at startup: what [ships](building.md#what-ships) in a standalone executable, the local overrides left out and listed;
+- the bundle of the project, as the asset `nativella.bundle`, which the application reads in place at startup: what [ships](building.md#what-ships) in a standalone executable, the local overrides, credentials and SQLite databases left out and listed;
 - the identity of the project, from the `extra.nativella` section of its `composer.json`, in its manifest: its application ID, what Android knows the application by, made of the `identifier`; the `name` under the icon; the `version` as the version name, and as the version code, `major × 1,000,000 + minor × 1,000 + patch`, which Android compares to accept an update;
 - the Android permissions of the [phone APIs](phone-apis.md) the application asks for (`permissions`), and of them only: the template has them all, and the application only registers the ones it asks for;
 - the [`icon`](configuration.md#icon) of the project as its launcher icon, or the Nativella icon without one: drawn for each screen density, from 48 to 192 pixels, inside a margin, its corners rounded, as `tauri icon` draws the launcher icons of Android.
@@ -126,7 +126,7 @@ xcrun simctl launch booted dev.nativella.notes
 
 The app is the app of the template, with:
 
-- the bundle of the project, as the file `nativella.bundle`, next to its executable, which the app reads in place at startup: what [ships](building.md#what-ships) in a standalone executable, the local overrides left out and listed;
+- the bundle of the project, as the file `nativella.bundle`, next to its executable, which the app reads in place at startup: what [ships](building.md#what-ships) in a standalone executable, the local overrides, credentials and SQLite databases left out and listed;
 - the identity of the project, from the `extra.nativella` section of its `composer.json`, in its `Info.plist`: the `identifier` as its bundle ID, as it is, since Apple allows letters, digits, dashes and dots there; the `name` under the icon; the `version`, which iOS compares to accept an update, as three integers, without its pre-release or build suffix: `1.2.0-beta.1` becomes `1.2.0`;
 - the reasons iOS gives the user when the app uses a [phone API](phone-apis.md) it asks for (`permissions`), and for them only: Face ID for `biometrics`, the location for `geolocation`, the camera for `barcodeScanner` and `camera`, the microphone for `microphone`. The template has the plugins of them all, and the app only registers the ones it asks for.
 

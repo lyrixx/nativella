@@ -17,8 +17,9 @@ use flate2::write::GzEncoder;
 use serde_json::Value;
 
 use crate::apk::icon::Icon;
+use crate::embedded::{self, LeftOut};
+use crate::notices;
 use crate::project::{Manifest, Project};
-use crate::{embedded, notices};
 
 /// The sizes of the icon desktops pick from, in pixels.
 const ICON_SIZES: &[u32] = &[32, 48, 64, 128, 256, 512];
@@ -81,9 +82,9 @@ pub fn architecture() -> io::Result<&'static str> {
     }
 }
 
-/// Writes the package of `project` to `output`. Returns the local overrides
-/// the executable left out.
-pub fn build(project: &Project, output: &Path) -> io::Result<Vec<String>> {
+/// Writes the package of `project` to `output`. Returns what the executable
+/// left out of the project.
+pub fn build(project: &Project, output: &Path) -> io::Result<LeftOut> {
     let composer: Value = serde_json::from_slice(&fs::read(project.dir.join("composer.json"))?)
         .map_err(|error| io::Error::other(format!("composer.json is invalid: {error}.")))?;
     let control = control(&project.manifest, &composer)?;
@@ -93,9 +94,9 @@ pub fn build(project: &Project, output: &Path) -> io::Result<Vec<String>> {
     // writes out of the project.
     let executable = output.with_file_name(format!(".{package}.executable"));
     let built = embedded::build(project, &executable)
-        .and_then(|local_overrides| Ok((local_overrides, fs::read(&executable)?)));
+        .and_then(|left_out| Ok((left_out, fs::read(&executable)?)));
     let _ = fs::remove_file(&executable);
-    let (local_overrides, executable) = built?;
+    let (left_out, executable) = built?;
 
     let icon = Icon::of(project)?;
     let mut files = vec![
@@ -143,7 +144,7 @@ pub fn build(project: &Project, output: &Path) -> io::Result<Vec<String>> {
     ar_member(&mut archive, "control.tar.gz", &control_archive)?;
     ar_member(&mut archive, "data.tar.gz", &data)?;
 
-    Ok(local_overrides)
+    Ok(left_out)
 }
 
 /// The control of the package, from the manifest and the composer.json of

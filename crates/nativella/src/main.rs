@@ -7,8 +7,9 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use nativella_lib::apk::{self, Key};
+use nativella_lib::embedded::{self, LeftOut};
 use nativella_lib::ios::{self, Identity};
-use nativella_lib::{Project, embedded, notices};
+use nativella_lib::{Project, notices};
 
 const USAGE: &str = "Usage:
   nativella run [<project-dir>]                    Run a PHP project as a desktop application
@@ -136,7 +137,7 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
     );
     let result = match package {
         Package::Executable => embedded::build(&project, &output)
-            .and_then(|local_overrides| write_notices(&output).map(|()| local_overrides)),
+            .and_then(|left_out| write_notices(&output).map(|()| left_out)),
         Package::Deb => deb(&project, &output),
         Package::Android => android(&project, template.as_deref(), key.as_deref(), &output),
         Package::Ios => ios(
@@ -149,17 +150,34 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
     };
 
     match result {
-        Ok(local_overrides) => {
-            if !local_overrides.is_empty() {
-                eprintln!(
-                    "Left out {}: local overrides never ship. Set the production environment in a file that does, like the .env.local.php of `composer dump-env prod` with Symfony.",
-                    local_overrides.join(", ")
-                );
-            }
+        Ok(left_out) => {
+            report(&left_out);
             eprintln!("Done: {}", output.display());
             ExitCode::SUCCESS
         }
         Err(error) => fail(&format!("The packaging failed: {error}")),
+    }
+}
+
+/// Lists what the packaging left out of the project, and why.
+fn report(left_out: &LeftOut) {
+    if !left_out.local_overrides.is_empty() {
+        eprintln!(
+            "Left out {}: local overrides never ship. Set the production environment in a file that does, like the .env.local.php of `composer dump-env prod` with Symfony.",
+            left_out.local_overrides.join(", ")
+        );
+    }
+    if !left_out.credentials.is_empty() {
+        eprintln!(
+            "Left out {}: private keys and credentials never ship, as anyone who has the application could read them.",
+            left_out.credentials.join(", ")
+        );
+    }
+    if !left_out.databases.is_empty() {
+        eprintln!(
+            "Left out {}: SQLite databases never ship. The application makes its own, in its data directory.",
+            left_out.databases.join(", ")
+        );
     }
 }
 
@@ -180,9 +198,9 @@ fn deb_name(_project: &Project) -> String {
     String::new()
 }
 
-/// The package of `project`. Returns the local overrides it left out.
+/// The package of `project`. Returns what it left out of the project.
 #[cfg(target_os = "linux")]
-fn deb(project: &Project, output: &Path) -> io::Result<Vec<String>> {
+fn deb(project: &Project, output: &Path) -> io::Result<LeftOut> {
     if notices::text()?.is_none() {
         eprintln!(
             "Warning: this nativella is a development build, linked to the PHP of this machine: the package will not run elsewhere. Build the packages you distribute with a release, or with castor nativella:build."
@@ -195,7 +213,7 @@ fn deb(project: &Project, output: &Path) -> io::Result<Vec<String>> {
 /// The executable is a copy of this one: a package of Linux holds a
 /// nativella of Linux.
 #[cfg(not(target_os = "linux"))]
-fn deb(_project: &Project, _output: &Path) -> io::Result<Vec<String>> {
+fn deb(_project: &Project, _output: &Path) -> io::Result<LeftOut> {
     Err(io::Error::other(
         "Debian packages are built on Linux, with the nativella of Linux.",
     ))
@@ -239,13 +257,13 @@ fn write_notices(output: &Path) -> io::Result<()> {
 }
 
 /// The APK of `project`, signed with the key in `key`, or the debug key.
-/// Returns the local overrides it left out.
+/// Returns what it left out of the project.
 fn android(
     project: &Project,
     template: Option<&Path>,
     key: Option<&Path>,
     output: &Path,
-) -> io::Result<Vec<String>> {
+) -> io::Result<LeftOut> {
     let template = template.ok_or_else(|| {
         io::Error::other(format!(
             "--template is missing: the template APK of Nativella {}, from its release.",
@@ -268,14 +286,14 @@ fn android(
 }
 
 /// The iOS app of `project`: for the simulator, or for devices, signed with
-/// `certificate` and `profile`. Returns the local overrides it left out.
+/// `certificate` and `profile`. Returns what it left out of the project.
 fn ios(
     project: &Project,
     template: Option<&Path>,
     certificate: Option<&Path>,
     profile: Option<&Path>,
     output: &Path,
-) -> io::Result<Vec<String>> {
+) -> io::Result<LeftOut> {
     let template = template.ok_or_else(|| {
         io::Error::other(format!(
             "--template is missing: a template app of Nativella {}, for the simulator or for devices, from its release.",

@@ -39,7 +39,7 @@ use plist::{Dictionary, Value};
 use self::certificate::Certificate;
 use self::profile::Profile;
 use self::signature::Signer;
-use crate::embedded::{self, PACKAGED_BUNDLE};
+use crate::embedded::{self, LeftOut, PACKAGED_BUNDLE};
 use crate::project::{Permission, Project};
 use crate::zip::{self, Entry};
 
@@ -80,13 +80,13 @@ enum Platform {
 /// Writes the iOS app of `project` to `output`, made from `template`: a
 /// directory `<name>.app` for the simulator, which `xcrun simctl install`
 /// takes, signed ad hoc; an IPA for devices, signed by `identity`. Returns
-/// the local overrides it left out, relative to the project.
+/// what it left out of the project.
 pub fn package(
     project: &Project,
     template: &Path,
     output: &Path,
     identity: Option<&Identity>,
-) -> io::Result<Vec<String>> {
+) -> io::Result<LeftOut> {
     let version = bundle_version(&project.manifest.version)?;
 
     let mut template_file = File::open(template).map_err(|error| {
@@ -205,7 +205,7 @@ pub fn package(
         excluded.push(identity.profile.path());
     }
     let mut bundle = BufWriter::new(File::create(app_dir.join(PACKAGED_BUNDLE))?);
-    let local_overrides = embedded::write_bundle(project, &mut bundle, &excluded)?;
+    let left_out = embedded::write_bundle(project, &mut bundle, &excluded)?;
     bundle.flush()?;
     drop(bundle);
 
@@ -240,7 +240,7 @@ pub fn package(
         Platform::Device => write_ipa(&staging.0, output)?,
     }
 
-    Ok(local_overrides)
+    Ok(left_out)
 }
 
 /// A directory that the packaging removes when it ends, whether it failed
@@ -706,10 +706,9 @@ mod tests {
         let (project, project_dir) = project("simulator", Platform::Simulator);
         let output = project_dir.join("dist/note-taker.app");
 
-        let local_overrides =
-            package(&project, &project_dir.join("template.zip"), &output, None).unwrap();
+        let left_out = package(&project, &project_dir.join("template.zip"), &output, None).unwrap();
 
-        assert_eq!(local_overrides, [".env.local"]);
+        assert_eq!(left_out.local_overrides, [".env.local"]);
         assert_eq!(
             bundled(&output.join(PACKAGED_BUNDLE)),
             [
