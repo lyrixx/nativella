@@ -27,7 +27,12 @@ const SPC_VERSION = '2.8.5';
  */
 const EXTENSIONS = 'bcmath,ctype,curl,dom,fileinfo,filter,iconv,intl,mbstring,opcache,openssl,pdo,pdo_sqlite,phar,session,simplexml,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zlib';
 
-const PHP_BRANCH = '8.5';
+/**
+ * The release of PHP, to its patch version: every platform builds this one,
+ * and builds again when it changes. Raise it with each release of PHP, the
+ * security ones first: see docs/development.md#the-version-of-php.
+ */
+const PHP_RELEASE = '8.5.12';
 
 /**
  * The service that builds the static PHP and links it: Ubuntu 22.04, for an
@@ -65,12 +70,12 @@ function build(
     #[AsOption(description: 'Build again, even if nothing changed')]
     bool $force = false,
 ): void {
-    io()->title('Building PHP '.PHP_BRANCH.' as a static library');
+    io()->title('Building PHP '.PHP_RELEASE.' as a static library');
 
     // In the build, not in the cache of Castor: the CI caches the build
     $buildroot = variable('root_dir').'/static-php/buildroot';
     $stamp = "{$buildroot}/.nativella-build";
-    $build = SPC_VERSION.' '.PHP_BRANCH.' '.builder_platform().' '.EXTENSIONS;
+    $build = SPC_VERSION.' '.PHP_RELEASE.' '.builder_platform().' '.EXTENSIONS;
     if ([] !== spc_environment()) {
         $build .= ' gcc glibc '.GLIBC_VERSION;
     }
@@ -203,11 +208,50 @@ function build_php(): void
     $environment = spc_environment();
 
     run_in_builder(['./spc', 'doctor', '--auto-fix'], $workDir, $environment, SERVICE);
-    run_in_builder(['./spc', 'download', '--for-extensions='.EXTENSIONS, '--with-php='.PHP_BRANCH, '--prefer-pre-built'], $workDir, $environment, SERVICE);
+    download(['./spc', 'download', '--for-extensions='.EXTENSIONS, '--prefer-pre-built'], $workDir, $environment, SERVICE);
     // It dumps the licenses of PHP and of the libraries it builds into
     // buildroot/license/, for the third-party notices (notices\desktop())
     run_in_builder(['./spc', 'build', EXTENSIONS, '--build-embed'], $workDir, $environment, SERVICE);
     \notices\copy_php_src_licenses('static-php/source/php-src', 'static-php/buildroot/license/php-src');
+}
+
+/**
+ * Runs `spc download`, for the sources of PHP_RELEASE, into
+ * static-php/downloads/. static-php-cli keeps the sources it downloaded
+ * already, whatever the version asked: those of another version are
+ * downloaded again.
+ *
+ * @param list<string>          $command     spc download and its arguments, but --with-php
+ * @param array<string, string> $environment
+ */
+function download(array $command, string $workDir, array $environment = [], ?string $service = null): void
+{
+    $source = 'php-'.PHP_RELEASE.'.tar.xz';
+
+    $command[] = '--with-php='.PHP_RELEASE;
+    if (null !== downloaded_php_source() && $source !== downloaded_php_source()) {
+        $command[] = '--ignore-cache-sources=php-src';
+    }
+
+    run_in_builder($command, $workDir, $environment, $service);
+
+    if ($source !== downloaded_php_source()) {
+        throw new \RuntimeException(\sprintf('static-php-cli downloaded %s, not %s: see static-php/downloads/.lock.json.', downloaded_php_source() ?? 'no PHP', $source));
+    }
+}
+
+/**
+ * The archive of PHP that static-php-cli downloaded, from its lock: php.net
+ * names it after the version, php-8.5.12.tar.xz.
+ */
+function downloaded_php_source(): ?string
+{
+    $lock = variable('root_dir').'/static-php/downloads/.lock.json';
+    if (!is_file($lock)) {
+        return null;
+    }
+
+    return json_decode((string) file_get_contents($lock), true, flags: \JSON_THROW_ON_ERROR)['php-src']['filename'] ?? null;
 }
 
 /**

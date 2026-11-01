@@ -176,6 +176,12 @@ On Linux, it builds in the `static` image, which the task builds first: Ubuntu 2
 
 An embed-only PHP has no `php` binary for ext-php-rs to ask `php -i`: the stand-in `mobile/php/php` describes it from its headers, as it does for the PHP of phones.
 
+#### The version of PHP
+
+`PHP_RELEASE`, in `.castor/static-php.php`, pins the version of PHP, to its patch release, for the desktop and the phones, on every machine and in every job of the CI. The stamp of each buildroot holds it, and the keys of the [caches](#caches) of the static PHP hash that file: when it changes, each platform builds the new PHP, whatever its cache holds.
+
+A new release of PHP, a security one first, is a change of this line, in a pull request of its own: its workflows build the new PHP on Linux, macOS, Android and iOS. php.net gives the latest release of a branch, `https://www.php.net/releases/index.php?json&version=8.5`; static-php-cli downloads it from there, into `static-php/downloads/`, and again when the version changes.
+
 ### PHP for the phones
 
 ```bash

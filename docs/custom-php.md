@@ -12,7 +12,7 @@ Two constants at the top of `.castor/static-php.php` describe it:
 
 | Constant | In the releases | |
 |---|---|---|
-| `PHP_BRANCH` | `8.5` | The version of PHP: its latest patch release, when PHP builds. The PHP packages of Nativella need 8.4 or later. |
+| `PHP_RELEASE` | `8.5.12` | The version of PHP, to its patch release (see [The version of PHP](development.md#the-version-of-php)). The PHP packages of Nativella need 8.4 or later. |
 | `EXTENSIONS` | `bcmath,ctype,…,zlib` | The extensions, separated by commas, by their names in [static-php-cli](https://static-php.dev/en/guide/extensions.html), which builds PHP and the libraries they need. |
 
 For PHP 8.4, with gd and without intl:
@@ -20,7 +20,7 @@ For PHP 8.4, with gd and without intl:
 ```php
 const EXTENSIONS = 'bcmath,ctype,curl,dom,fileinfo,filter,gd,iconv,mbstring,opcache,openssl,pdo,pdo_sqlite,phar,session,simplexml,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zlib';
 
-const PHP_BRANCH = '8.4';
+const PHP_RELEASE = '8.4.27';
 ```
 
 Keep what the application needs: `composer check-platform-reqs --lock --no-dev`, in its directory, lists the extensions its packages require. Then the ones nobody declares: session, if the application has sessions; pdo_sqlite, for the [database](database.md) in the data directory.
