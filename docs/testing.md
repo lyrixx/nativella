@@ -117,7 +117,7 @@ Without a queued answer, `FakeClient` returns:
 | `system.info`, `system.theme` | Linux, x86_64, `en-US`; `light` |
 | `updater.check`, `updater.install` | `null`: this version is the latest |
 | `window.all` | none |
-| `window.get`, `window.open` | a window with the label asked for, focused, 1024 by 768 |
+| `window.get`, `window.open` | the window asked for, `main` by default, focused, 1024 by 768 |
 
 The other methods return nothing (`void`): they answer an empty result.
 

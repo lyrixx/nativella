@@ -12,7 +12,7 @@ final readonly class MainWindow
     /**
      * Keep in sync with MAIN_WINDOW in crates/nativella/src/lib.rs.
      */
-    private const string LABEL = 'main';
+    private const string WINDOW = 'main';
 
     public function __construct(
         private Window $window,
@@ -26,6 +26,6 @@ final readonly class MainWindow
      */
     public function show(): void
     {
-        $this->window->open(self::LABEL);
+        $this->window->open(self::WINDOW);
     }
 }

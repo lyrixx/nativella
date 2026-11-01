@@ -135,7 +135,7 @@ final class DesktopTest extends TestCase
         event(new GlobalShortcutPressed(Shortcut::ShowWindow->value));
 
         // The runtime opens it with the options of extra.nativella.window.
-        $this->assertSame([['method' => 'window.open', 'payload' => ['label' => 'main']]], $native->calls());
+        $this->assertSame([['method' => 'window.open', 'payload' => ['window' => 'main']]], $native->calls());
     }
 
     public function testTheTrayBringsTheWindowBack(): void

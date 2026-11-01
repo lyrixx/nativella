@@ -24,9 +24,9 @@ final readonly class Window
      * The main window starts from the options of the "window" key of
      * extra.nativella in composer.json, which $options complete.
      */
-    public function open(string $label, ?WindowOptions $options = null): WindowInfo
+    public function open(string $window, ?WindowOptions $options = null): WindowInfo
     {
-        return WindowInfo::fromArray($this->client->call('window.open', ['label' => $label] + ($options?->toArray() ?? []))['window']);
+        return WindowInfo::fromArray($this->client->call('window.open', ['window' => $window] + ($options?->toArray() ?? []))['window']);
     }
 
     public function close(?string $window = null): void

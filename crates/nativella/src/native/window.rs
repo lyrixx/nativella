@@ -55,7 +55,7 @@ pub(crate) struct WindowOptions {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Open {
-    label: String,
+    window: String,
     #[serde(flatten)]
     options: Map<String, Value>,
 }
@@ -126,13 +126,13 @@ struct Navigate {
 pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
     Some(match method {
         "open" => call.payload::<Open>().and_then(|payload| {
-            let window = open(call.app, &payload.label, payload.options)?;
+            let window = open(call.app, &payload.window, payload.options)?;
             Ok(json!({ "window": info(&window) }))
         }),
         "close" => with_target(call, |window| window.close()),
         "all" => {
             let mut windows: Vec<Value> = call.app.webview_windows().values().map(info).collect();
-            windows.sort_by(|a, b| a["label"].as_str().cmp(&b["label"].as_str()));
+            windows.sort_by(|a, b| a["window"].as_str().cmp(&b["window"].as_str()));
             Ok(json!({ "windows": windows }))
         }
         "get" => call
@@ -408,7 +408,7 @@ pub(crate) fn info(window: &WebviewWindow) -> Value {
         .ok();
 
     json!({
-        "label": window.label(),
+        "window": window.label(),
         "title": window.title().ok(),
         "url": window.url().ok().map(|url| url.to_string()),
         "width": size.map(|size| size.width),

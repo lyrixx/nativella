@@ -80,7 +80,7 @@ final class FakeClient implements Client
         }
 
         if (\in_array($method, ['window.open', 'window.get'], true)) {
-            return ['window' => self::window($payload['label'] ?? $payload['window'] ?? 'main')];
+            return ['window' => self::window($payload['window'] ?? 'main')];
         }
         if ('app.path' === $method) {
             return ['path' => '/home/nativella/'.$payload['directory']];
@@ -122,10 +122,10 @@ final class FakeClient implements Client
     /**
      * @return array<string, mixed>
      */
-    private static function window(string $label): array
+    private static function window(string $window): array
     {
         return [
-            'label' => $label,
+            'window' => $window,
             'title' => 'Nativella',
             'url' => 'php://localhost/',
             'width' => 1024.0,

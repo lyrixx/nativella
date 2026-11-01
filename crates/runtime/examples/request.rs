@@ -130,9 +130,9 @@ fn main() {
 /// What the shell answers when nothing happens. Keep in sync with
 /// `FakeClient::DEFAULTS` in packages/nativella/src/Client/FakeClient.php.
 fn answer(method: &str, payload: &serde_json::Value) -> serde_json::Value {
-    let window = |label: &serde_json::Value| {
+    let window = |window: &serde_json::Value| {
         json!({
-            "label": label.as_str().unwrap_or("main"), "title": "Nativella", "url": "php://localhost/",
+            "window": window.as_str().unwrap_or("main"), "title": "Nativella", "url": "php://localhost/",
             "width": 1024.0, "height": 768.0, "x": 0.0, "y": 0.0, "focused": true,
             "maximized": false, "minimized": false, "fullscreen": false, "visible": true,
         })
@@ -170,8 +170,7 @@ fn answer(method: &str, payload: &serde_json::Value) -> serde_json::Value {
         }
         "system.theme" => json!({ "theme": "light" }),
         "window.all" => json!({ "windows": [] }),
-        "window.get" => json!({ "window": window(&payload["window"]) }),
-        "window.open" => json!({ "window": window(&payload["label"]) }),
+        "window.get" | "window.open" => json!({ "window": window(&payload["window"]) }),
         _ => json!({}),
     }
 }

@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 
 final class WindowTest extends TestCase
 {
-    public function testOpenSendsTheLabelAndTheOptionsThatAreSet(): void
+    public function testOpenSendsTheWindowAndTheOptionsThatAreSet(): void
     {
         $client = new FakeClient();
 
@@ -17,9 +17,9 @@ final class WindowTest extends TestCase
 
         $this->assertSame([[
             'method' => 'window.open',
-            'payload' => ['label' => 'settings', 'url' => '/settings', 'title' => 'Settings', 'width' => 600.0, 'resizable' => false],
+            'payload' => ['window' => 'settings', 'url' => '/settings', 'title' => 'Settings', 'width' => 600.0, 'resizable' => false],
         ]], $client->calls());
-        $this->assertSame('settings', $info->label);
+        $this->assertSame('settings', $info->window);
     }
 
     public function testMethodsTargetTheCurrentWindowByDefault(): void
@@ -40,7 +40,7 @@ final class WindowTest extends TestCase
     {
         $client = new FakeClient();
         $client->respond('window.all', ['windows' => [[
-            'label' => 'main', 'title' => 'Notes', 'url' => 'php://localhost/', 'width' => 800, 'height' => 600,
+            'window' => 'main', 'title' => 'Notes', 'url' => 'php://localhost/', 'width' => 800, 'height' => 600,
             'x' => 10, 'y' => 20, 'focused' => true, 'maximized' => false, 'minimized' => false, 'fullscreen' => false, 'visible' => true,
         ]]]);
 

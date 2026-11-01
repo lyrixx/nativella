@@ -8,7 +8,8 @@ namespace Nativella\Window;
 final readonly class WindowInfo
 {
     public function __construct(
-        public string $label,
+        /** Its label. */
+        public string $window,
         public ?string $title,
         public ?string $url,
         public ?float $width,
@@ -24,14 +25,14 @@ final readonly class WindowInfo
     }
 
     /**
-     * @param array{label: string, title: ?string, url: ?string, width: int|float|null, height: int|float|null, x: int|float|null, y: int|float|null, focused: bool, maximized: bool, minimized: bool, fullscreen: bool, visible: bool} $data
+     * @param array{window: string, title: ?string, url: ?string, width: int|float|null, height: int|float|null, x: int|float|null, y: int|float|null, focused: bool, maximized: bool, minimized: bool, fullscreen: bool, visible: bool} $data
      */
     public static function fromArray(array $data): self
     {
         $float = static fn (int|float|null $value): ?float => null === $value ? null : (float) $value;
 
         return new self(
-            $data['label'],
+            $data['window'],
             $data['title'],
             $data['url'],
             $float($data['width']),
