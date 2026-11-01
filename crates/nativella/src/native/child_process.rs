@@ -8,7 +8,7 @@
 
 use std::collections::HashMap;
 use std::io::{self, Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
@@ -39,6 +39,10 @@ pub(crate) struct ChildProcesses {
     closing: AtomicBool,
     /// Where processes start, unless told otherwise.
     project_dir: PathBuf,
+    /// The variables of Nativella PHP finds in `$_SERVER`, in the
+    /// environment of the processes: a worker finds the data directory and
+    /// the secret of the application.
+    variables: Vec<(&'static str, String)>,
 }
 
 struct Running {
@@ -81,11 +85,12 @@ struct Alias {
 }
 
 impl ChildProcesses {
-    pub(crate) fn new(project_dir: PathBuf) -> Self {
+    pub(crate) fn new(project_dir: PathBuf, variables: Vec<(&'static str, String)>) -> Self {
         Self {
             running: Mutex::default(),
             closing: AtomicBool::new(false),
             project_dir,
+            variables,
         }
     }
 
@@ -102,6 +107,55 @@ impl ChildProcesses {
         while !lock(&self.running).is_empty() && Instant::now() < deadline {
             thread::sleep(POLL);
         }
+    }
+
+    /// The command of a process: `env` adds to the environment of the
+    /// application, and wins over it.
+    fn command(
+        &self,
+        program: &str,
+        arguments: &[String],
+        cwd: &Path,
+        env: &HashMap<String, String>,
+    ) -> Command {
+        let mut command = Command::new(program);
+        command
+            .args(arguments)
+            .current_dir(cwd)
+            .envs(self.variables.iter().cloned())
+            .envs(env)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            command.process_group(0);
+        }
+        #[cfg(target_os = "linux")]
+        {
+            use std::os::unix::process::CommandExt;
+            let application = std::process::id();
+            // SAFETY: prctl() and getppid() are async-signal-safe system calls,
+            // and the closure allocates nothing.
+            unsafe {
+                command.pre_exec(move || {
+                    // Its end with the application, even a killed one: the signal
+                    // comes when the thread that started it ends, the PHP thread,
+                    // which lives as long as the application.
+                    if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM) == -1 {
+                        return Err(io::Error::last_os_error());
+                    }
+                    // Gone already: the signal would never come.
+                    if u32::try_from(libc::getppid()) != Ok(application) {
+                        return Err(io::Error::other("the application is gone"));
+                    }
+                    Ok(())
+                });
+            }
+        }
+
+        command
     }
 }
 
@@ -206,41 +260,7 @@ fn start(app: &AppHandle, processes: &ChildProcesses, payload: Start) -> Result<
             .map_err(|error| format!("The thread watching \"{alias}\" cannot start: {error}."))?;
     }
 
-    let mut command = Command::new(program);
-    command
-        .args(arguments)
-        .current_dir(&cwd)
-        .envs(&payload.env)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        command.process_group(0);
-    }
-    #[cfg(target_os = "linux")]
-    {
-        use std::os::unix::process::CommandExt;
-        let application = std::process::id();
-        // SAFETY: prctl() and getppid() are async-signal-safe system calls,
-        // and the closure allocates nothing.
-        unsafe {
-            command.pre_exec(move || {
-                // Its end with the application, even a killed one: the signal
-                // comes when the thread that started it ends, the PHP thread,
-                // which lives as long as the application.
-                if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM) == -1 {
-                    return Err(io::Error::last_os_error());
-                }
-                // Gone already: the signal would never come.
-                if u32::try_from(libc::getppid()) != Ok(application) {
-                    return Err(io::Error::other("the application is gone"));
-                }
-                Ok(())
-            });
-        }
-    }
+    let mut command = processes.command(program, arguments, &cwd, &payload.env);
     let mut child = command
         .spawn()
         .map_err(|error| format!("Cannot start \"{program}\" in {}: {error}.", cwd.display()))?;
@@ -463,4 +483,68 @@ fn send_output(app: &AppHandle, alias: &str, pid: u32, stream: &str, output: &[u
 
 fn not_running(alias: &str) -> String {
     format!("No process named \"{alias}\" is running.")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsStr;
+
+    use super::*;
+
+    fn processes() -> ChildProcesses {
+        ChildProcesses::new(
+            PathBuf::from("/projects/notes"),
+            vec![
+                (
+                    "NATIVELLA_DATA_DIR",
+                    "/home/me/.local/share/notes".to_owned(),
+                ),
+                ("NATIVELLA_SECRET", "0123abcd".to_owned()),
+            ],
+        )
+    }
+
+    fn variable<'a>(command: &'a Command, name: &str) -> Option<Option<&'a OsStr>> {
+        command
+            .get_envs()
+            .find(|(key, _)| *key == name)
+            .map(|(_, value)| value)
+    }
+
+    #[test]
+    fn processes_get_the_variables_of_nativella() {
+        let command = processes().command(
+            "php",
+            &["bin/console".to_owned()],
+            Path::new("/projects/notes"),
+            &HashMap::new(),
+        );
+
+        assert_eq!(
+            variable(&command, "NATIVELLA_DATA_DIR"),
+            Some(Some(OsStr::new("/home/me/.local/share/notes")))
+        );
+        assert_eq!(
+            variable(&command, "NATIVELLA_SECRET"),
+            Some(Some(OsStr::new("0123abcd")))
+        );
+    }
+
+    #[test]
+    fn the_environment_of_the_call_wins() {
+        let env = HashMap::from([
+            ("NATIVELLA_DATA_DIR".to_owned(), "/srv/notes".to_owned()),
+            ("APP_ENV".to_owned(), "prod".to_owned()),
+        ]);
+        let command = processes().command("php", &[], Path::new("/projects/notes"), &env);
+
+        assert_eq!(
+            variable(&command, "NATIVELLA_DATA_DIR"),
+            Some(Some(OsStr::new("/srv/notes")))
+        );
+        assert_eq!(
+            variable(&command, "APP_ENV"),
+            Some(Some(OsStr::new("prod")))
+        );
+    }
 }

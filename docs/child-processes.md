@@ -22,7 +22,7 @@ $processes->stop('worker');
 
 `$command` is the program, then its arguments: no shell is involved, so nothing needs quoting, and `|`, `>` or `$VAR` mean nothing. For those, start a shell: `['sh', '-c', 'du -sh ~ | sort -h']`.
 
-The process starts in the project directory, or in `$cwd`, relative to it. It gets the environment of the application, plus `$env`.
+The process starts in the project directory, or in `$cwd`, relative to it. It gets the environment of the application, plus the variables of Nativella that PHP finds in `$_SERVER`, `NATIVELLA_DATA_DIR`, `NATIVELLA_SECRET`, `NATIVELLA_PLATFORM` and `NATIVELLA_VERSION`, plus `$env`, which wins. A worker of the application opens the same database, with the same secret, as the requests do.
 
 ## Output and end
 

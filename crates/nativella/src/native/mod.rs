@@ -106,12 +106,13 @@ impl State {
     pub(crate) fn new(
         project_dir: PathBuf,
         data_dir: PathBuf,
+        variables: Vec<(&'static str, String)>,
         default_window: Map<String, Value>,
         updates: Option<Updates>,
     ) -> Self {
         Self {
             #[cfg(desktop)]
-            child_processes: child_process::ChildProcesses::new(project_dir),
+            child_processes: child_process::ChildProcesses::new(project_dir, variables),
             settings: settings::Store::new(data_dir.join("settings.json")),
             timers: timer::Timers::default(),
             data_dir,

@@ -360,12 +360,21 @@ fn start(
                 Err(error) => eprintln!("[nativella] Unknown time zone, PHP uses UTC: {error}."),
             }
 
-            let php_app = php_app
-                .with_cookie_file(data_dir.join(".nativella-cookies"))
-                .with_server_variable("NATIVELLA_DATA_DIR", data_dir.to_string_lossy())
-                .with_server_variable("NATIVELLA_SECRET", secret::load(&data_dir)?)
-                .with_server_variable("NATIVELLA_PLATFORM", env::consts::OS)
-                .with_server_variable("NATIVELLA_VERSION", env!("CARGO_PKG_VERSION"));
+            // What PHP finds in $_SERVER, and the processes it starts in
+            // their environment: a worker opens the same database.
+            let variables = vec![
+                (
+                    "NATIVELLA_DATA_DIR",
+                    data_dir.to_string_lossy().into_owned(),
+                ),
+                ("NATIVELLA_SECRET", secret::load(&data_dir)?),
+                ("NATIVELLA_PLATFORM", env::consts::OS.to_owned()),
+                ("NATIVELLA_VERSION", env!("CARGO_PKG_VERSION").to_owned()),
+            ];
+            let mut php_app = php_app.with_cookie_file(data_dir.join(".nativella-cookies"));
+            for (name, value) in &variables {
+                php_app = php_app.with_server_variable(*name, value);
+            }
 
             #[cfg(desktop)]
             if !extracted && reload::enabled() {
@@ -374,6 +383,7 @@ fn start(
             app.manage(State::new(
                 project.dir.clone(),
                 data_dir,
+                variables,
                 project.manifest.window.clone(),
                 project.manifest.updates.clone(),
             ));
