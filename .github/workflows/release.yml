@@ -5,7 +5,8 @@ name: Release
 # 22.04, for its glibc), and for macOS arm64; the template APK that
 # nativella android makes Android applications of, in the android image; the
 # template apps that nativella ios makes iOS apps of, for the simulator and
-# for devices, on macOS; attaches them to the GitHub release of a v* tag.
+# for devices, on macOS; attaches them to the GitHub release of a v* tag,
+# with an attestation of their provenance.
 #
 # It restores the caches of main, saved by static.yml, macos.yml and
 # mobile.yml, and saves none: those of a tag would serve no other run (see
@@ -351,13 +352,19 @@ jobs:
                   path: release/
                   if-no-files-found: error
 
+    # The release is immutable once published (a setting of the repository):
+    # it is created as a draft, gets its files, then is published. A run
+    # again on its tag, after a failure, finishes the draft
     publish:
         name: Publish the release
         if: github.ref_type == 'tag'
         needs: [linux, macos, android, ios]
         runs-on: ubuntu-26.04
         permissions:
+            # The attestations: a token of GitHub's OIDC provider signs them
+            attestations: write
             contents: write
+            id-token: write
         steps:
             - name: "Download the executables"
               uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -366,7 +373,15 @@ jobs:
                   merge-multiple: true
                   path: release/
 
-            - name: "Create the release, or update its files"
+            # Signed by GitHub: each file was built by this workflow, from this
+            # tag. `gh attestation verify <file> --repo lyrixx/nativella`
+            # checks it (docs/installation.md)
+            - name: "Attest the provenance of the files"
+              uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+              with:
+                  subject-path: release/*
+
+            - name: "Publish the release with its files"
               shell: bash
               env:
                   GH_TOKEN: ${{ github.token }}
@@ -377,7 +392,9 @@ jobs:
                   `nativella-<platform>` runs a PHP project (`nativella run <project-dir>`)
                   and builds standalone applications (`nativella build`);
                   `nativella-demo-*-<platform>` are the demos, as standalone applications.
-                  `SHA256SUMS-<platform>` holds their checksums.
+                  `SHA256SUMS-<platform>` holds their checksums. Each file has an attestation
+                  of its provenance: `gh attestation verify <file> --repo lyrixx/nativella`
+                  checks that the Release workflow of the repository built it.
 
                   `THIRD_PARTY_NOTICES-<platform>.txt` holds the licenses of the software they
                   contain: PHP, its libraries, the Rust crates and, on Android, the Java
@@ -409,9 +426,13 @@ jobs:
                   run yet.
                   EOF
 
-                  if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
-                      gh release upload "${GITHUB_REF_NAME}" release/* --repo "${GITHUB_REPOSITORY}" --clobber
-                  else
-                      gh release create "${GITHUB_REF_NAME}" release/* --repo "${GITHUB_REPOSITORY}" \
+                  if ! draft="$(gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --json isDraft --jq .isDraft)"; then
+                      gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --draft \
                           --title "${GITHUB_REF_NAME}" --notes-file "${RUNNER_TEMP}/notes.md" --verify-tag
+                  elif [ "${draft}" != "true" ]; then
+                      echo "The release ${GITHUB_REF_NAME} is published already: its files cannot change." >&2
+                      exit 1
                   fi
+
+                  gh release upload "${GITHUB_REF_NAME}" release/* --repo "${GITHUB_REPOSITORY}" --clobber
+                  gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --draft=false
