@@ -1,6 +1,9 @@
 //! `menu.*`: the application menu and context menus. A click reaches PHP as
 //! `menu.itemClicked`, and navigates when the item has a URL.
 
+use std::collections::HashMap;
+use std::sync::Mutex;
+
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tauri::menu::{
@@ -75,6 +78,58 @@ fn enabled() -> bool {
     true
 }
 
+/// Where a menu shows: each one replaces the previous one of its place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum Place {
+    Application,
+    Tray,
+    /// The last context menu: the previous ones are closed.
+    Context,
+}
+
+/// What the clicks of a menu need.
+#[derive(Default)]
+pub(crate) struct Items {
+    /// Action id → the URL its click navigates to, if any.
+    actions: HashMap<String, Option<String>>,
+    /// Item id → its checkbox, to tell PHP whether it is checked.
+    checkboxes: HashMap<String, CheckMenuItem<Wry>>,
+}
+
+/// The items of the menus PHP built, by place: building a menu forgets the
+/// items of the one it replaces only.
+#[derive(Default)]
+pub(crate) struct Menus(Mutex<HashMap<Place, Items>>);
+
+impl Menus {
+    pub(crate) fn replace(&self, place: Place, items: Items) {
+        lock(&self.0).insert(place, items);
+    }
+
+    pub(crate) fn remove(&self, place: Place) {
+        lock(&self.0).remove(&place);
+    }
+
+    /// The URL and the checkbox of the item `id`. Ids are unique across the
+    /// menus: if not, the application menu wins over the tray menu, which
+    /// wins over the context menu.
+    fn clicked(&self, id: &str) -> (Option<String>, Option<CheckMenuItem<Wry>>) {
+        let menus = lock(&self.0);
+        let mut found = [Place::Application, Place::Tray, Place::Context]
+            .into_iter()
+            .filter_map(|place| menus.get(&place))
+            .filter(|items| items.actions.contains_key(id) || items.checkboxes.contains_key(id));
+
+        match found.next() {
+            Some(items) => (
+                items.actions.get(id).cloned().flatten(),
+                items.checkboxes.get(id).cloned(),
+            ),
+            None => (None, None),
+        }
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Set {
@@ -101,17 +156,20 @@ struct Popup {
 pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
     Some(match method {
         "set" => call.payload::<Set>().and_then(|payload| {
-            let menu = build(call, &payload.items)?;
+            let menu = build(call, &payload.items, Place::Application)?;
             call.app.set_menu(menu).map_err(failed)?;
             Ok(json!({}))
         }),
-        "remove" => call.app.remove_menu().map(|_| json!({})).map_err(failed),
+        "remove" => {
+            call.state().menus.remove(Place::Application);
+            call.app.remove_menu().map(|_| json!({})).map_err(failed)
+        }
         "update" => call
             .payload::<Update>()
             .and_then(|payload| update(call, &payload)),
         "popup" => call.payload::<Popup>().and_then(|payload| {
             let window = call.target_window(payload.window.as_deref())?;
-            let menu = build(call, &payload.items)?;
+            let menu = build(call, &payload.items, Place::Context)?;
             window.popup_menu(&menu).map_err(failed)?;
             Ok(json!({}))
         }),
@@ -191,17 +249,21 @@ fn find(
     Ok(())
 }
 
-/// Builds a Tauri menu, remembering the links and checkboxes of its items.
-pub(crate) fn build(call: &Call<'_>, items: &[Item]) -> Result<Menu<Wry>, String> {
-    let built = build_items(call.app, &call.state(), items)?;
+/// Builds a Tauri menu for `place`, remembering the links and checkboxes of
+/// its items in place of those of the menu it replaces.
+pub(crate) fn build(call: &Call<'_>, items: &[Item], place: Place) -> Result<Menu<Wry>, String> {
+    let mut remembered = Items::default();
+    let built = build_items(call.app, &mut remembered, items)?;
     let references: Vec<&dyn IsMenuItem<Wry>> = built.iter().map(AsRef::as_ref).collect();
+    let menu = Menu::with_items(call.app, &references).map_err(failed)?;
+    call.state().menus.replace(place, remembered);
 
-    Menu::with_items(call.app, &references).map_err(failed)
+    Ok(menu)
 }
 
 fn build_items(
     app: &AppHandle,
-    state: &State,
+    remembered: &mut Items,
     items: &[Item],
 ) -> Result<Vec<Box<dyn IsMenuItem<Wry>>>, String> {
     items
@@ -215,15 +277,7 @@ fn build_items(
                     enabled,
                     url,
                 } => {
-                    // Not held across the Tauri call below, which waits for
-                    // the main thread, where clicks lock it too.
-                    {
-                        let mut links = lock(&state.menu_links);
-                        match url {
-                            Some(url) => links.insert(id.clone(), url.clone()),
-                            None => links.remove(id),
-                        };
-                    }
+                    remembered.actions.insert(id.clone(), url.clone());
 
                     Box::new(
                         MenuItem::with_id(app, id, label, *enabled, accelerator.as_deref())
@@ -246,7 +300,7 @@ fn build_items(
                         accelerator.as_deref(),
                     )
                     .map_err(failed)?;
-                    lock(&state.checkboxes).insert(id.clone(), checkbox.clone());
+                    remembered.checkboxes.insert(id.clone(), checkbox.clone());
 
                     Box::new(checkbox)
                 }
@@ -256,7 +310,7 @@ fn build_items(
                     items,
                     enabled,
                 } => {
-                    let children = build_items(app, state, items)?;
+                    let children = build_items(app, remembered, items)?;
                     let references: Vec<&dyn IsMenuItem<Wry>> =
                         children.iter().map(AsRef::as_ref).collect();
 
@@ -331,7 +385,8 @@ pub(crate) fn on_menu_event(app: &AppHandle, event: MenuEvent) {
         return;
     }
 
-    if let Some(url) = lock(&state.menu_links).get(id).cloned() {
+    let (url, checkbox) = state.menus.clicked(id);
+    if let Some(url) = url {
         let windows = app.webview_windows();
         let target = windows
             .values()
@@ -349,7 +404,6 @@ pub(crate) fn on_menu_event(app: &AppHandle, event: MenuEvent) {
         }
     }
 
-    let checkbox = lock(&state.checkboxes).get(id).cloned();
     let checked = checkbox.and_then(|checkbox| checkbox.is_checked().ok());
 
     events::send(
@@ -460,5 +514,59 @@ mod linux_roles {
             "document.execCommand('insertText', false, {})",
             Value::String(text)
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn actions(actions: &[(&str, Option<&str>)]) -> Items {
+        Items {
+            actions: actions
+                .iter()
+                .map(|(id, url)| ((*id).to_owned(), url.map(str::to_owned)))
+                .collect(),
+            checkboxes: HashMap::new(),
+        }
+    }
+
+    fn url(menus: &Menus, id: &str) -> Option<String> {
+        menus.clicked(id).0
+    }
+
+    #[test]
+    fn a_menu_replaces_the_items_of_its_place_only() {
+        let menus = Menus::default();
+        menus.replace(
+            Place::Application,
+            actions(&[("settings", Some("/settings"))]),
+        );
+        menus.replace(
+            Place::Context,
+            actions(&[("note.pin.42", Some("/notes/42/pin"))]),
+        );
+
+        // The next context menu.
+        menus.replace(Place::Context, actions(&[("note.pin.43", None)]));
+        assert_eq!(url(&menus, "settings").as_deref(), Some("/settings"));
+        assert_eq!(url(&menus, "note.pin.42"), None);
+
+        menus.replace(Place::Application, actions(&[]));
+        assert_eq!(url(&menus, "settings"), None);
+    }
+
+    #[test]
+    fn the_application_menu_wins_over_the_tray_menu_and_the_context_menu() {
+        let menus = Menus::default();
+        menus.replace(Place::Context, actions(&[("open", Some("/context"))]));
+        menus.replace(Place::Tray, actions(&[("open", Some("/tray"))]));
+        menus.replace(Place::Application, actions(&[("open", None)]));
+        assert_eq!(url(&menus, "open"), None);
+
+        menus.remove(Place::Application);
+        assert_eq!(url(&menus, "open").as_deref(), Some("/tray"));
+        menus.remove(Place::Tray);
+        assert_eq!(url(&menus, "open").as_deref(), Some("/context"));
     }
 }

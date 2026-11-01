@@ -54,8 +54,6 @@ use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 #[cfg(desktop)]
 use tauri::Wry;
-#[cfg(desktop)]
-use tauri::menu::CheckMenuItem;
 use tauri::{AppHandle, Manager, WebviewWindow};
 
 use crate::MAIN_WINDOW;
@@ -75,12 +73,9 @@ pub(crate) struct State {
     pub(crate) updater: std::sync::Arc<updater::Progress>,
     pub(crate) settings: settings::Store,
     pub(crate) timers: timer::Timers,
-    /// Menu item id → the URL its click navigates to.
+    /// What the clicks of the menus need, menu by menu.
     #[cfg(desktop)]
-    pub(crate) menu_links: Mutex<HashMap<String, String>>,
-    /// Menu item id → its checkbox, to tell PHP whether it is checked.
-    #[cfg(desktop)]
-    pub(crate) checkboxes: Mutex<HashMap<String, CheckMenuItem<Wry>>>,
+    pub(crate) menus: menu::Menus,
     /// Shortcut id → the accelerator PHP registered it with.
     #[cfg(desktop)]
     pub(crate) shortcuts: Mutex<HashMap<u32, String>>,
@@ -122,9 +117,7 @@ impl State {
             #[cfg(desktop)]
             updater: std::sync::Arc::default(),
             #[cfg(desktop)]
-            menu_links: Mutex::default(),
-            #[cfg(desktop)]
-            checkboxes: Mutex::default(),
+            menus: menu::Menus::default(),
             #[cfg(desktop)]
             shortcuts: Mutex::default(),
             #[cfg(desktop)]
