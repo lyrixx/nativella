@@ -33,6 +33,19 @@ final class NoteControllerTest extends NotesTestCase
         $this->assertSelectorTextContains('.markdown strong', 'Nativella');
     }
 
+    public function testTheHtmlOfANoteIsShownAsText(): void
+    {
+        // As an imported or dropped Markdown file could hold it.
+        $note = $this->createNote('Imported', "<img src=x onerror=alert(1)>\n\n[Click](javascript:alert(1))");
+
+        $this->client->request('GET', "/notes/{$note->getId()}");
+
+        $this->assertResponseIsSuccessful();
+        $this->assertSelectorNotExists('.markdown img');
+        $this->assertSelectorTextContains('.markdown', '<img src=x onerror=alert(1)>');
+        $this->assertSelectorNotExists('.markdown a[href^="javascript:"]');
+    }
+
     public function testATitleIsRequired(): void
     {
         $this->client->request('GET', '/notes/new');
