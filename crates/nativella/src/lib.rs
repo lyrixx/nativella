@@ -11,6 +11,8 @@ mod absolute_urls;
 pub mod apk;
 #[cfg(desktop)]
 mod before_unload;
+#[cfg(desktop)]
+mod binary;
 #[cfg(any(test, target_os = "android"))]
 mod deadline;
 #[cfg(target_os = "linux")]

@@ -12,6 +12,7 @@
 use std::io;
 
 use super::string_pool::{self, STRING_POOL, StringPool, UTF8_MAX_LENGTH};
+use crate::binary::{u16_at, u32_at};
 
 const XML: u16 = 0x0003;
 const RESOURCE_MAP: u16 = 0x0180;
@@ -431,18 +432,6 @@ fn set_integer(chunk: &mut [u8], attribute: &Attribute, value: u32) {
 
 fn chunk_size(length: usize) -> io::Result<u32> {
     u32::try_from(length).map_err(|_| invalid("The manifest is too big."))
-}
-
-fn u16_at(bytes: &[u8], offset: usize) -> u16 {
-    u16::from_le_bytes([bytes[offset], bytes[offset + 1]])
-}
-
-fn u32_at(bytes: &[u8], offset: usize) -> u32 {
-    u32::from_le_bytes(
-        bytes[offset..offset + 4]
-            .try_into()
-            .expect("A 4-byte slice."),
-    )
 }
 
 fn no_package() -> io::Error {

@@ -20,6 +20,7 @@ use p256::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey, LineEndin
 use pkcs12::pbe_params::EncryptedPrivateKeyInfo;
 use sha2::{Digest, Sha256};
 
+use crate::binary::der;
 use crate::zip::{self, Unfinished};
 
 const BLOCK_MAGIC: &[u8; 16] = b"APK Sig Block 42";
@@ -91,7 +92,10 @@ impl Key {
     /// The debug key of this computer, made at its first use: enough to try
     /// an application, not to publish it, as the key could be lost.
     pub fn debug() -> io::Result<Self> {
-        let path = config_dir()?
+        let path = dirs::config_dir()
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::NotFound, "The user has no home directory.")
+            })?
             .join("nativella")
             .join("android-debug-key.pem");
         if !path.is_file() {
@@ -361,47 +365,6 @@ fn certificate(signing_key: &SigningKey) -> io::Result<Vec<u8>> {
     Ok(der(0x30, &[to_be_signed, algorithm, signature].concat()))
 }
 
-/// A DER value: its tag, its length, its content.
-fn der(tag: u8, content: &[u8]) -> Vec<u8> {
-    let mut value = vec![tag];
-    let length = content.len();
-    if length < 0x80 {
-        value.push(length as u8);
-    } else {
-        let bytes = length.to_be_bytes();
-        let significant = &bytes[bytes
-            .iter()
-            .position(|&byte| byte != 0)
-            .unwrap_or(bytes.len() - 1)..];
-        value.push(0x80 | significant.len() as u8);
-        value.extend(significant);
-    }
-    value.extend(content);
-    value
-}
-
-/// The per-user configuration directory of the platform.
-fn config_dir() -> io::Result<PathBuf> {
-    let from_env = |name: &str| {
-        std::env::var_os(name)
-            .filter(|value| !value.is_empty())
-            .map(PathBuf::from)
-    };
-    let missing = || io::Error::new(io::ErrorKind::NotFound, "The user has no home directory.");
-
-    if cfg!(windows) {
-        from_env("APPDATA").ok_or_else(missing)
-    } else if cfg!(target_os = "macos") {
-        from_env("HOME")
-            .map(|home| home.join("Library/Application Support"))
-            .ok_or_else(missing)
-    } else {
-        from_env("XDG_CONFIG_HOME")
-            .or_else(|| from_env("HOME").map(|home| home.join(".config")))
-            .ok_or_else(missing)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -458,12 +421,5 @@ mod tests {
         assert!(error.to_string().contains(KEY_PASSWORD), "{error}");
         let error = Key::load(&path, None).err().unwrap();
         assert!(error.to_string().contains(KEY_PASSWORD), "{error}");
-    }
-
-    #[test]
-    fn der_lengths() {
-        assert_eq!(der(0x04, &[1; 3])[..2], [0x04, 3]);
-        assert_eq!(der(0x04, &[1; 200])[..3], [0x04, 0x81, 200]);
-        assert_eq!(der(0x04, &[1; 300])[..4], [0x04, 0x82, 0x01, 0x2c]);
     }
 }

@@ -116,7 +116,12 @@ pub fn find() -> io::Result<Option<Project>> {
     let file = File::open(env::current_exe()?)?;
 
     match Bundle::read(file)? {
-        Some(bundle) => bundle.extract(&cache_dir()?).map(Some),
+        Some(bundle) => {
+            let cache_dir = dirs::cache_dir().ok_or_else(|| {
+                io::Error::new(io::ErrorKind::NotFound, "The user has no home directory.")
+            })?;
+            bundle.extract(&cache_dir).map(Some)
+        }
         None => Ok(None),
     }
 }
@@ -607,28 +612,6 @@ pub(crate) mod asset {
         fn seek(&mut self, position: SeekFrom) -> io::Result<u64> {
             self.asset.seek(position)
         }
-    }
-}
-
-/// The per-user cache directory of the desktop platform.
-fn cache_dir() -> io::Result<PathBuf> {
-    let from_env = |name: &str| {
-        env::var_os(name)
-            .filter(|value| !value.is_empty())
-            .map(PathBuf::from)
-    };
-    let missing = || io::Error::new(io::ErrorKind::NotFound, "The user has no home directory.");
-
-    if cfg!(windows) {
-        from_env("LOCALAPPDATA").ok_or_else(missing)
-    } else if cfg!(target_os = "macos") {
-        from_env("HOME")
-            .map(|home| home.join("Library/Caches"))
-            .ok_or_else(missing)
-    } else {
-        from_env("XDG_CACHE_HOME")
-            .or_else(|| from_env("HOME").map(|home| home.join(".cache")))
-            .ok_or_else(missing)
     }
 }
 

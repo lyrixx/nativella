@@ -14,6 +14,7 @@
 use std::io;
 
 use super::string_pool::{STRING_POOL, StringPool};
+use crate::binary;
 
 const TABLE: u16 = 0x0002;
 const PACKAGE: u16 = 0x0200;
@@ -178,16 +179,18 @@ fn value(chunk: &[u8], entry: usize) -> io::Result<Option<(u8, u32)>> {
     Ok(Some((kind, data)))
 }
 
+/// The `u16` at `offset` of `bytes`, if they hold one: the table may be
+/// corrupted.
 fn u16_at(bytes: &[u8], offset: usize) -> Option<u16> {
     bytes
         .get(offset..offset + 2)
-        .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+        .map(|bytes| binary::u16_at(bytes, 0))
 }
 
 fn u32_at(bytes: &[u8], offset: usize) -> Option<u32> {
     bytes
         .get(offset..offset + 4)
-        .map(|bytes| u32::from_le_bytes(bytes.try_into().expect("A 4-byte slice.")))
+        .map(|bytes| binary::u32_at(bytes, 0))
 }
 
 fn corrupted() -> io::Error {

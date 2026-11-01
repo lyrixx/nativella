@@ -8,6 +8,8 @@
 
 use std::io;
 
+use crate::binary::{u16_at, u32_at};
+
 pub const STRING_POOL: u16 = 0x0001;
 const HEADER_LENGTH: usize = 28;
 const UTF8_FLAG: u32 = 1 << 8;
@@ -176,18 +178,6 @@ fn too_long() -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidData,
         "The strings are too long for a string pool.",
-    )
-}
-
-fn u16_at(bytes: &[u8], offset: usize) -> u16 {
-    u16::from_le_bytes([bytes[offset], bytes[offset + 1]])
-}
-
-fn u32_at(bytes: &[u8], offset: usize) -> u32 {
-    u32::from_le_bytes(
-        bytes[offset..offset + 4]
-            .try_into()
-            .expect("A 4-byte slice."),
     )
 }
 

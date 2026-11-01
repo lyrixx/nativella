@@ -14,6 +14,9 @@ crate-type = ["cdylib", "rlib", "staticlib"]
 
 [dependencies]
 base64 = "0.23"
+# Where a standalone executable extracts its project, and `nativella android`
+# keeps its debug key (src/embedded.rs, src/apk/signing.rs): Tauri's.
+dirs = "7"
 flate2 = "1"
 getrandom = "0.4"
 iana-time-zone = "0.1"

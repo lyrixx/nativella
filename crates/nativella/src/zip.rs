@@ -12,6 +12,8 @@ use flate2::Compression;
 use flate2::read::DeflateDecoder;
 use flate2::write::DeflateEncoder;
 
+use crate::binary::{u16_at, u32_at};
+
 const LOCAL_HEADER: u32 = 0x0403_4b50;
 const CENTRAL_HEADER: u32 = 0x0201_4b50;
 const END_OF_CENTRAL_DIRECTORY: u32 = 0x0605_4b50;
@@ -535,18 +537,6 @@ fn unknown_method(entry: &Entry, method: u16) -> io::Error {
 
 fn invalid(message: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message)
-}
-
-fn u16_at(bytes: &[u8], offset: usize) -> u16 {
-    u16::from_le_bytes([bytes[offset], bytes[offset + 1]])
-}
-
-fn u32_at(bytes: &[u8], offset: usize) -> u32 {
-    u32::from_le_bytes(
-        bytes[offset..offset + 4]
-            .try_into()
-            .expect("A 4-byte slice."),
-    )
 }
 
 #[cfg(test)]
