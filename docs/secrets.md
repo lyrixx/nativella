@@ -16,7 +16,7 @@ $secrets->delete('github-token');
 | `set(string $key, string $value): void` | Creates or replaces it. |
 | `delete(string $key): void` | Deletes it. Nothing happens if there is none. |
 
-The secrets of an application are filed under its [identifier](configuration.md#identifier): two applications never see each other's. On Linux, the keychain must be unlocked, which a desktop session does at login; otherwise the system asks the user for its password first.
+The secrets of an application are filed under its [identifier](configuration.md#identifier), so that two applications do not mix theirs up. The keychain keeps them encrypted on disk and away from the other users, not from the other programs of the user: on Linux and Windows, any of them can read them; macOS asks the user first. On Linux, the keychain must be unlocked, which a desktop session does at login; otherwise the system asks the user for its password first.
 
 Desktop only: on a phone, `Secrets` throws a `NativeCallException`.
 
