@@ -81,13 +81,13 @@ pub fn write(strings: &[String], utf8: bool) -> io::Result<Vec<u8>> {
     for string in strings {
         offsets.extend(size(data.len())?.to_le_bytes());
         if utf8 {
-            write_length8(&mut data, string.encode_utf16().count());
-            write_length8(&mut data, string.len());
+            write_length8(&mut data, string.encode_utf16().count())?;
+            write_length8(&mut data, string.len())?;
             data.extend(string.as_bytes());
             data.push(0);
         } else {
             let units: Vec<u16> = string.encode_utf16().collect();
-            write_length16(&mut data, units.len());
+            write_length16(&mut data, units.len())?;
             data.extend(units.iter().flat_map(|unit| unit.to_le_bytes()));
             data.extend([0, 0]);
         }
@@ -123,12 +123,21 @@ fn read_length8(data: &[u8]) -> Option<(usize, usize)> {
     }
 }
 
-fn write_length8(data: &mut Vec<u8>, length: usize) {
+/// The longest string of a UTF-8 pool, in UTF-16 units and in bytes: a
+/// length takes two bytes at most, the high bit of the first one set.
+pub const UTF8_MAX_LENGTH: usize = 0x7fff;
+
+fn write_length8(data: &mut Vec<u8>, length: usize) -> io::Result<()> {
+    if length > UTF8_MAX_LENGTH {
+        return Err(too_long());
+    }
     if length > 0x7f {
         data.extend([0x80 | (length >> 8) as u8, length as u8]);
     } else {
         data.push(length as u8);
     }
+
+    Ok(())
 }
 
 /// A length of a UTF-16 pool, and how many bytes it takes: one unit, or two
@@ -147,20 +156,27 @@ fn read_length16(data: &[u8]) -> Option<(usize, usize)> {
     }
 }
 
-fn write_length16(data: &mut Vec<u8>, length: usize) {
+fn write_length16(data: &mut Vec<u8>, length: usize) -> io::Result<()> {
+    if length > 0x7fff_ffff {
+        return Err(too_long());
+    }
     if length > 0x7fff {
         data.extend((0x8000 | (length >> 16) as u16).to_le_bytes());
     }
     data.extend((length as u16).to_le_bytes());
+
+    Ok(())
 }
 
 fn size(length: usize) -> io::Result<u32> {
-    u32::try_from(length).map_err(|_| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            "The strings are too long for a string pool.",
-        )
-    })
+    u32::try_from(length).map_err(|_| too_long())
+}
+
+fn too_long() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "The strings are too long for a string pool.",
+    )
 }
 
 fn u16_at(bytes: &[u8], offset: usize) -> u16 {
@@ -173,4 +189,40 @@ fn u32_at(bytes: &[u8], offset: usize) -> u32 {
             .try_into()
             .expect("A 4-byte slice."),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn round_trip(strings: &[String], utf8: bool) -> Vec<String> {
+        let pool = write(strings, utf8).unwrap();
+        let pool = StringPool::parse(&pool).unwrap();
+        assert_eq!(pool.utf8, utf8);
+
+        (0..pool.count)
+            .map(|index| pool.get(index).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn strings_round_trip() {
+        // Lengths on one byte, and on two.
+        let strings = ["Notes".to_owned(), "é".repeat(200), "a".repeat(0x7fff)];
+
+        assert_eq!(round_trip(&strings, true), strings);
+        assert_eq!(round_trip(&strings, false), strings);
+    }
+
+    #[test]
+    fn a_utf8_pool_bounds_the_bytes_too() {
+        // 0x4000 UTF-16 units, 0x8000 bytes.
+        let strings = ["é".repeat(0x4000)];
+
+        assert_eq!(
+            write(&strings, true).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+        assert_eq!(round_trip(&strings, false), strings);
+    }
 }

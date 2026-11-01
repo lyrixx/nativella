@@ -11,7 +11,7 @@
 
 use std::io;
 
-use super::string_pool::{self, STRING_POOL, StringPool};
+use super::string_pool::{self, STRING_POOL, StringPool, UTF8_MAX_LENGTH};
 
 const XML: u16 = 0x0003;
 const RESOURCE_MAP: u16 = 0x0180;
@@ -319,7 +319,10 @@ impl Document {
 
     /// The index of `value`, added at the end of the pool if need be.
     fn add_string(&mut self, value: &str) -> io::Result<u32> {
-        if value.encode_utf16().count() > 0x7fff {
+        // In UTF-16 units, and in bytes in a pool of UTF-8.
+        if value.encode_utf16().count() > UTF8_MAX_LENGTH
+            || (self.utf8 && value.len() > UTF8_MAX_LENGTH)
+        {
             return Err(invalid(&format!("\"{value}\" is too long for a manifest.")));
         }
 
@@ -749,5 +752,29 @@ pub(super) mod tests {
                 io::ErrorKind::InvalidData
             );
         }
+    }
+
+    #[test]
+    fn a_name_too_long_for_the_pool() {
+        // 0x4000 UTF-16 units, but 0x8000 bytes: too long for a pool of UTF-8.
+        let label = "é".repeat(0x4000);
+        let identity = Identity {
+            application_id: "com.acme.notes",
+            label: &label,
+            version_code: 1,
+            version_name: "0.0.1",
+            removed_permissions: &[],
+            removed_features: &[],
+        };
+
+        let error = rewrite(&template(true), &identity).unwrap_err();
+        assert!(error.to_string().contains("too long"), "{error}");
+        let xml = rewrite(&template(false), &identity).unwrap();
+        assert!(
+            elements(&xml)
+                .iter()
+                .flat_map(|(_, attributes)| attributes)
+                .any(|(_, value)| *value == label)
+        );
     }
 }
