@@ -92,7 +92,7 @@ On Android 12 and later, the user may grant an approximate location only: the po
 ## Biometrics
 
 ```php
-if ($biometrics->isAvailable() && !$biometrics->authenticate('Show the private notes')) {
+if (!$biometrics->authenticate('Show the private notes')) {
     return $this->redirectToRoute('note_home');
 }
 ```
@@ -100,9 +100,9 @@ if ($biometrics->isAvailable() && !$biometrics->authenticate('Show the private n
 | Method | |
 |---|---|
 | `isAvailable(): bool` | Whether the phone has a fingerprint or a face enrolled. |
-| `authenticate(string $reason, ?string $title = null): bool` | Asks the user to prove who they are, and blocks until they do. `$reason` tells them why. False when they cancel, or do not match. |
+| `authenticate(string $reason, ?string $title = null): bool` | Asks the user to prove who they are, and blocks until they do. `$reason` tells them why. False when they cancel, or do not match. Throws a `NativeCallException` when the phone has no lock at all. |
 
-The user can fall back on the PIN of the phone, as everywhere else on it. Biometrics prove that the owner of the phone holds it, nothing more: there is no key or identity to check on a server.
+The user can fall back on the PIN of the phone, as everywhere else on it, and a phone without a fingerprint or a face enrolled asks for the PIN only. So call `authenticate()` whatever `isAvailable()` says: skipping it when biometrics are not available would let anyone holding a phone locked by a PIN through. Biometrics prove that the owner of the phone holds it, nothing more: there is no key or identity to check on a server.
 
 ## Barcode scanner
 

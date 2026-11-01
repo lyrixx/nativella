@@ -28,9 +28,14 @@ final readonly class Biometrics
      * Asks the user to prove who they are, with their fingerprint, their
      * face or the PIN of the phone. Blocks until they do.
      *
+     * Works without biometrics, with the PIN only: do not skip it when
+     * isAvailable() is false.
+     *
      * @param string $reason what for, shown to the user
      *
      * @return bool false when the user cancels or does not match
+     *
+     * @throws Exception\NativeCallException when the phone has no lock at all
      */
     public function authenticate(string $reason, ?string $title = null): bool
     {
