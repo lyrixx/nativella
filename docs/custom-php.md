@@ -44,7 +44,7 @@ castor static-php:build
 castor nativella:build vanilla
 ```
 
-`static-php:build` builds PHP as a static library, in the `static` image, Ubuntu 22.04, as for the releases: the executables run on the same distributions, with glibc 2.35 or later. It then does nothing until the constants change. static-php-cli downloads the sources first, and asks the GitHub API where some are: without a token, the API may turn it down (`403`). Give it one, `GITHUB_TOKEN=$(gh auth token) castor static-php:build`, or any token of yours: it needs no scope.
+`static-php:build` builds PHP as a static library, in the `static` image, Ubuntu 22.04, as for the releases: the executables run on the same distributions, with glibc 2.35 or later. It then does nothing until the constants change. static-php-cli downloads the sources first, and asks the GitHub API where some are: without a token, the API may turn it down (`403`). Give it one, `GITHUB_TOKEN=<token> castor static-php:build`: a [fine-grained token](https://github.com/settings/personal-access-tokens/new) with no permission, which reads public repositories only, not the one of `gh auth token`, which can do everything you can. Only the download gets it.
 
 `nativella:build` builds `dist/nativella`, gathers the [third-party notices](#licenses) of what it links, then builds the standalone executable of each demo it is given into `dist/`: the vanilla demo, the smallest, checks that the new PHP starts.
 

@@ -445,10 +445,14 @@ function docker_compose_run(
         $command[] = $workDir;
     }
 
-    foreach ($c['docker_compose_run_environment'] as $key => $value) {
+    // The values through the environment of docker compose, which passes them
+    // on: not in its arguments, which every process of the machine can read
+    // (GITHUB_TOKEN)
+    foreach (array_keys($c['docker_compose_run_environment']) as $key) {
         $command[] = '-e';
-        $command[] = "{$key}={$value}";
+        $command[] = $key;
     }
+    $c = $c->withEnvironment($c['docker_compose_run_environment']);
 
     if (0 === \count($params)) {
         $params = ['bash'];

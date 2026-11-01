@@ -33,9 +33,6 @@ services:
             # keeps its defaults
             - CARGO_INCREMENTAL
             - CARGO_PROFILE_DEV_DEBUG
-            # static-php-cli asks the GitHub API for its downloads (castor
-            # static-php:build): a token raises its rate limit
-            - GITHUB_TOKEN
             # Where the website is published (castor website:build)
             - NATIVELLA_SITE_URL
             # The following list contains the common environment variables exposed by CI platforms
@@ -91,9 +88,6 @@ services:
             # How the CI builds the crates, as in the builder
             - CARGO_INCREMENTAL
             - CARGO_PROFILE_DEV_DEBUG
-            # static-php-cli asks the GitHub API for its downloads: a token
-            # raises its rate limit
-            - GITHUB_TOKEN
             - CI
             - GITHUB_ACTIONS
         volumes:

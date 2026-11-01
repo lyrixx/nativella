@@ -240,6 +240,13 @@ function download(array $command, string $workDir, array $environment = [], ?str
         $command[] = '--ignore-cache-sources=php-src';
     }
 
+    // It asks the GitHub API where some sources are: a token raises its rate
+    // limit. Given to this command only, not to the builds
+    $token = getenv('GITHUB_TOKEN');
+    if (false !== $token && '' !== $token) {
+        $environment['GITHUB_TOKEN'] = $token;
+    }
+
     run_in_builder($command, $workDir, $environment, $service);
 
     if ($source !== downloaded_php_source()) {
