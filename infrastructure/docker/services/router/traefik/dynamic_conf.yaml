@@ -10,3 +10,11 @@ http:
     redirect-to-https:
       redirectScheme:
         scheme: https
+  routers:
+    # Without a password: the port of the entry point is bound to 127.0.0.1
+    # (docker-compose.dev.yml)
+    api:
+      entryPoints:
+        - traefik
+      rule: "PathPrefix(`/api`) || PathPrefix(`/dashboard`)"
+      service: api@internal
