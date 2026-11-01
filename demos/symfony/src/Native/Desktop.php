@@ -10,6 +10,7 @@ use Nativella\Settings;
 use Nativella\Tray;
 use Nativella\Window;
 use Nativella\Window\WindowOptions;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
  * The native parts of the application: its window, menu and tray icon.
@@ -21,6 +22,9 @@ final readonly class Desktop
     public const string SETTING_ALWAYS_ON_TOP = 'alwaysOnTop';
 
     public function __construct(
+        /** The developer tools are for development, not for the packaged application. */
+        #[Autowire('%kernel.debug%')]
+        private bool $debug,
         private Menu $menu,
         private NoteRepository $notes,
         private Settings $settings,
@@ -43,6 +47,15 @@ final readonly class Desktop
 
     public function installMenu(): void
     {
+        $view = [
+            MenuItem::checkbox('view.alwaysOnTop', 'Always on top', $this->isAlwaysOnTop()),
+            MenuItem::separator(),
+            MenuItem::action('view.reload', 'Reload', 'CmdOrCtrl+R'),
+        ];
+        if ($this->debug) {
+            $view[] = MenuItem::action('view.devtools', 'Developer tools', 'CmdOrCtrl+Alt+I');
+        }
+
         $this->menu->set(
             MenuItem::appMenu('Nativella Notes'),
             MenuItem::submenu(
@@ -53,13 +66,7 @@ final readonly class Desktop
                 MenuItem::link('file.settings', 'Settings', '/settings', 'CmdOrCtrl+,'),
             ),
             MenuItem::editMenu(),
-            MenuItem::submenu(
-                'View',
-                MenuItem::checkbox('view.alwaysOnTop', 'Always on top', $this->isAlwaysOnTop()),
-                MenuItem::separator(),
-                MenuItem::action('view.reload', 'Reload', 'CmdOrCtrl+R'),
-                MenuItem::action('view.devtools', 'Developer tools', 'CmdOrCtrl+Alt+I'),
-            ),
+            MenuItem::submenu('View', ...$view),
             MenuItem::windowMenu(),
             MenuItem::submenu(
                 'Help',

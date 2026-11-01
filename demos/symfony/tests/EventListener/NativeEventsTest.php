@@ -65,6 +65,15 @@ final class NativeEventsTest extends NotesTestCase
         );
     }
 
+    public function testDeveloperToolsThatDoNotExistAreExplained(): void
+    {
+        $this->fakeClient()->respond('window.openDevtools', new NativeCallException('window.openDevtools', new \RuntimeException('Developer tools only exist in debug builds.')));
+
+        $this->sendNativeEvent('menu.itemClicked', ['id' => 'view.devtools', 'checked' => null]);
+
+        $this->assertCount(1, $this->fakeClient()->calls('dialog.message'));
+    }
+
     public function testTheAlwaysOnTopCheckboxIsRemembered(): void
     {
         $this->sendNativeEvent('menu.itemClicked', ['id' => 'view.alwaysOnTop', 'checked' => true]);
