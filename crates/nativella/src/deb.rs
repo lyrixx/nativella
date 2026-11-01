@@ -19,7 +19,7 @@ use serde_json::Value;
 use crate::apk::icon::Icon;
 use crate::embedded::{self, LeftOut};
 use crate::notices;
-use crate::output::Output;
+use crate::output::{Output, package_name};
 use crate::project::{Manifest, Project};
 
 /// The sizes of the icon desktops pick from, in pixels.
@@ -42,33 +42,6 @@ struct Control {
     maintainer: String,
     homepage: Option<String>,
     description: String,
-}
-
-/// The name of the package, of its executable and of its desktop entry, from
-/// the name of the application: "Nativella Notes" makes `nativella-notes`.
-pub fn package_name(manifest: &Manifest) -> String {
-    let name: String = manifest
-        .name
-        .to_lowercase()
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() || matches!(character, '+' | '.') {
-                character
-            } else {
-                '-'
-            }
-        })
-        .collect();
-    let name = name
-        .split('-')
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join("-");
-
-    match name.chars().next() {
-        Some(first) if first.is_ascii_alphanumeric() && name.len() > 1 => name,
-        _ => format!("app-{name}"),
-    }
 }
 
 /// The version of the package: the `version` of the manifest, its
@@ -365,16 +338,6 @@ mod tests {
             permissions: Vec::new(),
             updates: None,
         }
-    }
-
-    #[test]
-    fn the_package_is_named_after_the_application() {
-        assert_eq!(
-            package_name(&manifest("Nativella Notes")),
-            "nativella-notes"
-        );
-        assert_eq!(package_name(&manifest("Café & Co.")), "caf-co.");
-        assert_eq!(package_name(&manifest("été")), "app-t");
     }
 
     #[test]

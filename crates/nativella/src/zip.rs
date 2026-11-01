@@ -25,6 +25,10 @@ const DEFLATED: u16 = 8;
 /// module writes have them in their header instead.
 const DATA_DESCRIPTOR_FLAG: u16 = 1 << 3;
 
+/// The name is in UTF-8, not in the code page of MS-DOS (CP437), as unzip
+/// and Finder read it otherwise.
+const UTF8_FLAG: u16 = 1 << 11;
+
 /// The extra field that pads a stored entry to its alignment, as apksigner
 /// writes it: the alignment, then zeros.
 const ALIGNMENT_FIELD: u16 = 0xd935;
@@ -477,7 +481,7 @@ fn new_entry(name: &str, method: u16) -> Entry {
         name: name.to_owned(),
         version_made_by: 20,
         version_needed: if method == STORED { 10 } else { 20 },
-        flags: 0,
+        flags: if name.is_ascii() { 0 } else { UTF8_FLAG },
         method,
         time: 0,
         date: DOS_DATE,
@@ -640,6 +644,7 @@ mod tests {
             ]
         );
         assert!(entries[0].is_dir());
+        assert!(entries.iter().all(|entry| entry.flags & UTF8_FLAG == 0));
         assert_eq!(entries[0].unix_permissions(), Some(0o755));
         assert_eq!(entries[1].unix_permissions(), Some(0o755));
         assert_eq!(entries[2].unix_permissions(), Some(0o644));
@@ -649,6 +654,33 @@ mod tests {
         extract(&mut file, &entries[1], &mut extracted).unwrap();
         assert_eq!(extracted, executable);
         assert_eq!(read(&mut file, &entries[2]).unwrap(), b"<plist/>");
+
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn names_beyond_ascii_are_in_utf8() {
+        let path = Path::new(env!("OUT_DIR")).join(format!("zip-test-{}.utf8", std::process::id()));
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .unwrap();
+
+        let mut writer = Writer::new(&mut file);
+        writer.add_directory("Payload/Café.app").unwrap();
+        let unfinished = writer.finish().unwrap();
+        close(&mut file, &unfinished).unwrap();
+
+        let entries = entries(&mut file).unwrap();
+        assert_eq!(entries[0].name, "Payload/Café.app/");
+        assert_eq!(entries[0].flags & UTF8_FLAG, UTF8_FLAG);
+        let mut header = [0; LOCAL_HEADER_LENGTH as usize];
+        file.seek(SeekFrom::Start(0)).unwrap();
+        file.read_exact(&mut header).unwrap();
+        assert_eq!(u16_at(&header, 6) & UTF8_FLAG, UTF8_FLAG);
 
         std::fs::remove_file(path).unwrap();
     }

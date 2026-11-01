@@ -6,6 +6,38 @@ use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::path::{Path, PathBuf};
 
+use crate::project::Manifest;
+
+/// The name of the files of an application, from its name: of the
+/// executable, of the APK, of the Debian package, of its executable and of
+/// its desktop entry. "Nativella Notes" makes `nativella-notes`: lower case
+/// ASCII letters and digits, `+`, `.` and `-`, as Debian names packages, and
+/// no path.
+pub fn package_name(manifest: &Manifest) -> String {
+    let name: String = manifest
+        .name
+        .to_lowercase()
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '+' | '.') {
+                character
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let name = name
+        .split('-')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+
+    match name.chars().next() {
+        Some(first) if first.is_ascii_alphanumeric() && name.len() > 1 => name,
+        _ => format!("app-{name}"),
+    }
+}
+
 /// A file being written next to its path.
 pub(crate) struct Output {
     file: File,
@@ -113,6 +145,31 @@ mod tests {
     use std::io::Write;
 
     use super::*;
+
+    fn manifest(name: &str) -> Manifest {
+        Manifest {
+            name: name.to_owned(),
+            identifier: "com.example.notes".to_owned(),
+            version: "1.2.0".to_owned(),
+            icon: None,
+            window: serde_json::Map::new(),
+            deep_links: Vec::new(),
+            permissions: Vec::new(),
+            updates: None,
+        }
+    }
+
+    #[test]
+    fn the_files_are_named_after_the_application() {
+        assert_eq!(
+            package_name(&manifest("Nativella Notes")),
+            "nativella-notes"
+        );
+        assert_eq!(package_name(&manifest("Notes/Pro")), "notes-pro");
+        assert_eq!(package_name(&manifest("..")), "app-..");
+        assert_eq!(package_name(&manifest("Café & Co.")), "caf-co.");
+        assert_eq!(package_name(&manifest("été")), "app-t");
+    }
 
     #[test]
     fn the_output_takes_its_place_once_complete() {

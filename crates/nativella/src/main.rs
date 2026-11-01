@@ -9,7 +9,7 @@ use std::process::ExitCode;
 use nativella_lib::apk::{self, KEY_PASSWORD, Key};
 use nativella_lib::embedded::{self, LeftOut};
 use nativella_lib::ios::{self, Identity};
-use nativella_lib::{Project, notices};
+use nativella_lib::{Project, notices, output};
 
 const USAGE: &str = "Usage:
   nativella run [<project-dir>]                    Run a PHP project as a desktop application
@@ -119,7 +119,7 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
         Err(error) => return fail(&error),
     };
     let output = output.unwrap_or_else(|| {
-        let name = project.manifest.name.to_lowercase().replace(' ', "-");
+        let name = output::package_name(&project.manifest);
         PathBuf::from("dist").join(match package {
             Package::Executable if cfg!(windows) => format!("{name}.exe"),
             Package::Executable => name,
@@ -190,7 +190,7 @@ fn deb_name(project: &Project) -> String {
 
     format!(
         "{}_{}_{architecture}.deb",
-        nativella_lib::deb::package_name(&project.manifest),
+        output::package_name(&project.manifest),
         nativella_lib::deb::version(&project.manifest)
     )
 }

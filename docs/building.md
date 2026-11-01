@@ -18,7 +18,7 @@ Done: dist/notes
 nativella build [<project-dir>] [-o <output>]
 ```
 
-The project directory defaults to the current one. The executable goes to `dist/` in the current directory, named after the [`name`](configuration.md#name) of the application, in lower case with dashes (`.exe` on Windows); `-o` picks another path.
+The project directory defaults to the current one. The executable goes to `dist/` in the current directory, named after the [`name`](configuration.md#name) of the application, in lower case with dashes, of ASCII letters and digits: `Notes/Pro` makes `dist/notes-pro` (`.exe` on Windows); `-o` picks another path.
 
 > [!TIP]
 > `nativella build` from the project directory works too: the `dist/` it writes to is never packed, so the builds of earlier runs do not ship. With `-o` to another directory of the project, only the executable being written is left out of the archive.
