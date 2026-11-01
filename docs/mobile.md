@@ -12,7 +12,7 @@ On a phone there is no `nativella` executable to append the project to: the appl
 - The library is built once per release, without any project, into templates: a template APK for Android, template apps for iOS. `nativella android` and `nativella ios` add the project to one, packed the same way `nativella build` does: an asset of the APK, a file of the app. The application extracts it once per build, in its cache directory, at first launch.
 - PHP is linked statically: phones have no PHP to share. The build of the library links the PHP of the desktop, built for the phone as a static `libphp.a`, with its libraries and its headers (see [PHP for the phone](#php-for-the-phone)).
 - Pages are served from `http://php.localhost/`, as Tauri does for custom schemes on Android. PHP sees that origin too.
-- Android's WebView drops the body of the requests it hands to the application: Nativella injects a script that sends the body of forms, `fetch()` and `XMLHttpRequest` to the runtime first, through Tauri's IPC. Synchronous `XMLHttpRequest` bodies cannot be captured.
+- Android's WebView drops the body of the requests it hands to the application: Nativella injects a script that sends the body of forms, `fetch()` and `XMLHttpRequest` to the runtime first, through Tauri's IPC. Synchronous `XMLHttpRequest` bodies cannot be captured. When the IPC fails, the request fails as on a network error (`fetch()` rejects with a `TypeError`, `XMLHttpRequest` fires `error`), and a form is not submitted, rather than reach PHP empty: the console of the page says why.
 - What PHP writes to stderr goes to logcat, under the `nativella` tag.
 
 ## In PHP
