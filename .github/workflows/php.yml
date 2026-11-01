@@ -110,6 +110,12 @@ jobs:
               if: ${{ !cancelled() && steps.start.outcome == 'success' }}
               run: "castor qa:phpunit"
 
+            # The packages allow older versions of their dependencies than
+            # the demos install
+            - name: "Run PHPUnit on the packages, with their lowest dependencies"
+              if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+              run: "castor qa:phpunit-lowest"
+
             # The website on the root domain and www, each demo on its own
             # subdomain: the demos run without the native features there
             - name: "Test the frontend"

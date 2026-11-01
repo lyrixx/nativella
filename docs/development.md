@@ -95,6 +95,7 @@ castor qa --dry-run          # everything, reporting only: what the CI checks
 | `castor qa:twig-cs [--dry-run]` | [Twig CS Fixer](https://github.com/VincentLanglet/Twig-CS-Fixer) (`.twig-cs-fixer.php`): the `templates/` of the projects. |
 | `castor qa:phpstan [--project=demos/symfony]` | [PHPStan](https://phpstan.org), level 8, on the Castor tasks and on each project. |
 | `castor qa:phpunit [--project=demos/symfony]` | The test suite of each project: PHPUnit, or `php artisan test` for a Laravel application. |
+| `castor qa:phpunit-lowest` | The test suites of the packages, with the lowest versions of their dependencies that their constraints allow, in a copy of `packages/`, `target/lowest/packages/`: their `vendor/` stays as it is. With the PHP of the builder, 8.5, not the lowest one they allow. |
 | `castor qa:rust` | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test`, on the workspace. |
 | `castor qa:security-audit` | `composer audit` in each project. |
 

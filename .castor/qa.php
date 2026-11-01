@@ -4,15 +4,18 @@ namespace qa;
 
 use Castor\Attribute\AsOption;
 use Castor\Attribute\AsTask;
+use project\Project;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface as HttpExceptionInterface;
 
 use function Castor\context;
+use function Castor\finder;
 use function Castor\http_request;
 use function Castor\io;
 use function Castor\variable;
 use function docker\builder_path;
 use function docker\docker_exit_code;
+use function nativella\mirror;
 use function project\demo_names;
 use function project\install_if_missing as install_project_if_missing;
 use function project\select;
@@ -103,6 +106,60 @@ function phpunit(
         $command = $p->isLaravel() ? ['php', 'artisan', 'test'] : ['vendor/bin/phpunit'];
 
         $exitCode = max($exitCode, docker_exit_code($command, workDir: $p->builderDirectory()));
+    }
+
+    return $exitCode;
+}
+
+/**
+ * Dependencies of dependencies whose lowest versions predate the PHP of the
+ * packages: loading them raises deprecations that fail the tests run in a
+ * process of their own, and say nothing of the packages. Ignored by the
+ * packages that do not depend on them.
+ */
+const LOWEST_INDIRECT_DEPENDENCIES = [
+    '--with', 'guzzlehttp/promises:^2.0.3',
+    '--with', 'symfony/translation:^7.2',
+];
+
+/**
+ * The test suites of the packages, with the lowest versions of their
+ * dependencies that their constraints allow, which the demos never install:
+ * in a copy of packages/, target/lowest/packages/, so that their vendor/
+ * stays as it is. With the PHP of the builder: not the lowest one they allow.
+ */
+#[AsTask(name: 'phpunit-lowest', description: 'Runs the test suites of the packages with the lowest versions of their dependencies')]
+function phpunit_lowest(): int
+{
+    $root = variable('root_dir');
+
+    // With their path repositories (../nativella)
+    mirror(
+        finder()->in("{$root}/packages")->ignoreDotFiles(false)->exclude(['var', 'vendor'])->notName('composer.lock'),
+        "{$root}/packages",
+        "{$root}/target/lowest/packages",
+    );
+
+    $exitCode = 0;
+    foreach (\project\all() as $package) {
+        if (!$package->isPackage() || !$package->hasTests()) {
+            continue;
+        }
+
+        $copy = new Project("target/lowest/{$package->path}");
+        io()->section("Running the tests of {$package->path} with the lowest dependencies...");
+
+        $update = docker_exit_code(['composer', 'update', '--prefer-lowest', '--prefer-stable', '-n', '--no-progress', ...LOWEST_INDIRECT_DEPENDENCIES], workDir: $copy->builderDirectory());
+        if (0 !== $update) {
+            $exitCode = max($exitCode, $update);
+
+            continue;
+        }
+
+        // The lowest versions predate the PHP of the builder: their own
+        // deprecations say nothing of the packages, which the run with the
+        // highest versions checks
+        $exitCode = max($exitCode, docker_exit_code(['vendor/bin/phpunit', '--do-not-fail-on-deprecation'], workDir: $copy->builderDirectory()));
     }
 
     return $exitCode;

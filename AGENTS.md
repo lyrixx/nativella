@@ -96,6 +96,7 @@ castor qa:cs [--dry-run]         # PHP CS Fixer (.php-cs-fixer.php), Symfony sty
 castor qa:twig-cs [--dry-run]    # Twig CS Fixer (.twig-cs-fixer.php)
 castor qa:phpstan [--project=demos/symfony]   # PHPStan level 8, project by project
 castor qa:phpunit [--project=demos/symfony]   # PHPUnit, or `php artisan test` for Laravel
+castor qa:phpunit-lowest                       # PHPUnit on the packages, with their lowest dependencies
 castor qa:rust                   # cargo fmt --check, clippy -D warnings, cargo test
 castor qa:security-audit         # composer audit
 castor qa:frontend               # the website and the demos through the router (castor start first)
