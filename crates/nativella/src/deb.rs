@@ -70,6 +70,15 @@ pub fn package_name(manifest: &Manifest) -> String {
     }
 }
 
+/// The version of the package: the `version` of the manifest, its
+/// pre-release after a `~` rather than a `-`. dpkg sorts what follows a `~`
+/// before the end, as semantic versions do a pre-release: 1.2.0~beta.1 comes
+/// before 1.2.0. It would take 1.2.0-beta.1 for 1.2.0, revision beta.1, and
+/// the final 1.2.0 for a downgrade.
+pub fn version(manifest: &Manifest) -> String {
+    manifest.version.replace('-', "~")
+}
+
 /// Debian's name of the architecture of this executable, which the package
 /// carries a copy of.
 pub fn architecture() -> io::Result<&'static str> {
@@ -185,7 +194,7 @@ fn control(manifest: &Manifest, composer: &Value) -> io::Result<Control> {
 
     Ok(Control {
         package: package_name(manifest),
-        version: manifest.version.clone(),
+        version: version(manifest),
         architecture: architecture()?,
         maintainer,
         homepage: text(&composer["homepage"]),
@@ -400,6 +409,18 @@ mod tests {
 
         assert_eq!(control.description, "Notes");
         assert_eq!(control.maintainer, "Notes");
+    }
+
+    #[test]
+    fn a_pre_release_comes_before_the_release() {
+        let mut notes = manifest("Notes");
+
+        notes.version = "1.2.0-beta.1+build-7".to_owned();
+
+        assert_eq!(
+            control(&notes, &json!({})).unwrap().version,
+            "1.2.0~beta.1+build~7"
+        );
     }
 
     #[test]

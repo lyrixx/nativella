@@ -189,7 +189,7 @@ fn deb_name(project: &Project) -> String {
     format!(
         "{}_{}_{architecture}.deb",
         nativella_lib::deb::package_name(&project.manifest),
-        project.manifest.version
+        nativella_lib::deb::version(&project.manifest)
     )
 }
 
