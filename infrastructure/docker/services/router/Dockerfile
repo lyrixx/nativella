@@ -1,6 +1,6 @@
 # Pinned by its digest, which Dependabot updates, as the images of
 # services/php/Dockerfile
-FROM traefik:v3.7.14@sha256:575fa15b135078fe5e50aa847987d96dbddd7b093c172429618404df73f3fa7c
+FROM traefik:v3.7.15@sha256:0f6150202bc1fed72a7bd2107460eaa510e5b8a905f3fdb5b84f2c8619c33368
 
 COPY traefik /etc/traefik
 
