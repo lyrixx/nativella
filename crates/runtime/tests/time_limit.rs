@@ -31,11 +31,7 @@ fn only_waiting_does_not_count() {
     fs::write(project.join("public/index.php"), SCRIPT).unwrap();
 
     let runtime = PhpRuntime::start(
-        PhpApp::from_project_dir(&project)
-            .unwrap()
-            // PHP answers a fatal error with a 500 only when it does not
-            // display it: php.ini files of development machines do.
-            .with_ini("display_errors", "0"),
+        PhpApp::from_project_dir(&project).unwrap(),
         Box::new(|call| {
             if call.method == "dialog.confirm" {
                 // Busy, not asleep: PHP without threads counts the CPU time

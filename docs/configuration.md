@@ -152,9 +152,18 @@ Each one returns null, or false, outside Nativella.
 
 ## `php.ini`
 
-PHP reads the php.ini of Nativella, [`crates/runtime/php.ini`](../crates/runtime/php.ini), compiled into the `nativella` command, and no other: neither a php.ini of the machine, which belongs to another PHP, nor the files `PHPRC` and `PHP_INI_SCAN_DIR` point to. It keeps the defaults of PHP, except for `hard_timeout` (see below). An application changes the settings it needs with `ini_set()`, at the top of its front controller: `memory_limit`, `display_errors`… The ones PHP reads only when it starts, like the size of the memory of opcache, take a change of that file, in a `nativella` [of your own](custom-php.md).
+PHP reads the php.ini of Nativella, [`crates/runtime/php.ini`](../crates/runtime/php.ini), compiled into the `nativella` command, and no other: neither a php.ini of the machine, which belongs to another PHP, nor the files `PHPRC` and `PHP_INI_SCAN_DIR` point to. It keeps the defaults of PHP, except for these:
 
-Nativella overrides two of them, which point at the system otherwise:
+| Setting | Value |
+|---|---|
+| `display_errors` | `Off`: errors go to the standard error output, the terminal of `nativella run` (logcat on Android), not into the page. A fatal error answers a 500, which PHP only does when it does not display the error. |
+| `zend.assertions` | `-1`, as in production. |
+| `post_max_size`, `upload_max_filesize` | `512M`: the 2 MB of PHP are less than a photo of a phone. |
+| `hard_timeout` | `0`, see below. |
+
+An application changes the settings it needs with `ini_set()`, at the top of its front controller: `memory_limit`, `max_execution_time`… `ini_set()` cannot change the ones PHP reads before the script runs, like `post_max_size` and `upload_max_filesize`, nor the ones it reads only when it starts, like the size of the memory of opcache: they take a change of that file, in a `nativella` [of your own](custom-php.md).
+
+At startup, Nativella sets two more, which point at the system otherwise:
 
 | Setting | Value |
 |---|---|

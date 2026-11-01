@@ -29,7 +29,7 @@ Without intl, the executable is about 36 MB smaller: intl carries ICU and its da
 
 ## Settings
 
-PHP reads the [`php.ini`](configuration.md#phpini) of Nativella, `crates/runtime/php.ini`, compiled into the command. An application changes most settings with `ini_set()`; the ones PHP reads only when it starts, like the size of the memory of opcache, go in that file, before the build.
+PHP reads the [`php.ini`](configuration.md#phpini) of Nativella, `crates/runtime/php.ini`, compiled into the command. An application changes most settings with `ini_set()`; the ones PHP reads before the script runs, like the limits of uploads, or only when it starts, like the size of the memory of opcache, go in that file, before the build.
 
 ## Build it
 

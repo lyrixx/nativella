@@ -14,7 +14,7 @@ use nativella_runtime::{PhpApp, PhpRuntime, RequestOrigin};
 use serde_json::json;
 
 const SCRIPT: &str = r"<?php
-echo ini_get('hard_timeout'), ' ', ini_get('memory_limit'), ' ', ini_get('precision');
+echo ini_get('hard_timeout'), ' ', ini_get('memory_limit'), ' ', ini_get('precision'), ' ', ini_get('upload_max_filesize');
 ";
 
 #[test]
@@ -26,7 +26,7 @@ fn reads_the_php_ini_of_nativella() {
     fs::write(project.join("public/index.php"), SCRIPT).unwrap();
     fs::write(
         machine.join("php.ini"),
-        "memory_limit = 7M\nhard_timeout = 7\n",
+        "memory_limit = 7M\nhard_timeout = 7\nupload_max_filesize = 7M\n",
     )
     .unwrap();
     fs::write(machine.join("conf.d/precision.ini"), "precision = 7\n").unwrap();
@@ -47,9 +47,9 @@ fn reads_the_php_ini_of_nativella() {
     );
 
     let expected = if cfg!(nativella_static_php) {
-        "0 128M 14"
+        "0 128M 14 512M"
     } else {
-        "0 7M 7"
+        "0 7M 7 512M"
     };
     assert_eq!(String::from_utf8_lossy(response.body()), expected);
 }
