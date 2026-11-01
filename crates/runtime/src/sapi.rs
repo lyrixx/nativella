@@ -76,6 +76,11 @@ impl Engine {
             }
         }
 
+        // PHP 8 starts in the C locale, as its functions expect, whatever the
+        // environment says. The host may have taken the locale of the user
+        // (GTK does): sprintf('%.1f') would write "12,5" in French.
+        unsafe { libc::setlocale(libc::LC_ALL, c"C".as_ptr()) };
+
         let started = unsafe { php_module_startup(module, bridge::module_entry()) };
         assert!(
             started == ZEND_RESULT_CODE_SUCCESS,

@@ -132,6 +132,11 @@ pub struct PhpRuntime {
 impl PhpRuntime {
     /// Starts PHP on its own thread. `native_handler` answers the
     /// `nativella_call()` function PHP code can call.
+    ///
+    /// PHP runs in the C locale, which it sets for the whole process, and
+    /// `setlocale()` in PHP changes the locale of the process too. A thread
+    /// that needs the locale of the user, the one of a GUI toolkit, takes its
+    /// own beforehand, with `uselocale()`.
     pub fn start(app: PhpApp, native_handler: Box<NativeHandler>) -> Self {
         bridge::install(native_handler);
 

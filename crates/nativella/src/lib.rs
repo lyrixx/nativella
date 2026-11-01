@@ -374,6 +374,8 @@ fn start(
             #[cfg(all(desktop, unix))]
             quit_on_signals(app.handle());
 
+            #[cfg(target_os = "linux")]
+            keep_the_locale_of_the_user();
             let handle = app.handle().clone();
             let runtime =
                 PhpRuntime::start(php_app, Box::new(move |call| native::call(&handle, call)));
@@ -580,4 +582,23 @@ fn quit_on_signals(app: &tauri::AppHandle) {
         // The handlers stay: these signals now do nothing.
         eprintln!("[nativella] Signals cannot quit the application: {error}.");
     }
+}
+
+/// GTK took the locale of the user for the whole process, and PHP sets it
+/// back to C (`PhpRuntime::start`), as do the `setlocale()` calls of PHP code:
+/// the GTK thread, this one, keeps the locale of the user for itself, for its
+/// dialogs and menus.
+#[cfg(target_os = "linux")]
+fn keep_the_locale_of_the_user() {
+    // SAFETY: "" names the locale of the environment, as GTK took it.
+    let locale = unsafe { libc::newlocale(libc::LC_ALL_MASK, c"".as_ptr(), std::ptr::null_mut()) };
+    if locale.is_null() {
+        eprintln!(
+            "[nativella] The locale of the environment is not installed: windows use the C locale."
+        );
+        return;
+    }
+
+    // SAFETY: a valid locale, never freed: the thread uses it until the end.
+    unsafe { libc::uselocale(locale) };
 }

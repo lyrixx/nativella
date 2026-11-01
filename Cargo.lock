@@ -3214,6 +3214,7 @@ dependencies = [
  "cookie",
  "ext-php-rs",
  "http",
+ "libc",
  "mime_guess",
  "percent-encoding",
  "serde_json",
