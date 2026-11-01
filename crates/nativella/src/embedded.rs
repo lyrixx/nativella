@@ -617,6 +617,8 @@ pub(crate) mod asset {
 
 #[cfg(test)]
 mod tests {
+    use std::time::SystemTime;
+
     use super::*;
 
     #[test]
@@ -771,5 +773,39 @@ mod tests {
         }
 
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn only_the_builds_an_update_replaced_are_removed() {
+        let builds = Path::new(env!("OUT_DIR"))
+            .join(format!("builds-test-{}", std::process::id()))
+            .join("dev.nativella.notes");
+        let build = |name: &str, complete: bool| {
+            let dir = builds.join(name);
+            fs::create_dir_all(&dir).unwrap();
+            if complete {
+                File::create(dir.join(".nativella-complete")).unwrap();
+            }
+            dir
+        };
+        let current = build("1300", true);
+        let replaced = build("1200", true);
+        let unknown = build("notes", false);
+        let extracting = build("1400.tmp-123", false);
+        let abandoned = build("1100.tmp-456", false);
+        File::open(&abandoned)
+            .unwrap()
+            .set_modified(SystemTime::now() - ABANDONED - Duration::from_secs(60))
+            .unwrap();
+
+        remove_other_builds(&current);
+
+        assert!(current.exists());
+        assert!(!replaced.exists());
+        assert!(unknown.exists());
+        assert!(extracting.exists());
+        assert!(!abandoned.exists());
+
+        fs::remove_dir_all(builds.parent().unwrap()).unwrap();
     }
 }
