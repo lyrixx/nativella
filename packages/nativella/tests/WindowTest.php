@@ -2,6 +2,7 @@
 
 namespace Nativella\Tests;
 
+use Nativella\Client\Call;
 use Nativella\Client\FakeClient;
 use Nativella\Window;
 use Nativella\Window\WindowOptions;
@@ -15,10 +16,9 @@ final class WindowTest extends TestCase
 
         $info = new Window($client)->open('settings', new WindowOptions(url: '/settings', title: 'Settings', width: 600, resizable: false));
 
-        $this->assertSame([[
-            'method' => 'window.open',
-            'payload' => ['window' => 'settings', 'url' => '/settings', 'title' => 'Settings', 'width' => 600.0, 'resizable' => false],
-        ]], $client->calls());
+        $this->assertSame(['window.open'], array_column($client->calls(), 'method'));
+        // A float, as the runtime reads it.
+        $this->assertSame(['window' => 'settings', 'url' => '/settings', 'title' => 'Settings', 'width' => 600.0, 'resizable' => false], $client->calls()[0]->payload);
         $this->assertSame('settings', $info->window);
     }
 
@@ -30,9 +30,9 @@ final class WindowTest extends TestCase
         $window->setTitle('Hello');
         $window->maximize('main');
 
-        $this->assertSame([
-            ['method' => 'window.setTitle', 'payload' => ['title' => 'Hello', 'window' => null]],
-            ['method' => 'window.maximize', 'payload' => ['window' => 'main']],
+        $this->assertEquals([
+            new Call('window.setTitle', ['title' => 'Hello', 'window' => null]),
+            new Call('window.maximize', ['window' => 'main']),
         ], $client->calls());
     }
 
@@ -57,6 +57,6 @@ final class WindowTest extends TestCase
 
         new Window($client)->printToPdf('/home/me/invoice.pdf', 'invoice');
 
-        $this->assertSame([['method' => 'window.printToPdf', 'payload' => ['window' => 'invoice', 'path' => '/home/me/invoice.pdf']]], $client->calls());
+        $this->assertEquals([new Call('window.printToPdf', ['window' => 'invoice', 'path' => '/home/me/invoice.pdf'])], $client->calls());
     }
 }

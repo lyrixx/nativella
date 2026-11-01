@@ -55,7 +55,7 @@ final class ExporterTest extends TestCase
         (new Exporter(new Dialog($client), new Notification($client)))->export(['Groceries', 'Ideas']);
 
         $this->assertStringEqualsFile($target, "Groceries\n\nIdeas");
-        $this->assertSame('Exported', $client->calls('notification.send')[0]['payload']['title']);
+        $this->assertSame('Exported', $client->calls('notification.send')[0]->payload['title']);
     }
 
     public function testNothingHappensWhenTheUserCancels(): void
@@ -73,7 +73,7 @@ final class ExporterTest extends TestCase
 | Method | |
 |---|---|
 | `respond(string $method, array\|Throwable $result): void` | Answers the next call to `$method` with `$result`, or throws it. Call it several times to queue answers. |
-| `calls(?string $method = null): list<array{method: string, payload: array}>` | The calls made so far, all of them or those to `$method`. |
+| `calls(?string $method = null): list<Call>` | The calls made so far, all of them or those to `$method`. A `Nativella\Client\Call` has the `method` and the `payload`. |
 | `reset(): void` | Forgets the calls and the queued answers. |
 
 Methods are the native ones, `<domain>.<method>`: `window.open`, `dialog.confirm`, `clipboard.readText`… The payloads are the JSON objects the API classes send, with camelCase keys. The quickest way to learn them is to make the call and look at `$client->calls()`.

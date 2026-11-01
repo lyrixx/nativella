@@ -2,6 +2,7 @@
 
 namespace Nativella\Tests;
 
+use Nativella\Client\Call;
 use Nativella\Client\FakeClient;
 use Nativella\Haptics;
 use Nativella\Haptics\Feedback;
@@ -20,11 +21,11 @@ final class HapticsTest extends TestCase
         $haptics->feedback(Feedback::Success);
         $haptics->selection();
 
-        $this->assertSame([
-            ['method' => 'haptics.vibrate', 'payload' => ['milliseconds' => 300]],
-            ['method' => 'haptics.impact', 'payload' => ['impact' => 'light']],
-            ['method' => 'haptics.feedback', 'payload' => ['feedback' => 'success']],
-            ['method' => 'haptics.selection', 'payload' => []],
+        $this->assertEquals([
+            new Call('haptics.vibrate', ['milliseconds' => 300]),
+            new Call('haptics.impact', ['impact' => 'light']),
+            new Call('haptics.feedback', ['feedback' => 'success']),
+            new Call('haptics.selection', []),
         ], $client->calls());
     }
 }

@@ -44,7 +44,7 @@ final class ExportTasksTest extends TestCase
             'directory' => null,
             'fileName' => 'tasks.md',
             'filters' => [['name' => 'Markdown', 'extensions' => ['md']]],
-        ], $native->calls('dialog.saveFile')[0]['payload']);
+        ], $native->calls('dialog.saveFile')[0]->payload);
     }
 
     public function testTheUserCanCancel(): void

@@ -3,6 +3,7 @@
 namespace App\Tests\Controller;
 
 use App\Tests\NotesTestCase;
+use Nativella\Client\Call;
 use Nativella\Exception\NativeCallException;
 
 final class NoteControllerTest extends NotesTestCase
@@ -107,7 +108,7 @@ final class NoteControllerTest extends NotesTestCase
         $this->client->request('GET', "/notes/{$note->getId()}");
 
         $this->assertSelectorTextContains('.actions', 'Copy as rich text');
-        $this->assertSame([['method' => 'window.setTitle', 'payload' => ['title' => 'Groceries — Notes', 'window' => null]]], $this->fakeClient()->calls());
+        $this->assertEquals([new Call('window.setTitle', ['title' => 'Groceries — Notes', 'window' => null])], $this->fakeClient()->calls());
     }
 
     public function testAnotherSiteCannotDeleteANote(): void
@@ -141,10 +142,7 @@ final class NoteControllerTest extends NotesTestCase
         $this->post("/notes/{$note->getId()}/copy", ['format' => 'html']);
 
         $this->assertResponseRedirects();
-        $this->assertSame([[
-            'method' => 'clipboard.writeHtml',
-            'payload' => ['html' => "<p>Some <em>emphasis</em></p>\n", 'altText' => 'Some *emphasis*'],
-        ]], $this->fakeClient()->calls());
+        $this->assertEquals([new Call('clipboard.writeHtml', ['html' => "<p>Some <em>emphasis</em></p>\n", 'altText' => 'Some *emphasis*'])], $this->fakeClient()->calls());
     }
 
     public function testAPhoneAddsItsLocation(): void
@@ -170,7 +168,7 @@ final class NoteControllerTest extends NotesTestCase
             "Bring a blanket.\n\n📍 [45.76730, 4.83433](https://www.openstreetmap.org/?mlat=45.76730&mlon=4.83433#map=17/45.76730/4.83433)",
             $this->notes()->find($note->getId())?->getBody(),
         );
-        $this->assertSame('high', $this->fakeClient()->calls('geolocation.currentPosition')[0]['payload']['accuracy']);
+        $this->assertSame('high', $this->fakeClient()->calls('geolocation.currentPosition')[0]->payload['accuracy']);
     }
 
     public function testAPhoneTheUserDoesNotLetLocateChangesNothing(): void
@@ -205,7 +203,7 @@ final class NoteControllerTest extends NotesTestCase
         $this->post("/notes/{$note->getId()}/share");
 
         $this->assertResponseRedirects("/notes/{$note->getId()}");
-        $this->assertSame(['text' => "Picnic\n\nBring a blanket."], $this->fakeClient()->calls('share.text')[0]['payload']);
+        $this->assertSame(['text' => "Picnic\n\nBring a blanket."], $this->fakeClient()->calls('share.text')[0]->payload);
     }
 
     public function testComputersHaveNoShareSheet(): void
@@ -295,7 +293,7 @@ final class NoteControllerTest extends NotesTestCase
 
         $this->assertResponseRedirects();
         $this->assertStringEqualsFile($path, "# Groceries\n\n- milk\n- bread\n");
-        $this->assertSame('groceries.md', $this->fakeClient()->calls('dialog.saveFile')[0]['payload']['fileName']);
+        $this->assertSame('groceries.md', $this->fakeClient()->calls('dialog.saveFile')[0]->payload['fileName']);
         $this->assertSame(['dialog.saveFile', 'notification.send'], $this->nativeMethods());
     }
 
@@ -316,7 +314,7 @@ final class NoteControllerTest extends NotesTestCase
         $this->client->request('POST', "/notes/{$note->getId()}/context-menu");
 
         $this->assertResponseStatusCodeSame(204);
-        $items = $this->fakeClient()->calls('menu.popup')[0]['payload']['items'];
+        $items = $this->fakeClient()->calls('menu.popup')[0]->payload['items'];
         $this->assertContains("note.delete:{$note->getId()}", array_column($items, 'id'));
     }
 }

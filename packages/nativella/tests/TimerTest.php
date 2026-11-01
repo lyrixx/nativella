@@ -2,6 +2,7 @@
 
 namespace Nativella\Tests;
 
+use Nativella\Client\Call;
 use Nativella\Client\FakeClient;
 use Nativella\Event\EventFactory;
 use Nativella\Event\TimerFired;
@@ -19,10 +20,10 @@ final class TimerTest extends TestCase
         $timer->after('reminder', 60);
         $timer->cancel('sync');
 
-        $this->assertSame([
-            ['method' => 'timer.every', 'payload' => ['name' => 'sync', 'seconds' => 300.0]],
-            ['method' => 'timer.after', 'payload' => ['name' => 'reminder', 'seconds' => 60.0]],
-            ['method' => 'timer.cancel', 'payload' => ['name' => 'sync']],
+        $this->assertEquals([
+            new Call('timer.every', ['name' => 'sync', 'seconds' => 300.0]),
+            new Call('timer.after', ['name' => 'reminder', 'seconds' => 60.0]),
+            new Call('timer.cancel', ['name' => 'sync']),
         ], $client->calls());
     }
 

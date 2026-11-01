@@ -8,6 +8,7 @@ use App\Snippet\Snippet;
 use App\Snippet\SnippetRepository;
 use App\Snippet\SnippetSchema;
 use Doctrine\DBAL\DriverManager;
+use Nativella\Client\Call;
 use Nativella\Client\FakeClient;
 use Nativella\Nativella;
 use PHPUnit\Framework\TestCase;
@@ -43,8 +44,8 @@ final class SnippetImporterTest extends TestCase
     {
         $this->importer->importFiles([self::FIXTURES.'/hello.txt']);
 
-        $this->assertSame(
-            [['method' => 'notification.send', 'payload' => ['title' => 'Imported “hello.txt”', 'body' => null, 'reference' => null]]],
+        $this->assertEquals(
+            [new Call('notification.send', ['title' => 'Imported “hello.txt”', 'body' => null, 'reference' => null])],
             $this->client->calls(),
         );
     }
@@ -66,14 +67,11 @@ final class SnippetImporterTest extends TestCase
             new RejectedFile('Fixtures', 'It is not a file.'),
             new RejectedFile('deleted.txt', 'It is not a file.'),
         ], $result->rejected);
-        $this->assertSame([[
-            'method' => 'notification.send',
-            'payload' => [
-                'title' => 'Imported “hello.txt”',
-                'body' => "empty.txt: The content cannot be empty.\nimage.png: The content must be UTF-8 text.\nFixtures: It is not a file.\ndeleted.txt: It is not a file.",
-                'reference' => null,
-            ],
-        ]], $this->client->calls());
+        $this->assertEquals([new Call('notification.send', [
+            'title' => 'Imported “hello.txt”',
+            'body' => "empty.txt: The content cannot be empty.\nimage.png: The content must be UTF-8 text.\nFixtures: It is not a file.\ndeleted.txt: It is not a file.",
+            'reference' => null,
+        ])], $this->client->calls());
     }
 
     public function testNothingImported(): void
@@ -91,7 +89,7 @@ final class SnippetImporterTest extends TestCase
         $result = $this->importer->importChosenFile();
 
         $this->assertSame('Imported “notes.md”', $result?->summary());
-        $this->assertSame('Import a text file', $this->client->calls('dialog.openFile')[0]['payload']['title']);
+        $this->assertSame('Import a text file', $this->client->calls('dialog.openFile')[0]->payload['title']);
         $this->assertCount(1, $this->client->calls('notification.send'));
     }
 

@@ -28,7 +28,7 @@ final class GeolocationTest extends TestCase
         $this->assertNotNull($position);
         $this->assertSame([45.75, 4.85, 12.0, null, 0.0], [$position->latitude, $position->longitude, $position->accuracy, $position->altitude, $position->speed]);
         $this->assertSame('2025-10-09T08:53:20+00:00', $position->timestamp->format(\DATE_ATOM));
-        $this->assertSame(['accuracy' => 'high', 'maximumAge' => 60], $client->calls('geolocation.currentPosition')[0]['payload']);
+        $this->assertSame(['accuracy' => 'high', 'maximumAge' => 60], $client->calls('geolocation.currentPosition')[0]->payload);
     }
 
     public function testTheUserMayRefuse(): void

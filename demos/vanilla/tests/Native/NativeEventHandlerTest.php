@@ -8,6 +8,7 @@ use App\Snippet\SnippetRepository;
 use App\Snippet\SnippetSchema;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
+use Nativella\Client\Call;
 use Nativella\Client\FakeClient;
 use Nativella\Event\AppBooted;
 use Nativella\Event\EventFactory;
@@ -54,14 +55,14 @@ final class NativeEventHandlerTest extends TestCase
 
         $calls = $this->client->calls();
         $this->assertSame(['menu.set', 'globalShortcut.register'], \array_slice(array_column($calls, 'method'), -2));
-        $this->assertSame(['accelerator' => 'CmdOrCtrl+Shift+Space'], $this->client->calls('globalShortcut.register')[0]['payload']);
+        $this->assertSame(['accelerator' => 'CmdOrCtrl+Shift+Space'], $this->client->calls('globalShortcut.register')[0]->payload);
     }
 
     public function testTheMenuHasFileEditWindowAndHelp(): void
     {
         $this->handler->handle(new AppBooted());
 
-        $menu = $this->client->calls('menu.set')[0]['payload']['items'];
+        $menu = $this->client->calls('menu.set')[0]->payload['items'];
         $submenus = array_column($menu, 'items', 'label');
         $this->assertSame(['File', 'Edit', 'Window', 'Help'], \array_slice(array_keys($submenus), -4));
 
@@ -84,7 +85,7 @@ final class NativeEventHandlerTest extends TestCase
 
         $this->handler->handle(new AppBooted());
 
-        $file = array_column($this->client->calls('menu.set')[0]['payload']['items'], 'items', 'label')['File'];
+        $file = array_column($this->client->calls('menu.set')[0]->payload['items'], 'items', 'label')['File'];
         $this->assertSame([['type' => 'separator'], ['type' => 'role', 'role' => 'quit']], \array_slice($file, -2));
     }
 
@@ -94,7 +95,7 @@ final class NativeEventHandlerTest extends TestCase
 
         $this->handler->handle(new AppBooted());
 
-        $menu = $this->client->calls('menu.set')[0]['payload']['items'];
+        $menu = $this->client->calls('menu.set')[0]->payload['items'];
         // Named after the application, as app.info gives it.
         $this->assertSame('Nativella', $menu[0]['label']);
         $this->assertContains(['type' => 'role', 'role' => 'quit'], $menu[0]['items']);
@@ -125,7 +126,7 @@ final class NativeEventHandlerTest extends TestCase
     {
         $this->handler->handle(new GlobalShortcutPressed(NativeEventHandler::FOCUS_SHORTCUT));
 
-        $this->assertSame([['method' => 'window.focus', 'payload' => ['window' => null]]], $this->client->calls());
+        $this->assertEquals([new Call('window.focus', ['window' => null])], $this->client->calls());
     }
 
     public function testOtherShortcutsAreIgnored(): void
@@ -146,7 +147,7 @@ final class NativeEventHandlerTest extends TestCase
         $this->assertSame(['dialog.openFile', 'notification.send', 'page.dispatch'], array_column($this->client->calls(), 'method'));
         $this->assertEquals(
             ['event' => 'snippets.imported', 'detail' => (object) ['message' => 'Imported “hello.txt”'], 'window' => null],
-            $this->client->calls('page.dispatch')[0]['payload'],
+            $this->client->calls('page.dispatch')[0]->payload,
         );
     }
 
@@ -179,7 +180,7 @@ final class NativeEventHandlerTest extends TestCase
         $this->assertSame(['notification.send', 'page.dispatch'], array_column($this->client->calls(), 'method'));
         $this->assertEquals(
             (object) ['message' => "Imported “hello.txt”\nimage.png: The content must be UTF-8 text."],
-            $this->client->calls('page.dispatch')[0]['payload']['detail'],
+            $this->client->calls('page.dispatch')[0]->payload['detail'],
         );
     }
 

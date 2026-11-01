@@ -84,7 +84,7 @@
                         <td><code>{{ call.method }}</code></td>
                         <td>{{ profiler_dump(call.payload, maxDepth: 2) }}</td>
                         <td>{% if call.error %}{{ call.error }}{% else %}{{ profiler_dump(call.result, maxDepth: 2) }}{% endif %}</td>
-                        <td>{{ '%0.1f'|format(call.duration) }}&nbsp;ms</td>
+                        <td>{{ '%0.1f'|format(call.durationInMs) }}&nbsp;ms</td>
                     </tr>
                 {% endfor %}
             </tbody>

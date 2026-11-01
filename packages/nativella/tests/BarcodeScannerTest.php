@@ -21,7 +21,7 @@ final class BarcodeScannerTest extends TestCase
         $this->assertSame(Format::Ean13, $barcode->format);
         $this->assertSame(
             ['formats' => ['EAN_13', 'QR_CODE'], 'cancelLabel' => 'Annuler'],
-            $client->calls('barcodeScanner.scan')[0]['payload'],
+            $client->calls('barcodeScanner.scan')[0]->payload,
         );
     }
 
@@ -31,7 +31,7 @@ final class BarcodeScannerTest extends TestCase
 
         new BarcodeScanner($client)->scan();
 
-        $this->assertSame(['formats' => [], 'cancelLabel' => 'Cancel'], $client->calls('barcodeScanner.scan')[0]['payload']);
+        $this->assertSame(['formats' => [], 'cancelLabel' => 'Cancel'], $client->calls('barcodeScanner.scan')[0]->payload);
     }
 
     public function testAFormatThePluginKnowsAndWeDoNot(): void

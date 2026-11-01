@@ -4,6 +4,7 @@ namespace Nativella\Symfony\DataCollector;
 
 use Nativella\Runtime;
 use Nativella\Symfony\Client\TraceableClient;
+use Nativella\Symfony\Client\TracedCall;
 use Symfony\Bundle\FrameworkBundle\DataCollector\AbstractDataCollector;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -21,16 +22,19 @@ final class NativellaDataCollector extends AbstractDataCollector
 
     public function collect(Request $request, Response $response, ?\Throwable $exception = null): void
     {
-        $calls = array_map(fn (array $call): array => [
-            'payload' => $this->cloneVar(self::mask($call['method'], $call['payload'])),
-            'result' => null === $call['result'] ? null : $this->cloneVar(self::mask($call['method'], $call['result'])),
-        ] + $call, $this->client->calls());
+        $calls = $this->client->calls();
 
         $this->data = [
-            'calls' => $calls,
-            'call_count' => \count($this->client->calls()),
-            'error_count' => \count(array_filter($this->client->calls(), static fn (array $call): bool => null !== $call['error'])),
-            'duration' => array_sum(array_column($this->client->calls(), 'duration')),
+            'calls' => array_map(fn (TracedCall $call): array => [
+                'method' => $call->method,
+                'payload' => $this->cloneVar(self::mask($call->method, $call->payload)),
+                'result' => null === $call->result ? null : $this->cloneVar(self::mask($call->method, $call->result)),
+                'error' => $call->error,
+                'durationInMs' => $call->durationInMs,
+            ], $calls),
+            'call_count' => \count($calls),
+            'error_count' => \count(array_filter($calls, static fn (TracedCall $call): bool => null !== $call->error)),
+            'duration' => array_sum(array_column($calls, 'durationInMs')),
             'native' => Runtime::isNative(),
             'version' => $request->server->get('NATIVELLA_VERSION'),
             'window' => $request->server->get('NATIVELLA_WINDOW'),
@@ -44,7 +48,7 @@ final class NativellaDataCollector extends AbstractDataCollector
     }
 
     /**
-     * @return list<array{method: string, payload: mixed, result: mixed, error: string|null, duration: float}>
+     * @return list<array{method: string, payload: mixed, result: mixed, error: string|null, durationInMs: float}>
      */
     public function getCalls(): array
     {

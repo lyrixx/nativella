@@ -16,7 +16,7 @@ final class DialogTest extends TestCase
         $client->respond('dialog.ask', ['answer' => true]);
 
         $this->assertTrue(new Dialog($client)->ask('Delete?', 'Notes', MessageKind::Warning));
-        $this->assertSame(['message' => 'Delete?', 'title' => 'Notes', 'kind' => 'warning'], $client->calls('dialog.ask')[0]['payload']);
+        $this->assertSame(['message' => 'Delete?', 'title' => 'Notes', 'kind' => 'warning'], $client->calls('dialog.ask')[0]->payload);
     }
 
     public function testACancelledFileDialogReturnsNull(): void
@@ -38,6 +38,6 @@ final class DialogTest extends TestCase
             'directory' => null,
             'fileName' => 'note.md',
             'filters' => [['name' => 'Markdown', 'extensions' => ['md']]],
-        ], $client->calls('dialog.saveFile')[0]['payload']);
+        ], $client->calls('dialog.saveFile')[0]->payload);
     }
 }

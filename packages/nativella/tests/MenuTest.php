@@ -34,7 +34,7 @@ final class MenuTest extends TestCase
                 ['type' => 'role', 'role' => 'quit'],
             ],
             'enabled' => true,
-        ]], $client->calls('menu.set')[0]['payload']['items']);
+        ]], $client->calls('menu.set')[0]->payload['items']);
     }
 
     public function testUpdateSendsOnlyWhatChanges(): void
@@ -44,8 +44,8 @@ final class MenuTest extends TestCase
         new Menu($client)->update('pin', checked: true);
         new Menu($client)->update('export', label: 'Export 3 notes…', enabled: false);
 
-        $this->assertSame(['id' => 'pin', 'checked' => true], $client->calls('menu.update')[0]['payload']);
-        $this->assertSame(['id' => 'export', 'label' => 'Export 3 notes…', 'enabled' => false], $client->calls('menu.update')[1]['payload']);
+        $this->assertSame(['id' => 'pin', 'checked' => true], $client->calls('menu.update')[0]->payload);
+        $this->assertSame(['id' => 'export', 'label' => 'Export 3 notes…', 'enabled' => false], $client->calls('menu.update')[1]->payload);
     }
 
     public function testTheEditMenuUsesSystemRoles(): void

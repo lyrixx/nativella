@@ -50,7 +50,7 @@ final class FakeClient implements Client
         'window.all' => ['windows' => []],
     ];
 
-    /** @var list<array{method: string, payload: array<string, mixed>}> */
+    /** @var list<Call> */
     private array $calls = [];
 
     /** @var array<string, list<array<string, mixed>|\Throwable>> */
@@ -68,7 +68,7 @@ final class FakeClient implements Client
 
     public function call(string $method, array $payload = []): array
     {
-        $this->calls[] = ['method' => $method, 'payload' => $payload];
+        $this->calls[] = new Call($method, $payload);
 
         if ([] !== ($this->responses[$method] ?? [])) {
             $result = array_shift($this->responses[$method]);
@@ -102,7 +102,7 @@ final class FakeClient implements Client
     }
 
     /**
-     * @return list<array{method: string, payload: array<string, mixed>}>
+     * @return list<Call>
      */
     public function calls(?string $method = null): array
     {
@@ -110,7 +110,7 @@ final class FakeClient implements Client
             return $this->calls;
         }
 
-        return array_values(array_filter($this->calls, static fn (array $call): bool => $call['method'] === $method));
+        return array_values(array_filter($this->calls, static fn (Call $call): bool => $call->method === $method));
     }
 
     public function reset(): void

@@ -10,7 +10,7 @@ use Symfony\Contracts\Service\ResetInterface;
  */
 final class TraceableClient implements Client, ResetInterface
 {
-    /** @var list<array{method: string, payload: array<string, mixed>, result: array<string, mixed>|null, error: string|null, duration: float}> */
+    /** @var list<TracedCall> */
     private array $calls = [];
 
     public function __construct(
@@ -40,7 +40,7 @@ final class TraceableClient implements Client, ResetInterface
     }
 
     /**
-     * @return list<array{method: string, payload: array<string, mixed>, result: array<string, mixed>|null, error: string|null, duration: float}>
+     * @return list<TracedCall>
      */
     public function calls(): array
     {
@@ -58,12 +58,6 @@ final class TraceableClient implements Client, ResetInterface
      */
     private function record(string $method, array $payload, ?array $result, ?string $error, int $start): void
     {
-        $this->calls[] = [
-            'method' => $method,
-            'payload' => $payload,
-            'result' => $result,
-            'error' => $error,
-            'duration' => (hrtime(true) - $start) / 1e6,
-        ];
+        $this->calls[] = new TracedCall($method, $payload, $result, $error, (hrtime(true) - $start) / 1e6);
     }
 }

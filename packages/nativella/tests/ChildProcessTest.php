@@ -5,6 +5,7 @@ namespace Nativella\Tests;
 use Nativella\ChildProcess;
 use Nativella\ChildProcess\RunningProcess;
 use Nativella\ChildProcess\Stream;
+use Nativella\Client\Call;
 use Nativella\Client\FakeClient;
 use Nativella\Event\ChildProcessExited;
 use Nativella\Event\ChildProcessOutput;
@@ -25,10 +26,10 @@ final class ChildProcessTest extends TestCase
         $processes->stop('worker');
 
         $this->assertEquals([
-            ['method' => 'childProcess.start', 'payload' => ['alias' => 'worker', 'command' => ['php', 'bin/console', 'messenger:consume'], 'cwd' => null, 'env' => (object) ['APP_ENV' => 'prod']]],
-            ['method' => 'childProcess.write', 'payload' => ['alias' => 'worker', 'data' => "ping\n"]],
-            ['method' => 'childProcess.closeInput', 'payload' => ['alias' => 'worker']],
-            ['method' => 'childProcess.stop', 'payload' => ['alias' => 'worker']],
+            new Call('childProcess.start', ['alias' => 'worker', 'command' => ['php', 'bin/console', 'messenger:consume'], 'cwd' => null, 'env' => (object) ['APP_ENV' => 'prod']]),
+            new Call('childProcess.write', ['alias' => 'worker', 'data' => "ping\n"]),
+            new Call('childProcess.closeInput', ['alias' => 'worker']),
+            new Call('childProcess.stop', ['alias' => 'worker']),
         ], $client->calls());
     }
 
@@ -38,7 +39,7 @@ final class ChildProcessTest extends TestCase
 
         new ChildProcess($client)->start('clock', ['date']);
 
-        $this->assertSame('{}', json_encode($client->calls('childProcess.start')[0]['payload']['env']));
+        $this->assertSame('{}', json_encode($client->calls('childProcess.start')[0]->payload['env']));
     }
 
     public function testTheRunningProcesses(): void
