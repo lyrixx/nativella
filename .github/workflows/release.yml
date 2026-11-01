@@ -38,23 +38,12 @@ jobs:
         runs-on: ubuntu-26.04
         timeout-minutes: 60
         steps:
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-            - name: Log in to registry
-              shell: bash
-              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-              with:
-                  version: v1.9.1
-
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                 persist-credentials: false
+
+            - name: "Set up the Docker stack"
+              uses: ./.github/actions/stack
 
             # The one of static.yml, from main: its path and its key
             - name: "Restore static PHP"
@@ -135,10 +124,8 @@ jobs:
               with:
                 persist-credentials: false
 
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-              with:
-                  version: v1.9.1
+            - name: "Set up Castor"
+              uses: ./.github/actions/castor
 
             # Composer and PHP stage the demos for production
             - name: "Set up PHP"
@@ -185,23 +172,12 @@ jobs:
         runs-on: ubuntu-26.04
         timeout-minutes: 90
         steps:
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-            - name: Log in to registry
-              shell: bash
-              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-              with:
-                  version: v1.9.1
-
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                 persist-credentials: false
+
+            - name: "Set up the Docker stack"
+              uses: ./.github/actions/stack
 
             # The one of the Android job of mobile.yml, from main: its path and
             # its key
@@ -277,47 +253,16 @@ jobs:
               with:
                 persist-credentials: false
 
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-              with:
-                  version: v1.9.1
-
-            # As in mobile.yml: XcodeGen from its release, pinned, and
-            # stand-ins for what cargo tauri ios init looks for, but neither
-            # build uses
-            - name: "Install XcodeGen"
-              shell: bash
-              run: |
-                  set -e
-
-                  curl -sSfL -o "${RUNNER_TEMP}/xcodegen.zip" https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
-                  echo "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806  ${RUNNER_TEMP}/xcodegen.zip" | shasum -a 256 -c -
-                  unzip -q -o -d "${RUNNER_TEMP}" "${RUNNER_TEMP}/xcodegen.zip"
-                  echo "${RUNNER_TEMP}/xcodegen/bin" >> "${GITHUB_PATH}"
-
-            - name: "Stand in for libimobiledevice and CocoaPods"
-              shell: bash
-              run: |
-                  set -e
-
-                  mkdir -p "${RUNNER_TEMP}/stand-ins"
-                  for command in idevicesyslog pod; do
-                      if ! command -v "${command}" > /dev/null; then
-                          printf '#!/bin/sh\necho "%s: a stand-in of the CI, for cargo tauri ios init." >&2\nexit 1\n' "${command}" > "${RUNNER_TEMP}/stand-ins/${command}"
-                          chmod +x "${RUNNER_TEMP}/stand-ins/${command}"
-                      fi
-                  done
-                  echo "${RUNNER_TEMP}/stand-ins" >> "${GITHUB_PATH}"
+            - name: "Set up Castor"
+              uses: ./.github/actions/castor
 
             - name: "Add the iOS targets of Rust"
               run: "rustup target add aarch64-apple-ios aarch64-apple-ios-sim"
 
-            # The one of .castor/mobile.php, in tools/tauri-cli/bin/
-            - name: "Install the Tauri command"
-              shell: bash
-              run: |
-                  castor mobile:tauri-cli
-                  echo "${GITHUB_WORKSPACE}/tools/tauri-cli/bin" >> "${GITHUB_PATH}"
+            # XcodeGen, stand-ins for what the templates do not use, and the
+            # Tauri command
+            - name: "Set up the tools of the iOS templates"
+              uses: ./.github/actions/ios-tools
 
             - name: "Read the version of Rust"
               id: rust

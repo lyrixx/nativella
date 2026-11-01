@@ -86,8 +86,11 @@ updates:
       cooldown:
           default-days: 7
 
+    # The workflows, and the composite actions they share
     - package-ecosystem: 'github-actions'
-      directory: '/'
+      directories:
+          - '/'
+          - '/.github/actions/*'
       schedule:
           interval: 'monthly'
       groups:

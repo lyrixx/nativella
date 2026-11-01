@@ -1,0 +1,20 @@
+name: Set up the Docker stack
+description: >
+    Buildx, the login to the registry, whose build cache the images build from
+    (cache.yml pushes it), and Castor, which drives the stack. The job needs
+    the packages: read permission.
+
+runs:
+    using: composite
+    steps:
+        - name: "Set up Docker Buildx"
+          uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+        - name: "Log in to the registry"
+          shell: bash
+          run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+          env:
+              GITHUB_TOKEN: ${{ github.token }}
+
+        - name: "Set up Castor"
+          uses: ./.github/actions/castor

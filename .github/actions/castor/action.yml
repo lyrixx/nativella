@@ -1,0 +1,24 @@
+name: Set up Castor
+description: >
+    Castor, in the version the workflows run, checked against the SHA-256 of
+    its release: setup-castor checks nothing.
+
+runs:
+    using: composite
+    steps:
+        - name: "Install Castor"
+          uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+          with:
+              version: v1.9.1
+
+        # The SHA256SUMS of the release, for castor.linux-amd64 and
+        # castor.darwin-arm64: keep in sync with the version above
+        - name: "Check Castor"
+          shell: bash
+          run: |
+              case "${RUNNER_OS}-${RUNNER_ARCH}" in
+                  Linux-X64) sha256=487ec4748875128cca4a05e965b05327e5fb47f878e344f7dec41c8a79caf3d6 ;;
+                  macOS-ARM64) sha256=f3fb2241c6f4d69ba9548b4573212f9034aa0aa3f12dba8ea4097efdc403b6b7 ;;
+                  *) echo "No SHA-256 of Castor for ${RUNNER_OS} ${RUNNER_ARCH}." >&2; exit 1 ;;
+              esac
+              echo "${sha256}  /usr/local/bin/castor" | shasum -a 256 -c -

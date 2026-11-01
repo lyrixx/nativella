@@ -19,6 +19,7 @@ name: Website
         branches: ["main"]
         paths:
             - ".castor/**"
+            - ".github/actions/castor/**"
             - ".github/workflows/website.yml"
             - "Cargo.toml"
             - "castor.php"
@@ -55,14 +56,12 @@ jobs:
         permissions:
             contents: read
         steps:
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-              with:
-                  version: v1.9.1
-
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                 persist-credentials: false
+
+            - name: "Set up Castor"
+              uses: ./.github/actions/castor
 
             # Gives the URL of the site, for its absolute URLs (Open Graph, canonical)
             - name: "Configure GitHub Pages"

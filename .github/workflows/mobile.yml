@@ -23,6 +23,9 @@ name: Mobile
         branches: ["main"]
         paths:
             - ".castor/**"
+            - ".github/actions/castor/**"
+            - ".github/actions/ios-tools/**"
+            - ".github/actions/stack/**"
             - ".github/workflows/mobile.yml"
             - "Cargo.lock"
             - "Cargo.toml"
@@ -68,23 +71,12 @@ jobs:
             contents: read
             packages: read
         steps:
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-            - name: Log in to registry
-              shell: bash
-              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-              with:
-                  version: v1.9.1
-
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                 persist-credentials: false
+
+            - name: "Set up the Docker stack"
+              uses: ./.github/actions/stack
 
             # PHP for Android, keyed on the image, for its NDK, then on what it
             # is built from: static-php-cli and the extensions, the recipes,
@@ -209,10 +201,8 @@ jobs:
               with:
                 persist-credentials: false
 
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-              with:
-                  version: v1.9.1
+            - name: "Set up Castor"
+              uses: ./.github/actions/castor
 
             - name: "Download the APK"
               uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -275,51 +265,16 @@ jobs:
               with:
                 persist-credentials: false
 
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-              with:
-                  version: v1.9.1
-
-            # cargo tauri ios init installs with brew what it does not find:
-            # XcodeGen, which generates the Xcode project, from its release
-            # here, pinned, in seconds rather than minutes
-            - name: "Install XcodeGen"
-              shell: bash
-              run: |
-                  set -e
-
-                  curl -sSfL -o "${RUNNER_TEMP}/xcodegen.zip" https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
-                  echo "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806  ${RUNNER_TEMP}/xcodegen.zip" | shasum -a 256 -c -
-                  unzip -q -o -d "${RUNNER_TEMP}" "${RUNNER_TEMP}/xcodegen.zip"
-                  echo "${RUNNER_TEMP}/xcodegen/bin" >> "${GITHUB_PATH}"
-
-            # And what a simulator build does not use, but cargo tauri ios init
-            # looks for: libimobiledevice (idevicesyslog), for the logs of a
-            # phone, and CocoaPods (pod), for the pods of an app that has some.
-            # Stand-ins, which fail if run, in the place of what is missing
-            - name: "Stand in for libimobiledevice and CocoaPods"
-              shell: bash
-              run: |
-                  set -e
-
-                  mkdir -p "${RUNNER_TEMP}/stand-ins"
-                  for command in idevicesyslog pod; do
-                      if ! command -v "${command}" > /dev/null; then
-                          printf '#!/bin/sh\necho "%s: a stand-in of the CI, for cargo tauri ios init." >&2\nexit 1\n' "${command}" > "${RUNNER_TEMP}/stand-ins/${command}"
-                          chmod +x "${RUNNER_TEMP}/stand-ins/${command}"
-                      fi
-                  done
-                  echo "${RUNNER_TEMP}/stand-ins" >> "${GITHUB_PATH}"
+            - name: "Set up Castor"
+              uses: ./.github/actions/castor
 
             - name: "Add the iOS simulator target of Rust"
               run: "rustup target add aarch64-apple-ios-sim"
 
-            # The one of .castor/mobile.php, in tools/tauri-cli/bin/
-            - name: "Install the Tauri command"
-              shell: bash
-              run: |
-                  castor mobile:tauri-cli
-                  echo "${GITHUB_WORKSPACE}/tools/tauri-cli/bin" >> "${GITHUB_PATH}"
+            # XcodeGen, stand-ins for what the templates do not use, and the
+            # Tauri command
+            - name: "Set up the tools of the iOS templates"
+              uses: ./.github/actions/ios-tools
 
             # The Rust of the runner, which its image updates
             - name: "Read the version of Rust"
@@ -438,23 +393,12 @@ jobs:
         runs-on: ubuntu-26.04
         timeout-minutes: 30
         steps:
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-            - name: Log in to registry
-              shell: bash
-              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-              with:
-                  version: v1.9.1
-
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                 persist-credentials: false
+
+            - name: "Set up the Docker stack"
+              uses: ./.github/actions/stack
 
             # Stages the demo and runs nativella ios in the builder
             - name: "Build the builder"
@@ -517,10 +461,8 @@ jobs:
               with:
                 persist-credentials: false
 
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-              with:
-                  version: v1.9.1
+            - name: "Set up Castor"
+              uses: ./.github/actions/castor
 
             - name: "Download the app"
               uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2

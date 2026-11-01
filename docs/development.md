@@ -295,6 +295,8 @@ A pull request does not build the executables of the release, 3 minutes of `stat
 
 The jobs name their runner, `ubuntu-26.04` and `macos-26` (arm64), not `ubuntu-latest` or `macos-latest`: a runner changes when a pull request of its own moves it, with its CI. Most jobs run in the images of the stack, whatever the runner; two depend on it: Website, with the Python of the runner, and the Android emulator, with its KVM and its Android SDK.
 
+The steps the jobs share are composite actions, in `.github/actions/`: `castor`, Castor in the version the workflows run, checked against the SHA-256 of its release; `stack`, Buildx, the login to the registry and Castor, for the jobs that run in the images; `ios-tools`, what builds the iOS template apps; `delete-replaced-caches`, see [Caches](#caches). A local action needs the checkout first, which keeps `persist-credentials: false`, and a workflow lists the ones it uses in its `paths`.
+
 The jobs that build the iOS template apps, in `mobile.yml` and `release.yml`, install XcodeGen from its release, pinned, rather than with Homebrew, as `cargo tauri ios init` would, and the Tauri command with `castor mobile:tauri-cli`. That command also looks for libimobiledevice (`idevicesyslog`), for the logs of a phone, and CocoaPods (`pod`), for the pods of an application that has some: the templates use neither, so the jobs put stand-ins, which fail if run, in the place of those the runner lacks.
 
 ### Caches

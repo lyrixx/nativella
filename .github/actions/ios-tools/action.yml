@@ -1,0 +1,46 @@
+name: Set up the tools of the iOS templates
+description: >
+    What cargo tauri ios init and build need on a macOS runner, besides Xcode
+    and the iOS targets of Rust: XcodeGen, stand-ins for what they look for
+    but the templates do not use, and the Tauri command. Castor first.
+
+runs:
+    using: composite
+    steps:
+        # cargo tauri ios init installs with brew what it does not find:
+        # XcodeGen, which generates the Xcode project, from its release
+        # here, pinned, in seconds rather than minutes
+        - name: "Install XcodeGen"
+          shell: bash
+          run: |
+              set -e
+
+              curl -sSfL -o "${RUNNER_TEMP}/xcodegen.zip" https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
+              echo "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806  ${RUNNER_TEMP}/xcodegen.zip" | shasum -a 256 -c -
+              unzip -q -o -d "${RUNNER_TEMP}" "${RUNNER_TEMP}/xcodegen.zip"
+              echo "${RUNNER_TEMP}/xcodegen/bin" >> "${GITHUB_PATH}"
+
+        # And what neither template uses, but cargo tauri ios init looks for:
+        # libimobiledevice (idevicesyslog), for the logs of a phone, and
+        # CocoaPods (pod), for the pods of an app that has some. Stand-ins,
+        # which fail if run, in the place of what is missing
+        - name: "Stand in for libimobiledevice and CocoaPods"
+          shell: bash
+          run: |
+              set -e
+
+              mkdir -p "${RUNNER_TEMP}/stand-ins"
+              for command in idevicesyslog pod; do
+                  if ! command -v "${command}" > /dev/null; then
+                      printf '#!/bin/sh\necho "%s: a stand-in of the CI, for cargo tauri ios init." >&2\nexit 1\n' "${command}" > "${RUNNER_TEMP}/stand-ins/${command}"
+                      chmod +x "${RUNNER_TEMP}/stand-ins/${command}"
+                  fi
+              done
+              echo "${RUNNER_TEMP}/stand-ins" >> "${GITHUB_PATH}"
+
+        # The one of .castor/mobile.php, in tools/tauri-cli/bin/
+        - name: "Install the Tauri command"
+          shell: bash
+          run: |
+              castor mobile:tauri-cli
+              echo "${GITHUB_WORKSPACE}/tools/tauri-cli/bin" >> "${GITHUB_PATH}"
