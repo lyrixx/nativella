@@ -35,7 +35,12 @@ final class MigrateOnBootListenerTest extends TestCase
             /** @var list<string> */
             public array $warnings = [];
 
-            public function log($level, \Stringable|string $message, array $context = []): void
+            /**
+             * Untyped as in psr/log 1, which the bundle accepts.
+             *
+             * @param string|\Stringable $message
+             */
+            public function log($level, $message, array $context = []): void
             {
                 if ('warning' === $level) {
                     $this->warnings[] = (string) $message;

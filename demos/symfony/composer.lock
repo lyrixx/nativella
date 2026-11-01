@@ -1393,9 +1393,10 @@
             "dist": {
                 "type": "path",
                 "url": "../../packages/nativella",
-                "reference": "69008e225575fdb54d102006c70148e22da6fdcf"
+                "reference": "2d8ac5c0ce8107a640c230a700cbfa4d2e222c54"
             },
             "require": {
+                "ext-mbstring": "*",
                 "php": ">=8.4"
             },
             "require-dev": {
@@ -1420,7 +1421,7 @@
             "license": [
                 "MIT"
             ],
-            "description": "The desktop APIs of Nativella for PHP: windows, menus, dialogs, notifications, clipboard, tray…",
+            "description": "The native APIs of Nativella for PHP, on the desktop and on phones: windows, menus, dialogs, notifications, clipboard, tray…",
             "keywords": [
                 "desktop",
                 "native",
@@ -1437,11 +1438,12 @@
             "dist": {
                 "type": "path",
                 "url": "../../packages/symfony",
-                "reference": "4f5f4af72e7db03ec5b3dae87af5107f5c169c0d"
+                "reference": "5e7161ee51027db2d7d6805a3be625d94a9b183e"
             },
             "require": {
                 "nativella/nativella": "^0.4",
                 "php": ">=8.4",
+                "psr/log": "^1.0|^2.0|^3.0",
                 "symfony/config": "^7.4|^8.0",
                 "symfony/dependency-injection": "^7.4|^8.0",
                 "symfony/event-dispatcher": "^7.4|^8.0",
@@ -1477,7 +1479,7 @@
             "license": [
                 "MIT"
             ],
-            "description": "Runs Symfony applications as desktop applications with Nativella.",
+            "description": "Runs Symfony applications as desktop and mobile applications with Nativella.",
             "keywords": [
                 "desktop",
                 "native",
