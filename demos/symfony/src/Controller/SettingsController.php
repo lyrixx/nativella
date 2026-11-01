@@ -14,6 +14,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
 
 final class SettingsController extends AbstractController
 {
@@ -42,6 +43,7 @@ final class SettingsController extends AbstractController
     }
 
     #[Route('/settings', name: 'settings_save', methods: ['POST'])]
+    #[IsCsrfTokenValid('submit')]
     public function save(Request $request): Response
     {
         $payload = $request->getPayload();
@@ -59,6 +61,7 @@ final class SettingsController extends AbstractController
     }
 
     #[Route('/settings/open-data-dir', name: 'settings_open_data_dir', methods: ['POST'])]
+    #[IsCsrfTokenValid('submit')]
     public function openDataDir(Shell $shell): Response
     {
         $shell->openPath($this->app->path(Directory::AppData));

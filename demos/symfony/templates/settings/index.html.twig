@@ -9,6 +9,7 @@
         {% if nativella_is_native() %}
             {% if not nativella_is_mobile() %}
             <form method="post" action="{{ path('settings_save') }}" class="panel">
+                <input type="hidden" name="_token" value="{{ csrf_token('submit') }}">
                 <label class="switch">
                     <input type="checkbox" name="autostart" value="1"{% if autostart %} checked{% endif %}>
                     <span>Open Notes when I log in</span>
@@ -33,7 +34,7 @@
                     <dt>Data</dt>
                     <dd>
                         <code>{{ dataDir }}</code>
-                        <form method="post" action="{{ path('settings_open_data_dir') }}" class="inline"><button class="small">Open</button></form>
+                        <form method="post" action="{{ path('settings_open_data_dir') }}" class="inline"><input type="hidden" name="_token" value="{{ csrf_token('submit') }}"><button class="small">Open</button></form>
                     </dd>
                 </div>
             </dl>

@@ -4,9 +4,12 @@
  * @var array<'content'|'title', string> $errors
  * @var App\Snippet\SnippetInput        $input
  */
+use App\Http\CsrfToken;
+
 $invalid = static fn (string $field): string => isset($errors[$field]) ? ' aria-invalid="true" aria-describedby="'.$field.'-error"' : '';
 ?>
 <form class="editor" method="post" action="/snippets">
+    <input type="hidden" name="<?= CsrfToken::FIELD ?>" value="<?= $this->e($this->csrfToken()) ?>">
     <h1>New snippet</h1>
 
     <div class="field">

@@ -8,6 +8,7 @@
  * @var list<App\Snippet\SnippetSummary>    $snippets
  */
 use App\Controller\SnippetController;
+use App\Http\CsrfToken;
 
 ?>
 <div class="page-header">
@@ -16,6 +17,7 @@ use App\Controller\SnippetController;
     </form>
     <?php if ($isNative && !$isMobile): ?>
         <form method="post" action="/snippets/import">
+            <input type="hidden" name="<?= CsrfToken::FIELD ?>" value="<?= $this->e($this->csrfToken()) ?>">
             <button type="submit">Import…</button>
         </form>
     <?php endif ?>
@@ -52,6 +54,7 @@ use App\Controller\SnippetController;
                     <div class="snippet-actions">
                         <?php if ($isNative): ?>
                             <form method="post" action="/snippets/<?= $snippet->id ?>/copy" data-copy>
+                                <input type="hidden" name="<?= CsrfToken::FIELD ?>" value="<?= $this->e($this->csrfToken()) ?>">
                                 <button type="submit">Copy</button>
                             </form>
                         <?php endif ?>
@@ -61,6 +64,7 @@ use App\Controller\SnippetController;
                         <?php endif ?>
                         <?php /* Nativella asks with a native dialog, a browser with confirm(). */ ?>
                         <form method="post" action="/snippets/<?= $snippet->id ?>/delete"<?php if (!$isNative): ?> data-confirm="<?= $this->e(sprintf(SnippetController::DELETE_QUESTION, $snippet->title)) ?>"<?php endif ?>>
+                            <input type="hidden" name="<?= CsrfToken::FIELD ?>" value="<?= $this->e($this->csrfToken()) ?>">
                             <input type="hidden" name="q" value="<?= $this->e($query) ?>">
                             <button type="submit" class="danger">Delete</button>
                         </form>

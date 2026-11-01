@@ -66,6 +66,29 @@ final class NoteControllerTest extends NotesTestCase
         $this->assertSame('Shopping list', $this->notes()->find($note->getId())?->getTitle());
     }
 
+    public function testPinANote(): void
+    {
+        $note = $this->createNote();
+
+        $this->client->request('GET', "/notes/{$note->getId()}");
+        $this->client->submitForm('Pin', serverParameters: ['HTTP_SEC_FETCH_SITE' => 'same-origin']);
+
+        $this->assertResponseRedirects("/notes/{$note->getId()}");
+        $this->assertTrue($this->notes()->find($note->getId())?->isPinned());
+    }
+
+    public function testAnotherSiteCannotDeleteANote(): void
+    {
+        $note = $this->createNote();
+
+        // In a browser, outside Nativella, a page of another site posts a form to the application.
+        $this->client->request('POST', "/notes/{$note->getId()}/delete", ['_token' => 'csrf-token'], server: ['HTTP_SEC_FETCH_SITE' => 'cross-site']);
+
+        // What the firewall answers to an invalid token, without a login page to send the user to.
+        $this->assertResponseStatusCodeSame(401);
+        $this->assertNotNull($this->notes()->find($note->getId()));
+    }
+
     public function testSearchTheNotes(): void
     {
         $this->createNote('Groceries', 'milk');
@@ -82,7 +105,7 @@ final class NoteControllerTest extends NotesTestCase
     {
         $note = $this->createNote('Title', 'Some *emphasis*');
 
-        $this->client->request('POST', "/notes/{$note->getId()}/copy", ['format' => 'html']);
+        $this->post("/notes/{$note->getId()}/copy", ['format' => 'html']);
 
         $this->assertResponseRedirects();
         $this->assertSame([[
@@ -107,7 +130,7 @@ final class NoteControllerTest extends NotesTestCase
             'timestamp' => 1_760_000_000_000,
         ]]);
 
-        $this->client->request('POST', "/notes/{$note->getId()}/location");
+        $this->post("/notes/{$note->getId()}/location");
 
         $this->assertResponseRedirects("/notes/{$note->getId()}");
         $this->assertSame(
@@ -122,7 +145,7 @@ final class NoteControllerTest extends NotesTestCase
         $_SERVER['NATIVELLA_PLATFORM'] = 'android';
         $note = $this->createNote('Picnic', 'Bring a blanket.');
 
-        $this->client->request('POST', "/notes/{$note->getId()}/location");
+        $this->post("/notes/{$note->getId()}/location");
         $this->client->followRedirect();
 
         $this->assertSelectorTextContains('.flash', 'Notes may not know where you are');
@@ -135,7 +158,7 @@ final class NoteControllerTest extends NotesTestCase
         $note = $this->createNote('Picnic', 'Bring a blanket.');
         $this->fakeClient()->respond('geolocation.currentPosition', new NativeCallException('geolocation.currentPosition', new \RuntimeException('Location services are disabled.')));
 
-        $this->client->request('POST', "/notes/{$note->getId()}/location");
+        $this->post("/notes/{$note->getId()}/location");
         $this->client->followRedirect();
 
         $this->assertSelectorTextContains('.flash', 'Notes cannot find where you are: Location services are disabled.');
@@ -146,7 +169,7 @@ final class NoteControllerTest extends NotesTestCase
         $_SERVER['NATIVELLA_PLATFORM'] = 'android';
         $note = $this->createNote('Picnic', 'Bring a blanket.');
 
-        $this->client->request('POST', "/notes/{$note->getId()}/share");
+        $this->post("/notes/{$note->getId()}/share");
 
         $this->assertResponseRedirects("/notes/{$note->getId()}");
         $this->assertSame(['text' => "Picnic\n\nBring a blanket."], $this->fakeClient()->calls('share.text')[0]['payload']);
@@ -156,7 +179,7 @@ final class NoteControllerTest extends NotesTestCase
     {
         $note = $this->createNote();
 
-        $this->client->request('POST', "/notes/{$note->getId()}/share");
+        $this->post("/notes/{$note->getId()}/share");
 
         $this->assertResponseStatusCodeSame(404);
         $this->assertSame([], $this->nativeMethods());
@@ -166,7 +189,7 @@ final class NoteControllerTest extends NotesTestCase
     {
         $note = $this->createNote();
 
-        $this->client->request('POST', "/notes/{$note->getId()}/location");
+        $this->post("/notes/{$note->getId()}/location");
 
         $this->assertResponseStatusCodeSame(404);
         $this->assertSame([], $this->nativeMethods());
@@ -178,7 +201,7 @@ final class NoteControllerTest extends NotesTestCase
         $note = $this->createNote('Shopping', 'Milk.');
         $this->fakeClient()->respond('barcodeScanner.scan', ['barcode' => ['content' => '3017620422003', 'format' => 'EAN_13']]);
 
-        $this->client->request('POST', "/notes/{$note->getId()}/scan");
+        $this->post("/notes/{$note->getId()}/scan");
 
         $this->assertResponseRedirects("/notes/{$note->getId()}");
         $this->assertSame("Milk.\n\n📷 `3017620422003`", $this->notes()->find($note->getId())?->getBody());
@@ -190,7 +213,7 @@ final class NoteControllerTest extends NotesTestCase
         $note = $this->createNote('Shopping', '');
         $this->fakeClient()->respond('barcodeScanner.scan', ['barcode' => ['content' => 'https://example.com/a?b=c', 'format' => 'QR_CODE']]);
 
-        $this->client->request('POST', "/notes/{$note->getId()}/scan");
+        $this->post("/notes/{$note->getId()}/scan");
 
         $this->assertSame('📷 <https://example.com/a?b=c>', $this->notes()->find($note->getId())?->getBody());
     }
@@ -200,7 +223,7 @@ final class NoteControllerTest extends NotesTestCase
         $_SERVER['NATIVELLA_PLATFORM'] = 'android';
         $note = $this->createNote('Shopping', 'Milk.');
 
-        $this->client->request('POST', "/notes/{$note->getId()}/scan");
+        $this->post("/notes/{$note->getId()}/scan");
         $this->client->followRedirect();
 
         $this->assertSelectorTextContains('.flash', 'No code was added to the note.');
@@ -213,7 +236,7 @@ final class NoteControllerTest extends NotesTestCase
         $note = $this->createNote('Shopping', 'Milk.');
         $this->fakeClient()->respond('barcodeScanner.scan', new NativeCallException('barcodeScanner.scan', new \RuntimeException('The phone read no barcode within 120 seconds.')));
 
-        $this->client->request('POST', "/notes/{$note->getId()}/scan");
+        $this->post("/notes/{$note->getId()}/scan");
         $this->client->followRedirect();
 
         $this->assertSelectorTextContains('.flash', 'Notes cannot read a code: The phone read no barcode within 120 seconds.');
@@ -223,7 +246,7 @@ final class NoteControllerTest extends NotesTestCase
     {
         $note = $this->createNote();
 
-        $this->client->request('POST', "/notes/{$note->getId()}/scan");
+        $this->post("/notes/{$note->getId()}/scan");
 
         $this->assertResponseStatusCodeSame(404);
         $this->assertSame([], $this->nativeMethods());
@@ -235,7 +258,7 @@ final class NoteControllerTest extends NotesTestCase
         $path = $this->client->getKernel()->getCacheDir().'/export/groceries.md';
         $this->fakeClient()->respond('dialog.saveFile', ['path' => $path]);
 
-        $this->client->request('POST', "/notes/{$note->getId()}/export");
+        $this->post("/notes/{$note->getId()}/export");
 
         $this->assertResponseRedirects();
         $this->assertStringEqualsFile($path, "# Groceries\n\n- milk\n- bread\n");
@@ -247,7 +270,7 @@ final class NoteControllerTest extends NotesTestCase
     {
         $note = $this->createNote();
 
-        $this->client->request('POST', "/notes/{$note->getId()}/export");
+        $this->post("/notes/{$note->getId()}/export");
 
         $this->assertResponseRedirects();
         $this->assertSame(['dialog.saveFile'], $this->nativeMethods());

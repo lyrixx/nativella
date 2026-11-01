@@ -26,6 +26,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Attribute\MapQueryParameter;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Requirement\Requirement;
+use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
 use Twig\Extra\Markdown\MarkdownInterface;
 
 final class NoteController extends AbstractController
@@ -114,6 +115,7 @@ final class NoteController extends AbstractController
     }
 
     #[Route('/notes/{id}/delete', name: 'note_delete', requirements: ['id' => Requirement::DIGITS], methods: ['POST'])]
+    #[IsCsrfTokenValid('submit')]
     public function delete(Note $note): Response
     {
         // Outside Nativella, the page asked with confirm() already.
@@ -133,6 +135,7 @@ final class NoteController extends AbstractController
     }
 
     #[Route('/notes/{id}/pin', name: 'note_pin', requirements: ['id' => Requirement::DIGITS], methods: ['POST'])]
+    #[IsCsrfTokenValid('submit')]
     public function pin(Note $note): Response
     {
         if ($note->isPinned()) {
@@ -146,6 +149,7 @@ final class NoteController extends AbstractController
     }
 
     #[Route('/notes/{id}/share', name: 'note_share', requirements: ['id' => Requirement::DIGITS], methods: ['POST'])]
+    #[IsCsrfTokenValid('submit')]
     public function share(Note $note, Share $share): Response
     {
         if (!Runtime::isMobile()) {
@@ -158,6 +162,7 @@ final class NoteController extends AbstractController
     }
 
     #[Route('/notes/{id}/location', name: 'note_location', requirements: ['id' => Requirement::DIGITS], methods: ['POST'])]
+    #[IsCsrfTokenValid('submit')]
     public function location(Note $note, Geolocation $geolocation): Response
     {
         if (!Runtime::isMobile()) {
@@ -185,6 +190,7 @@ final class NoteController extends AbstractController
     }
 
     #[Route('/notes/{id}/scan', name: 'note_scan', requirements: ['id' => Requirement::DIGITS], methods: ['POST'])]
+    #[IsCsrfTokenValid('submit')]
     public function scan(Note $note, BarcodeScanner $barcodeScanner): Response
     {
         if (!Runtime::isMobile()) {
@@ -211,6 +217,7 @@ final class NoteController extends AbstractController
     }
 
     #[Route('/notes/{id}/copy', name: 'note_copy', requirements: ['id' => Requirement::DIGITS], methods: ['POST'])]
+    #[IsCsrfTokenValid('submit')]
     public function copy(Note $note, Clipboard $clipboard, #[Autowire(service: 'twig.markdown.default')] MarkdownInterface $markdown, Request $request): Response
     {
         if ('html' === $request->getPayload()->getString('format')) {
@@ -225,6 +232,7 @@ final class NoteController extends AbstractController
     }
 
     #[Route('/notes/{id}/export', name: 'note_export', requirements: ['id' => Requirement::DIGITS], methods: ['POST'])]
+    #[IsCsrfTokenValid('submit')]
     public function export(Note $note): Response
     {
         $path = $this->actions->export($note);
@@ -236,6 +244,7 @@ final class NoteController extends AbstractController
     }
 
     #[Route('/notes/import', name: 'note_import', methods: ['POST'])]
+    #[IsCsrfTokenValid('submit')]
     public function import(): Response
     {
         $result = $this->actions->importWithDialog();

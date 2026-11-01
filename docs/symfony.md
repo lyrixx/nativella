@@ -39,8 +39,10 @@ use Nativella\Dialog;
 use Nativella\Dialog\MessageKind;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
 
 #[Route('/notes/{id}/delete', methods: ['POST'])]
+#[IsCsrfTokenValid('delete-note')]
 public function delete(Note $note, Dialog $dialog): RedirectResponse
 {
     if ($dialog->confirm(\sprintf('Delete "%s"?', $note->getTitle()), kind: MessageKind::Warning, okLabel: 'Delete')) {
@@ -51,6 +53,8 @@ public function delete(Note $note, Dialog $dialog): RedirectResponse
     return $this->redirectToRoute('note_index', status: 303);
 }
 ```
+
+The application runs in a browser too, through a web server or `php -S`: protect the forms that change data from other sites as on the web. Here, `#[IsCsrfTokenValid]` (from `symfony/security-bundle`) checks the `_token` field the form sends, `{{ csrf_token('delete-note') }}`.
 
 ## Native events are Symfony events
 
@@ -204,7 +208,9 @@ final class NoteControllerTest extends WebTestCase
         $native = static::getContainer()->get(FakeClient::class);
         $native->respond('dialog.confirm', ['confirmed' => true]);
 
-        $client->request('POST', '/notes/1/delete');
+        // From the page, as the user does: the form carries its CSRF token.
+        $client->request('GET', '/notes/1');
+        $client->submitForm('Delete');
 
         $this->assertResponseRedirects('/notes', 303);
         $this->assertCount(1, $native->calls('dialog.confirm'));

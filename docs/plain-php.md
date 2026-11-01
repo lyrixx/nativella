@@ -149,3 +149,5 @@ if (Runtime::isNative()) {
 ```
 
 `php -S` sends no `app.booted` event either: create the schema on the first request if it is missing.
+
+In a browser, a page of another site can post the forms of the application for the user: give the forms that change data a CSRF token, kept in the session, and refuse a request without it. The [demo](../demos/vanilla) does it in `src/Http/CsrfToken.php`.
