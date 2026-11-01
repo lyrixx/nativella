@@ -21,7 +21,7 @@ use std::fs::{self, File};
 #[cfg(test)]
 use std::io::Cursor;
 use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use flate2::Compression;
@@ -334,6 +334,13 @@ pub(crate) fn write_bundle(
             .iter()
             .map(|path| path.canonicalize())
             .collect::<io::Result<Vec<_>>>()?,
+        icon: project
+            .manifest
+            .icon
+            .as_deref()
+            .map(icon_path)
+            .transpose()?,
+        icon_ships: false,
         left_out: LeftOut::default(),
     };
 
@@ -346,6 +353,18 @@ pub(crate) fn write_bundle(
     builder.follow_symlinks(true);
     append_dir(&mut builder, &project.dir, Path::new(""), &mut walk)?;
     builder.into_inner()?.finish()?;
+    // The windows of a standalone executable take it from the extracted
+    // project.
+    if let Some(icon) = &walk.icon
+        && !walk.icon_ships
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "The icon {icon} does not ship: make it a file of the project, outside of the paths that never ship (dist, tests…)."
+            ),
+        ));
+    }
     let archive_length = archive.length;
 
     let build = SystemTime::now()
@@ -389,7 +408,33 @@ impl<W: Write> Write for Counted<W> {
 struct Walk {
     /// What the packaging writes or reads, canonical.
     excluded: Vec<PathBuf>,
+    /// The icon of the manifest, relative to the project, with `/`, and
+    /// whether it is among the files that ship.
+    icon: Option<String>,
+    icon_ships: bool,
     left_out: LeftOut,
+}
+
+/// The icon `icon` of a manifest, relative to the project, with `/`.
+fn icon_path(icon: &Path) -> io::Result<String> {
+    let mut parts = Vec::new();
+    for component in icon.components() {
+        match component {
+            Component::Normal(part) => parts.push(part.to_string_lossy()),
+            Component::CurDir => {}
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!(
+                        "The icon {} is not a path in the project, which the application carries: give a path relative to the project, without \"..\".",
+                        icon.display()
+                    ),
+                ));
+            }
+        }
+    }
+
+    Ok(parts.join("/"))
 }
 
 fn append_dir<W: Write>(
@@ -431,6 +476,7 @@ fn append_dir<W: Write>(
         } else if is_database(&normalized) {
             walk.left_out.databases.push(normalized);
         } else {
+            walk.icon_ships |= walk.icon.as_ref() == Some(&normalized);
             archive.append_path_with_name(entry.path(), &path)?;
         }
     }
@@ -649,6 +695,39 @@ mod tests {
                 .is_file(),
             "Certificates ship."
         );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn the_icon_must_ship() {
+        let root = Path::new(env!("OUT_DIR")).join(format!("icon-test-{}", std::process::id()));
+        fs::create_dir_all(root.join("public")).unwrap();
+        fs::create_dir_all(root.join("tests")).unwrap();
+        fs::write(root.join("public/index.php"), "<?php").unwrap();
+        fs::write(root.join("public/icon.png"), "PNG").unwrap();
+        fs::write(root.join("tests/icon.png"), "PNG").unwrap();
+        let mut project = Project::load(&root).unwrap();
+
+        project.manifest.icon = Some(PathBuf::from("./public/icon.png"));
+        write_bundle(&project, &mut Vec::new(), &[]).unwrap();
+
+        for icon in [
+            root.join("public/icon.png"),
+            PathBuf::from("public/../public/icon.png"),
+        ] {
+            project.manifest.icon = Some(icon);
+            let error = write_bundle(&project, &mut Vec::new(), &[]).unwrap_err();
+            assert!(
+                error.to_string().contains("relative to the project"),
+                "{error}"
+            );
+        }
+        for icon in ["tests/icon.png", "public/missing.png"] {
+            project.manifest.icon = Some(PathBuf::from(icon));
+            let error = write_bundle(&project, &mut Vec::new(), &[]).unwrap_err();
+            assert!(error.to_string().contains("does not ship"), "{error}");
+        }
 
         fs::remove_dir_all(root).unwrap();
     }

@@ -53,6 +53,8 @@ The version of the application, as [`App::info()`](app.md) reports it. Defaults 
 
 A PNG file, relative to the project. It is the icon of the windows, of the [tray](tray.md) unless the tray sets its own, and the launcher icon of the [Android application](mobile.md#building-an-apk). Without it, the application uses the Nativella icon.
 
+The windows of a [standalone executable](building.md) take it from the project the executable carries: the build refuses an icon that does not [ship](building.md#what-ships), such as one under `tests/`. An icon that cannot be read leaves the windows with the Nativella icon, and a warning.
+
 Make it square, 512 or 1024 pixels: Android shows it at up to 192 pixels, and `nativella android` warns below that. A rectangle is centered on a transparent square.
 
 ## `window`

@@ -156,9 +156,14 @@ fn start(
     if let Source::Project(project) = &source
         && let Some(icon) = project.icon()
     {
-        let icon = tauri::image::Image::from_path(&icon)
-            .map_err(|error| format!("Cannot load the icon {}: {error}", icon.display()))?;
-        context.set_default_window_icon(Some(icon));
+        // The windows go without it rather than the application.
+        match tauri::image::Image::from_path(&icon) {
+            Ok(image) => context.set_default_window_icon(Some(image)),
+            Err(error) => eprintln!(
+                "[nativella] Cannot load the icon {}: {error}",
+                icon.display()
+            ),
+        }
     }
 
     // What the pages may ask of the webview, getUserMedia() for a start.
