@@ -11,6 +11,21 @@ use PHPUnit\Framework\TestCase;
 
 final class NfcTest extends TestCase
 {
+    public function testARecordOfZeros(): void
+    {
+        $record = Record::fromArray(['tnf' => 5, 'type' => base64_encode('0'), 'id' => base64_encode('0'), 'payload' => base64_encode('0')]);
+
+        $this->assertSame(['0', '0', '0'], [$record->type, $record->id, $record->payload]);
+    }
+
+    public function testBytesThatAreNotBase64AreRefused(): void
+    {
+        $this->expectException(\UnexpectedValueException::class);
+        $this->expectExceptionMessage('The runtime sent bytes of an NFC record that are not base64: "not base64!".');
+
+        Record::fromArray(['tnf' => 1, 'type' => base64_encode('T'), 'id' => '', 'payload' => 'not base64!']);
+    }
+
     public function testTheFakeHasNoNfc(): void
     {
         $nfc = new Nfc(new FakeClient());

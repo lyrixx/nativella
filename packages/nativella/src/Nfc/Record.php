@@ -31,9 +31,9 @@ final readonly class Record
     {
         return new self(
             TypeNameFormat::tryFrom($data['tnf']) ?? TypeNameFormat::Unknown,
-            base64_decode($data['type'], true) ?: '',
-            base64_decode($data['id'], true) ?: '',
-            base64_decode($data['payload'], true) ?: '',
+            self::bytes($data['type']),
+            self::bytes($data['id']),
+            self::bytes($data['payload']),
         );
     }
 
@@ -66,5 +66,15 @@ final readonly class Record
         }
 
         return (self::URI_PREFIXES[\ord($this->payload[0])] ?? '').substr($this->payload, 1);
+    }
+
+    private static function bytes(string $base64): string
+    {
+        $bytes = base64_decode($base64, true);
+        if (false === $bytes) {
+            throw new \UnexpectedValueException(\sprintf('The runtime sent bytes of an NFC record that are not base64: "%s".', $base64));
+        }
+
+        return $bytes;
     }
 }
