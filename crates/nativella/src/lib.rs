@@ -159,9 +159,14 @@ fn start(
     config.version = Some(manifest.version.clone());
     let package_info = context.package_info_mut();
     package_info.name.clone_from(&manifest.name);
-    if let Ok(version) = manifest.version.parse() {
-        package_info.version = version;
-    }
+    // What updates compare: project.rs checks it, but a bundle may come from
+    // elsewhere.
+    package_info.version = manifest.version.parse().map_err(|error| {
+        format!(
+            "The version \"{}\" of the application is not a semantic version: {error}.",
+            manifest.version
+        )
+    })?;
     if !manifest.deep_links.is_empty() {
         context.config_mut().plugins.0.insert(
             "deep-link".to_owned(),

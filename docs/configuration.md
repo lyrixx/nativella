@@ -47,7 +47,7 @@ On iOS, the bundle ID is the identifier as it is: Apple accepts letters, digits,
 
 ## `version`
 
-The version of the application, as [`App::info()`](app.md) reports it. Defaults to the `version` of `composer.json`, then to `0.1.0`. [Updates](updates.md) compare it as a semantic version: `1.2.0`.
+The version of the application, as [`App::info()`](app.md) reports it. Defaults to the `version` of `composer.json`, then to `0.1.0`. A semantic version, `1.2.0`, which [updates](updates.md) compare; `1.2` and `1` stand for `1.2.0` and `1.0.0`. Nativella refuses to start with anything else, `v1.2.0` or `dev-main`.
 
 ## `icon`
 

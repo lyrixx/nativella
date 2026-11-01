@@ -23,6 +23,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -42,6 +43,7 @@ pub struct Manifest {
     /// A reverse domain name, unique to the application. It names the
     /// directories where the application keeps its data.
     pub identifier: String,
+    /// A semantic version: `1.2.0`.
     pub version: String,
     /// A PNG file, relative to the project.
     pub icon: Option<PathBuf>,
@@ -193,15 +195,17 @@ impl Manifest {
             .unwrap_or_else(|| format!("dev.nativella.{}", identifier_segment(&slug)));
         validate_identifier(&identifier)?;
 
-        let version = section
-            .version
-            .or_else(|| {
-                composer
-                    .get("version")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned)
-            })
-            .unwrap_or_else(|| "0.1.0".to_owned());
+        let version = semantic_version(
+            &section
+                .version
+                .or_else(|| {
+                    composer
+                        .get("version")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned)
+                })
+                .unwrap_or_else(|| "0.1.0".to_owned()),
+        )?;
 
         for scheme in &section.deep_links {
             validate_scheme(scheme)?;
@@ -244,6 +248,29 @@ fn validate_identifier(identifier: &str) -> io::Result<()> {
             "The identifier \"{identifier}\" is not a reverse domain name (letters, digits and dashes, separated by dots)."
         ),
     ))
+}
+
+/// `version` as a semantic version, which updates compare: `1.2` and `1`
+/// stand for `1.2.0` and `1.0.0`, as Android and iOS number them (see
+/// apk/mod.rs and ios/mod.rs).
+fn semantic_version(version: &str) -> io::Result<String> {
+    let (core, suffix) = version.split_at(version.find(['-', '+']).unwrap_or(version.len()));
+    let padding = match core.split('.').count() {
+        1 => ".0.0",
+        2 => ".0",
+        _ => "",
+    };
+
+    Version::parse(&format!("{core}{padding}{suffix}"))
+        .map(|version| version.to_string())
+        .map_err(|error| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "The version \"{version}\" is not a semantic version, as 1.2.0: {error}. Set the version of extra.nativella in composer.json."
+                ),
+            )
+        })
 }
 
 /// RFC 3986: a letter, then letters, digits, `+`, `-` and `.`. The web ones
@@ -367,6 +394,33 @@ mod tests {
         assert_eq!(manifest.identifier, "com.acme.notes");
         assert_eq!(manifest.version, "2.0.0");
         assert_eq!(manifest.window.get("width"), Some(&json!(400)));
+    }
+
+    #[test]
+    fn versions_are_semantic() {
+        let version = |version: &str| {
+            manifest(json!({ "extra": { "nativella": { "version": version } } }))
+                .map(|manifest| manifest.version)
+        };
+
+        assert_eq!(version("1.2.0").unwrap(), "1.2.0");
+        assert_eq!(version("2.3.4-beta.1+abc").unwrap(), "2.3.4-beta.1+abc");
+        assert_eq!(version("1.2").unwrap(), "1.2.0");
+        assert_eq!(version("3").unwrap(), "3.0.0");
+        assert_eq!(version("3-rc.1").unwrap(), "3.0.0-rc.1");
+        for invalid in ["v1.2.0", "1.x", "1.2.3.4", "", "dev-main"] {
+            assert_eq!(
+                version(invalid).unwrap_err().kind(),
+                io::ErrorKind::InvalidData,
+                "{invalid}"
+            );
+        }
+        assert_eq!(
+            manifest(json!({ "version": "dev-main" }))
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidData
+        );
     }
 
     #[test]
