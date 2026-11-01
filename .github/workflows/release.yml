@@ -49,6 +49,8 @@ jobs:
 
             - name: setup-castor
               uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+              with:
+                  version: v1.9.1
 
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -125,6 +127,8 @@ jobs:
 
             - name: setup-castor
               uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+              with:
+                  version: v1.9.1
 
             # Composer and PHP stage the demos for production
             - name: "Set up PHP"
@@ -132,7 +136,9 @@ jobs:
               with:
                   php-version: "8.5"
                   extensions: intl, pdo_sqlite, sqlite3
-                  tools: composer
+                  # The Composer of the builder: keep in sync with the
+                  # Dockerfile of infrastructure/docker/services/php/
+                  tools: composer:2.10.0@sha256:a346538851988ead111d11e3cbd7d372eeba44abd0af412e09890d3c21ea6c31
 
             # The one of macos.yml, from main: its path and its key
             - name: "Restore static PHP"
@@ -180,6 +186,8 @@ jobs:
 
             - name: setup-castor
               uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+              with:
+                  version: v1.9.1
 
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -250,6 +258,8 @@ jobs:
 
             - name: setup-castor
               uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+              with:
+                  version: v1.9.1
 
             # As in mobile.yml: XcodeGen from its release, pinned, and
             # stand-ins for what cargo tauri ios init looks for, but neither

@@ -66,6 +66,8 @@ jobs:
 
             - name: setup-castor
               uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+              with:
+                  version: v1.9.1
 
             # Composer and the PHP of the projects, for castor install: the
             # crates link the static PHP below
@@ -74,7 +76,9 @@ jobs:
               with:
                   php-version: "8.5"
                   extensions: intl, pdo_sqlite, sqlite3
-                  tools: composer
+                  # The Composer of the builder: keep in sync with the
+                  # Dockerfile of infrastructure/docker/services/php/
+                  tools: composer:2.10.0@sha256:a346538851988ead111d11e3cbd7d372eeba44abd0af412e09890d3c21ea6c31
 
             # Built once, then as long as the version of PHP, its extensions and
             # static-php-cli stay the same. release.yml restores it too: keep
