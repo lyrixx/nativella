@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Facade;
  *
  * @method static \Nativella\App\AppInfo info()
  * @method static string                 path(\Nativella\App\Directory $directory)
+ * @method static ?string                thirdPartyNotices()
  * @method static void                   quit()
  * @method static void                   restart()
  * @method static void                   hide()
