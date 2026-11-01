@@ -5,6 +5,7 @@
 
 use std::env;
 use std::ffi::{CString, c_char};
+use std::mem;
 use std::ptr;
 
 use ext_php_rs::embed::{
@@ -93,13 +94,16 @@ impl Engine {
         }
     }
 
+    /// Runs PHP for `request`. Its body goes to PHP and comes back, for the
+    /// redirects that send it again.
     pub(crate) fn handle(
         &self,
         app: &PhpApp,
-        request: Request<Vec<u8>>,
+        request: &mut Request<Vec<u8>>,
         origin: &RequestOrigin,
     ) -> Response<Vec<u8>> {
-        let mut context = RequestContext::new(app, request, origin);
+        let body = mem::take(request.body_mut());
+        let mut context = RequestContext::new(app, request, body, origin);
 
         let mut info = RequestInfo::default();
         context.init_request_info(&mut info);
@@ -139,6 +143,7 @@ impl Engine {
         }
         drop(strings);
 
+        *request.body_mut() = mem::take(&mut context.body);
         context.into_response()
     }
 }
@@ -199,12 +204,24 @@ impl Sapi for NativeSapi {
             return;
         }
 
-        match header.as_name_value() {
-            Some((name, value)) => context.headers.push((name.to_owned(), value.to_owned())),
-            None => {
-                log!("[php] Dropped a response header that is not valid UTF-8 or has no colon.")
-            }
+        let Some((name, value)) = header.as_name_value() else {
+            log!("[php] Dropped a response header that is not valid UTF-8 or has no colon.");
+
+            return;
+        };
+
+        // Headers come before the first output: the warning comes in time,
+        // even for a stream that never ends.
+        if name.eq_ignore_ascii_case("content-type")
+            && value.to_ascii_lowercase().starts_with("text/event-stream")
+        {
+            log!(
+                "[php] {} streams server-sent events: the page gets them all at once, when the script ends, and never if the stream does not end. See docs/limitations.md.",
+                context.info.request_uri.as_deref().unwrap_or("/")
+            );
         }
+
+        context.headers.push((name.to_owned(), value.to_owned()));
     }
 
     fn register_server_variables(context: &mut RequestContext, registrar: &mut ServerVarRegistrar) {
@@ -229,19 +246,22 @@ struct RequestContext {
 }
 
 impl RequestContext {
-    fn new(app: &PhpApp, request: Request<Vec<u8>>, origin: &RequestOrigin) -> Self {
-        let (parts, body) = request.into_parts();
+    fn new(
+        app: &PhpApp,
+        request: &Request<Vec<u8>>,
+        body: Vec<u8>,
+        origin: &RequestOrigin,
+    ) -> Self {
+        let (method, uri, headers) = (request.method(), request.uri(), request.headers());
 
-        let request_uri = parts
-            .uri
+        let request_uri = uri
             .path_and_query()
             .map_or("/", |path| path.as_str())
             .to_owned();
-        let query_string = parts.uri.query().unwrap_or_default().to_owned();
-        let content_type = header_str(&parts.headers, &CONTENT_TYPE);
+        let query_string = uri.query().unwrap_or_default().to_owned();
+        let content_type = header_str(headers, &CONTENT_TYPE);
         // An HTTP header value cannot contain a NUL byte.
-        let cookie =
-            header_str(&parts.headers, &COOKIE).and_then(|cookie| CString::new(cookie).ok());
+        let cookie = header_str(headers, &COOKIE).and_then(|cookie| CString::new(cookie).ok());
         let script_filename = app.front_controller.to_string_lossy().into_owned();
         let script_name = format!(
             "/{}",
@@ -260,10 +280,7 @@ impl RequestContext {
         server_variables.extend(
             [
                 ("SERVER_SOFTWARE", "nativella".to_owned()),
-                (
-                    "SERVER_NAME",
-                    parts.uri.host().unwrap_or("localhost").to_owned(),
-                ),
+                ("SERVER_NAME", uri.host().unwrap_or("localhost").to_owned()),
                 ("SERVER_PORT", "80".to_owned()),
                 ("SERVER_PROTOCOL", "HTTP/1.1".to_owned()),
                 ("GATEWAY_INTERFACE", "CGI/1.1".to_owned()),
@@ -275,7 +292,7 @@ impl RequestContext {
                 ("SCRIPT_FILENAME", script_filename.clone()),
                 ("SCRIPT_NAME", script_name.clone()),
                 ("PHP_SELF", script_name),
-                ("REQUEST_METHOD", parts.method.to_string()),
+                ("REQUEST_METHOD", method.to_string()),
                 ("REQUEST_URI", request_uri.clone()),
                 ("QUERY_STRING", query_string.clone()),
             ]
@@ -289,7 +306,7 @@ impl RequestContext {
             server_variables.push(("CONTENT_LENGTH".to_owned(), body.len().to_string()));
         }
 
-        for (name, value) in &parts.headers {
+        for (name, value) in headers {
             if name == CONTENT_TYPE || name == CONTENT_LENGTH {
                 continue;
             }
@@ -300,7 +317,7 @@ impl RequestContext {
             };
 
             let value = if name == ORIGIN || name == REFERER {
-                as_php_origin(&parts.uri, value)
+                as_php_origin(uri, value)
             } else {
                 value.to_owned()
             };
@@ -315,10 +332,10 @@ impl RequestContext {
         }
 
         // WebKit sends no Host header for a custom scheme.
-        if !parts.headers.contains_key(HOST) {
+        if !headers.contains_key(HOST) {
             server_variables.push((
                 "HTTP_HOST".to_owned(),
-                parts.uri.host().unwrap_or("localhost").to_owned(),
+                uri.host().unwrap_or("localhost").to_owned(),
             ));
         }
 
@@ -334,7 +351,7 @@ impl RequestContext {
         }
 
         let info = RequestInfo {
-            request_method: Some(parts.method.to_string()),
+            request_method: Some(method.to_string()),
             query_string: Some(query_string),
             request_uri: Some(request_uri),
             path_translated: Some(script_filename),

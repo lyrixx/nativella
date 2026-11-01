@@ -24,6 +24,12 @@ switch ($_GET['case'] ?? '') {
     case 'avatar':
         header('Location: /avatar.png');
         break;
+    case 'moved':
+        header('Location: /?case=input', true, 307);
+        break;
+    case 'input':
+        echo $_SERVER['REQUEST_METHOD'], ' ', file_get_contents('php://input');
+        break;
     default:
         echo 'Hello';
 }
@@ -97,6 +103,18 @@ fn a_photo_of_a_phone_can_be_uploaded() {
     );
 
     assert_eq!(text(&response), format!("0 {}", photo.len()));
+}
+
+#[test]
+fn a_307_sends_the_body_again() {
+    let response = send(
+        Request::post("php://localhost/?case=moved")
+            .header(CONTENT_TYPE, "application/json")
+            .body(br#"{"title":"Groceries"}"#.to_vec())
+            .unwrap(),
+    );
+
+    assert_eq!(text(&response), r#"POST {"title":"Groceries"}"#);
 }
 
 #[test]

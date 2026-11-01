@@ -26,7 +26,7 @@ pub fn is_navigation(request: &Request<Vec<u8>>) -> bool {
     request.headers().contains_key("upgrade-insecure-requests")
 }
 
-/// What to do with `response`, given a copy of the request it answers.
+/// What to do with `response`, given the request it answers.
 pub(crate) fn next(
     request: Request<Vec<u8>>,
     response: Response<Vec<u8>>,
@@ -113,17 +113,6 @@ pub(crate) fn next(
     parts.uri = webview_uri(&parts.uri, &path_and_query(&target));
 
     Next::Follow(Request::from_parts(parts, body))
-}
-
-/// A copy of `request`, to build the request that follows a redirect.
-pub(crate) fn copy(request: &Request<Vec<u8>>) -> Request<Vec<u8>> {
-    let mut copy = Request::new(request.body().clone());
-    *copy.method_mut() = request.method().clone();
-    *copy.uri_mut() = request.uri().clone();
-    *copy.version_mut() = request.version();
-    *copy.headers_mut() = request.headers().clone();
-
-    copy
 }
 
 /// The URL PHP believes it serves: plain HTTP on port 80 of the request host,

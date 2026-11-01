@@ -281,23 +281,23 @@ fn serve(
 
     for _ in 0..=redirects::MAX_REDIRECTS {
         cookies.add_to(&mut request);
-        let copy = redirects::copy(&request);
 
         let started = Instant::now();
-        let response =
-            bridge::with_window(origin.window(), || engine.handle(app, request, &origin));
+        let response = bridge::with_window(origin.window(), || {
+            engine.handle(app, &mut request, &origin)
+        });
         log!(
             "[php] {} {} {} {:.1} ms",
-            copy.method(),
-            copy.uri(),
+            request.method(),
+            request.uri(),
             response.status().as_u16(),
             started.elapsed().as_secs_f64() * 1000.0
         );
 
-        cookies.store(copy.uri().path(), &response);
-        let uri = copy.uri().clone();
+        cookies.store(request.uri().path(), &response);
+        let uri = request.uri().clone();
 
-        match redirects::next(copy, response, navigation) {
+        match redirects::next(request, response, navigation) {
             Next::Respond(mut response) => {
                 absolute_urls::rewrite(&uri, &mut response);
 
