@@ -25,6 +25,7 @@ Nativella is experimental. This page lists what does not work, what is untested 
 - **One PHP thread.** Every request of every window goes through the same PHP thread, one after the other. A slow request holds back the others, and so does an open [dialog](dialogs.md). Files of `public/` are served without PHP, and keep loading.
 - **No worker mode.** The framework boots on every request, as under PHP-FPM: about 3 ms for Symfony, on top of your code.
 - **No background work in PHP.** PHP only runs to answer a request, a native event or a [timer](timers.md): a timer stands in for cron. A queue worker can run as a [child process](child-processes.md), with PHP's command line on the machine.
+- **`putenv()` is not thread-safe.** PHP runs in the process of the window: `putenv()` changes the environment the threads of the window read at any time, and the C library does not guard against both at once. The application may crash, if rarely. Laravel calls it for every variable of `.env`, on every request, until its configuration is cached: `Illuminate\Support\Env::disablePutenv()`, at the top of `bootstrap/app.php`, leaves them in `$_ENV` and `$_SERVER` only.
 
 ## The web layer
 
