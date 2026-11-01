@@ -17,9 +17,9 @@ final class SettingsTest extends TestCase
         parent::tearDown();
     }
 
-    public function testThePageShowsTheStoredSetting(): void
+    public function testThePageShowsWhetherTheSystemStartsTheApplication(): void
     {
-        Nativella::fake()->respond('settings.get', ['value' => true]);
+        Nativella::fake()->respond('app.isAutostartEnabled', ['enabled' => true]);
 
         $this->get('/settings')
             ->assertOk()
@@ -31,27 +31,25 @@ final class SettingsTest extends TestCase
     {
         $native = Nativella::fake();
 
-        $this->put('/settings', ['open_at_login' => '1'])->assertRedirect('/settings')->assertSessionHas('status', 'Tasks will open at login.');
+        $this->put('/settings', ['autostart' => '1'])->assertRedirect('/settings')->assertSessionHas('status', 'Tasks will open at login.');
 
-        $this->assertCount(1, $native->calls('app.enableAutostart'));
-        $this->assertSame([['method' => 'settings.set', 'payload' => ['key' => 'open_at_login', 'value' => true]]], $native->calls('settings.set'));
+        $this->assertSame(['app.enableAutostart'], array_column($native->calls(), 'method'));
     }
 
     public function testOpeningAtLoginIsDisabled(): void
     {
         $native = Nativella::fake();
 
-        $this->put('/settings', ['open_at_login' => '0'])->assertRedirect('/settings');
+        $this->put('/settings', ['autostart' => '0'])->assertRedirect('/settings');
 
-        $this->assertCount(1, $native->calls('app.disableAutostart'));
-        $this->assertSame(['key' => 'open_at_login', 'value' => false], $native->calls('settings.set')[0]['payload']);
+        $this->assertSame(['app.disableAutostart'], array_column($native->calls(), 'method'));
     }
 
     public function testTheSettingIsABoolean(): void
     {
         $native = Nativella::fake();
 
-        $this->from('/settings')->put('/settings', ['open_at_login' => 'often'])->assertRedirect('/settings')->assertSessionHasErrors('open_at_login');
+        $this->from('/settings')->put('/settings', ['autostart' => 'often'])->assertRedirect('/settings')->assertSessionHasErrors('autostart');
 
         $this->assertSame([], $native->calls());
     }
@@ -63,7 +61,7 @@ final class SettingsTest extends TestCase
         $_SERVER['NATIVELLA_PLATFORM'] = 'android';
 
         $this->get('/settings')->assertOk()->assertSee('There is nothing to set on this device.')->assertDontSee('Open at login');
-        $this->put('/settings', ['open_at_login' => '1'])->assertNotFound();
+        $this->put('/settings', ['autostart' => '1'])->assertNotFound();
 
         $this->assertSame([], $native->calls());
     }
@@ -74,6 +72,6 @@ final class SettingsTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder(['role="switch"', 'disabled>'], false)
             ->assertSee('These settings only exist in the desktop application.');
-        $this->put('/settings', ['open_at_login' => '1'])->assertNotFound();
+        $this->put('/settings', ['autostart' => '1'])->assertNotFound();
     }
 }

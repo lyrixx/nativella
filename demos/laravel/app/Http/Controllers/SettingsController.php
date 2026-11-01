@@ -9,42 +9,39 @@ use Illuminate\View\View;
 use Nativella\App;
 use Nativella\Laravel\Facades\Nativella;
 use Nativella\Runtime;
-use Nativella\Settings;
 
 final readonly class SettingsController
 {
-    private const string OPEN_AT_LOGIN = 'open_at_login';
-
-    public function edit(Settings $settings): View
+    public function edit(App $app): View
     {
         $mobile = Runtime::isMobile();
         $native = Nativella::isNative();
 
         return view('settings.edit', [
+            // As the system has it: the user may have changed it there.
+            'autostart' => $native && !$mobile && $app->isAutostartEnabled(),
             'mobile' => $mobile,
             'native' => $native,
-            'openAtLogin' => $native && !$mobile && $settings->get(self::OPEN_AT_LOGIN, false),
             'shortcut' => Shortcut::ShowWindow,
         ]);
     }
 
-    public function update(Request $request, App $app, Settings $settings): RedirectResponse
+    public function update(Request $request, App $app): RedirectResponse
     {
         // Phones and tablets start no application at login.
         abort_if(Runtime::isMobile(), 404);
 
         $request->validate([
-            self::OPEN_AT_LOGIN => ['required', 'boolean'],
+            'autostart' => ['required', 'boolean'],
         ]);
-        $openAtLogin = $request->boolean(self::OPEN_AT_LOGIN);
+        $autostart = $request->boolean('autostart');
 
-        if ($openAtLogin) {
+        if ($autostart) {
             $app->enableAutostart();
         } else {
             $app->disableAutostart();
         }
-        $settings->set(self::OPEN_AT_LOGIN, $openAtLogin);
 
-        return to_route('settings.edit')->with('status', $openAtLogin ? 'Tasks will open at login.' : 'Tasks will no longer open at login.');
+        return to_route('settings.edit')->with('status', $autostart ? 'Tasks will open at login.' : 'Tasks will no longer open at login.');
     }
 }
