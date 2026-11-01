@@ -72,18 +72,21 @@ pub(crate) fn next(
         );
     }
 
-    if navigation {
-        let href = if same_origin {
-            let mut href = path_and_query(&target);
-            if let Some(fragment) = target.fragment() {
-                href.push('#');
-                href.push_str(fragment);
-            }
+    if navigation && !same_origin {
+        log!(
+            "[redirect] {} to {target}, another website: replaced by a client-side navigation.",
+            response.status().as_u16()
+        );
 
-            href
-        } else {
-            target.to_string()
-        };
+        return Next::Respond(leave_for(&target));
+    }
+
+    if navigation {
+        let mut href = path_and_query(&target);
+        if let Some(fragment) = target.fragment() {
+            href.push('#');
+            href.push_str(fragment);
+        }
         log!(
             "[redirect] {} to {href}, replaced by a client-side navigation.",
             response.status().as_u16()
@@ -163,19 +166,35 @@ fn path_and_query(url: &Url) -> String {
 }
 
 fn navigate_to(href: &str) -> Response<Vec<u8>> {
-    // A JSON string is a valid JavaScript string; escaping "<" keeps
-    // "</script>" out of the page.
-    let target = serde_json::to_string(href)
-        .expect("A string serializes to JSON.")
-        .replace('<', "\\u003c");
-    let body = format!(
-        "<!DOCTYPE html><meta charset=\"UTF-8\"><script>location.replace({target});</script>"
-    );
+    page(&format!(
+        "<script>location.replace({});</script>",
+        js_string(href)
+    ))
+}
 
+/// The window does not leave for another website: the shell opens it in the
+/// browser, and the window stays on this page, which says so (an OAuth
+/// login, for one).
+fn leave_for(target: &Url) -> Response<Vec<u8>> {
+    page(&format!(
+        "<script>location.replace({});</script><p>This page continues in your browser. <a href=\"/\" onclick=\"if (history.length > 1) {{ history.back(); return false; }}\">Back</a></p>",
+        js_string(target.as_str())
+    ))
+}
+
+fn page(content: &str) -> Response<Vec<u8>> {
     Response::builder()
         .header(CONTENT_TYPE, "text/html; charset=UTF-8")
-        .body(body.into_bytes())
+        .body(format!("<!DOCTYPE html><meta charset=\"UTF-8\">{content}").into_bytes())
         .expect("A content type is a valid header.")
+}
+
+fn js_string(value: &str) -> String {
+    // A JSON string is a valid JavaScript string; escaping "<" keeps
+    // "</script>" out of the page.
+    serde_json::to_string(value)
+        .expect("A string serializes to JSON.")
+        .replace('<', "\\u003c")
 }
 
 #[cfg(test)]
@@ -303,6 +322,26 @@ mod tests {
         assert!(
             matches!(response, Next::Respond(response) if response.status() == StatusCode::FOUND)
         );
+    }
+
+    #[test]
+    fn a_navigation_to_another_website_leaves_a_way_back() {
+        let Next::Respond(response) = next(
+            post("php://localhost/connect/github"),
+            redirect(302, "https://github.com/login/oauth/authorize?state=<x>"),
+            true,
+        ) else {
+            panic!("A navigation is never followed by the runtime.");
+        };
+        let page = String::from_utf8(response.into_body()).unwrap();
+
+        assert!(
+            page.contains(
+                r#"location.replace("https://github.com/login/oauth/authorize?state=%3Cx%3E")"#
+            ),
+            "{page}"
+        );
+        assert!(page.contains("history.back()"), "{page}");
     }
 
     #[test]
