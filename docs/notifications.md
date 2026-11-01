@@ -37,7 +37,7 @@ On Linux, notifications go through the notification service of the desktop (`org
 
 ## A notification from a page
 
-A notification needs no page change: a `fetch()` from the page is enough.
+A notification needs no page change: a `fetch()` from the page is enough. `new Notification()`, the API of browsers, shows nothing in a page, so that a script injected in one cannot show notifications of the system: PHP decides.
 
 ```js
 await fetch('/reminders/42/notify', { method: 'POST' });

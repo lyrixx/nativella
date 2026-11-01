@@ -9,14 +9,14 @@
       "capabilities": [
         {
           "identifier": "pages",
-          "description": "What the pages of the PHP application may call: the notification plugin checks its permission when a page loads, and frameless windows move and maximize through data-tauri-drag-region.",
+          "description": "What the pages of the PHP application may call: the notification plugin checks its permission when a page loads (pages notify through PHP, not window.Notification), and frameless windows move and maximize through data-tauri-drag-region.",
           "windows": [
             "*"
           ],
           "permissions": [
             "core:window:allow-internal-toggle-maximize",
             "core:window:allow-start-dragging",
-            "notification:default"
+            "notification:allow-is-permission-granted"
           ]
         }
       ]
