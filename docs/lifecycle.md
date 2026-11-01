@@ -35,7 +35,7 @@ The runtime marks it with `$_SERVER['NATIVELLA_INTERNAL'] = '1'`, which a page c
 |---|---|---|---|
 | `app.booted` | `AppBooted` | | PHP is ready. Handled before any page is served. |
 | `app.reopened` | `AppReopened` | `args`, `cwd` | The user started the application again while it was running. |
-| `app.urlsOpened` | `AppUrlsOpened` | `urls` | The system opened URLs of a [deep link scheme](configuration.md#deeplinks) of the application. |
+| `app.urlsOpened` | `AppUrlsOpened` | `urls` | The system opened URLs of a [deep link scheme](configuration.md#deeplinks) of the application. Any website or application can open one: they are user input, check them as such. |
 | `childProcess.output` | `ChildProcessOutput` | `alias`, `pid`, `stream`, `output` | A [child process](child-processes.md) wrote lines. |
 | `childProcess.exited` | `ChildProcessExited` | `alias`, `pid`, `code` | A child process ended. |
 | `notification.clicked` | `NotificationClicked` | `reference` | The user clicked a [notification](notifications.md#clicks) sent with a reference (Linux). |

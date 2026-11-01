@@ -49,6 +49,13 @@ Every [native event](lifecycle.md#native-events) reaches the pages too, before P
 | DOM event | `event.detail` |
 |---|---|
 | `nativella:app.reopened` | `{args, cwd}` |
+| `nativella:app.urlsOpened` | `{urls}` |
+| `nativella:childProcess.output` | `{alias, pid, stream, output}` |
+| `nativella:childProcess.exited` | `{alias, pid, code}` |
+| `nativella:notification.clicked` | `{reference}` |
+| `nativella:power.resumed` | `{}` |
+| `nativella:power.sourceChanged` | `{onBattery}` |
+| `nativella:timer.fired` | `{name}` |
 | `nativella:window.focused`, `nativella:window.blurred`, `nativella:window.closed` | `{window}` |
 | `nativella:window.themeChanged` | `{window, theme}` |
 | `nativella:window.downloaded` | `{window, path}` |
@@ -61,7 +68,9 @@ Every [native event](lifecycle.md#native-events) reaches the pages too, before P
 | `nativella:updater.failed` | `{version, message}` |
 | `nativella:globalShortcut.pressed` | `{accelerator}` |
 
-Every window gets every event: compare `detail.window` with the label of the window when it matters. A page knows its own label if PHP prints it, from `Nativella\Runtime::window()`:
+`stream` is `stdout` or `stderr`, `theme` is `light` or `dark`: the values PHP gets, before it makes objects of them. See [Lifecycle and events](lifecycle.md#native-events) for when each event comes.
+
+Every window gets every event, the output of the child processes and the URLs of deep links included, which may carry a token: any script that runs in a page sees them. Compare `detail.window` with the label of the window when it matters. A page knows its own label if PHP prints it, from `Nativella\Runtime::window()`:
 
 ```php
 <body data-window="<?= htmlspecialchars(Nativella\Runtime::window() ?? '') ?>">
