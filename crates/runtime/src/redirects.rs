@@ -4,7 +4,8 @@
 //! - A navigation gets a page that replaces itself with the target, so the
 //!   address and the history end up where a browser would put them.
 //! - A `fetch()` or XHR gets the target's response directly. The page then
-//!   sees `redirected: false` and the original URL: a known limitation.
+//!   sees `redirected: false` and the original URL: a known limitation. So
+//!   does a form sent to a 307 or a 308, which sends its body again.
 
 use http::header::{CONTENT_LENGTH, CONTENT_TYPE, COOKIE, LOCATION};
 use http::{Method, Request, Response, StatusCode, Uri};
@@ -81,7 +82,14 @@ pub(crate) fn next(
         return Next::Respond(leave_for(&target));
     }
 
-    if navigation {
+    // A page that replaces itself would load the target with a GET: the
+    // runtime sends the method and body again itself, as for a fetch().
+    let sends_the_body_again = matches!(
+        response.status(),
+        StatusCode::TEMPORARY_REDIRECT | StatusCode::PERMANENT_REDIRECT
+    ) && !matches!(*request.method(), Method::GET | Method::HEAD);
+
+    if navigation && !sends_the_body_again {
         let mut href = path_and_query(&target);
         if let Some(fragment) = target.fragment() {
             href.push('#');
@@ -322,6 +330,21 @@ mod tests {
         assert!(
             matches!(response, Next::Respond(response) if response.status() == StatusCode::FOUND)
         );
+    }
+
+    #[test]
+    fn a_form_sent_to_a_307_is_sent_again_to_the_target() {
+        let Next::Follow(request) = next(
+            post("php://localhost/notes"),
+            redirect(307, "/notes/new"),
+            true,
+        ) else {
+            panic!("A 307 sends the form again.");
+        };
+
+        assert_eq!(request.method(), Method::POST);
+        assert_eq!(request.uri(), "php://localhost/notes/new");
+        assert_eq!(request.body(), b"title=Hello");
     }
 
     #[test]

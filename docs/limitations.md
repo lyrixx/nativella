@@ -30,7 +30,7 @@ Nativella is experimental. This page lists what does not work, what is untested 
 ## The web layer
 
 - **Sessions end with the application**, as in a browser, unless their cookie has an expiry date: a cookie with one is kept in the [data directory](configuration.md#the-data-directory). Keep what must last in the [database](database.md) or the [settings](settings.md).
-- **Redirects and `fetch()`.** A `fetch()` that is redirected gets the right response, but `response.redirected` is `false` and `response.url` is the original URL.
+- **Redirects and `fetch()`.** A `fetch()` that is redirected gets the right response, but `response.redirected` is `false` and `response.url` is the original URL. A form sent to a `307` or a `308` shows the page of the target at the address of the form.
 - **Redirect loops.** A `fetch()` gives up after 20 redirects, but a page that redirects to itself keeps reloading, where a browser would stop with an error.
 - **Absolute URLs.** PHP believes it is served from `http://localhost/`. The runtime rewrites such URLs in the URL attributes of HTML and the `url()` of CSS that PHP answers, and brings back the requests `fetch()`, `XMLHttpRequest` and `EventSource` send there, not more: an absolute URL in a static file of `public/`, or one a script uses otherwise (the `src` of an image), still points to where nothing listens. Prefer relative URLs there.
 - **Static files are read whole**, by the thread that receives the request, and `Range` requests are not supported: fine for styles, scripts and images, not for a large video.
