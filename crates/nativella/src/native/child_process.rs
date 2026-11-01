@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -28,8 +28,8 @@ const GRACE: Duration = Duration::from_secs(3);
 /// How often the watcher looks at its process: std cannot wait for a process
 /// and kill it at once.
 const POLL: Duration = Duration::from_millis(50);
-/// How long the last output of an ended process may take to come: a process
-/// that left children behind keeps its pipes open.
+/// How long the pipes of an ended process may stay quiet before its last
+/// output: a process that left children behind keeps them open.
 const LAST_WORDS: Duration = Duration::from_secs(2);
 
 /// The running processes, by alias.
@@ -58,8 +58,99 @@ struct Running {
 /// What the watcher of a process gets once the process started.
 struct Watched {
     child: Child,
-    /// Disconnected when both readers are done.
-    readers: mpsc::Receiver<()>,
+    readers: Readers,
+}
+
+/// The threads that hand the output of a process to PHP, one per pipe.
+struct Readers {
+    /// Disconnected when they are all done.
+    done: mpsc::Receiver<()>,
+    /// What each one gets.
+    done_sender: mpsc::Sender<()>,
+    /// How many outputs wait for PHP to handle them.
+    delivering: Arc<AtomicUsize>,
+}
+
+impl Readers {
+    fn new() -> Self {
+        let (done_sender, done) = mpsc::channel();
+
+        Self {
+            done,
+            done_sender,
+            delivering: Arc::default(),
+        }
+    }
+
+    /// Hands what `pipe` gives to `deliver`, as it comes: one call for what
+    /// one read gets, a burst of lines or a prompt without its line ending,
+    /// never half a character. `deliver` returns once PHP handled it: until
+    /// then, the pipe fills and the process waits to write more.
+    fn forward(
+        &self,
+        name: String,
+        mut pipe: impl Read + Send + 'static,
+        deliver: impl Fn(&[u8]) + Send + 'static,
+    ) -> io::Result<()> {
+        let done = self.done_sender.clone();
+        let delivering = Arc::clone(&self.delivering);
+
+        thread::Builder::new().name(name.clone()).spawn(move || {
+            // Dropped with the thread: the watcher waits for it.
+            let _done = done;
+            let send = |output: &[u8]| {
+                if output.is_empty() {
+                    return;
+                }
+                delivering.fetch_add(1, Ordering::SeqCst);
+                deliver(output);
+                delivering.fetch_sub(1, Ordering::SeqCst);
+            };
+            let mut buffer = vec![0; 64 * 1024];
+            // A character cut in two by a read waits for its end.
+            let mut pending = Vec::new();
+            loop {
+                match pipe.read(&mut buffer) {
+                    Ok(0) => break,
+                    Ok(read) => pending.extend_from_slice(&buffer[..read]),
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                    Err(error) => {
+                        eprintln!("[process] Cannot read the {name}: {error}.");
+                        break;
+                    }
+                }
+                let complete = match std::str::from_utf8(&pending) {
+                    Ok(_) => pending.len(),
+                    // Cut at the end; invalid bytes elsewhere go as U+FFFD.
+                    Err(error) if error.error_len().is_none() => error.valid_up_to(),
+                    Err(_) => pending.len(),
+                };
+                let output: Vec<u8> = pending.drain(..complete).collect();
+                send(&output);
+            }
+            send(&pending);
+        })?;
+
+        Ok(())
+    }
+
+    /// Waits for the last output of an ended process to reach PHP. The time
+    /// PHP takes to handle it does not count, only how long the pipes stay
+    /// quiet: `quiet` at most.
+    fn wait(self, quiet: Duration) {
+        drop(self.done_sender);
+        let mut quiet_since = Instant::now();
+        loop {
+            match self.done.recv_timeout(POLL) {
+                Err(RecvTimeoutError::Timeout) if self.delivering.load(Ordering::SeqCst) > 0 => {
+                    quiet_since = Instant::now();
+                }
+                Err(RecvTimeoutError::Timeout) if quiet_since.elapsed() < quiet => {}
+                // Done, or a pipe that something left behind keeps open.
+                _ => return,
+            }
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -271,12 +362,17 @@ fn start(app: &AppHandle, processes: &ChildProcesses, payload: Start) -> Result<
         .map_err(|error| format!("Cannot start \"{program}\" in {}: {error}.", cwd.display()))?;
     let pid = child.id();
 
-    let (readers_done, readers) = mpsc::channel::<()>();
+    let readers = Readers::new();
+    let deliver = |stream: &'static str| {
+        let app = app.clone();
+        let alias = alias.clone();
+        move |output: &[u8]| send_output(&app, &alias, pid, stream, output)
+    };
     let pipes = (child.stdin.take(), child.stdout.take(), child.stderr.take());
     let threads = match pipes {
         (Some(stdin), Some(stdout), Some(stderr)) => writer(&alias, stdin).and_then(|stdin| {
-            forward(app, &alias, pid, "stdout", stdout, readers_done.clone())?;
-            forward(app, &alias, pid, "stderr", stderr, readers_done)?;
+            readers.forward(format!("stdout of {alias}"), stdout, deliver("stdout"))?;
+            readers.forward(format!("stderr of {alias}"), stderr, deliver("stderr"))?;
             Ok(stdin)
         }),
         _ => Err(io::Error::other("a pipe is missing")),
@@ -326,12 +422,7 @@ fn watch(app: &AppHandle, alias: &str, mut watched: Watched, stop: &Arc<AtomicBo
     drop(running);
 
     // Its last words before its end.
-    let deadline = Instant::now() + LAST_WORDS;
-    while watched
-        .readers
-        .recv_timeout(deadline.saturating_duration_since(Instant::now()))
-        .is_ok()
-    {}
+    watched.readers.wait(LAST_WORDS);
     // What did not heed SIGTERM.
     #[cfg(unix)]
     signal_group(&watched.child, libc::SIGKILL);
@@ -419,60 +510,10 @@ fn writer(alias: &str, mut stdin: ChildStdin) -> io::Result<mpsc::Sender<Vec<u8>
     Ok(sender)
 }
 
-/// Sends what the process writes to PHP, as it comes: one event for what
-/// one read gets, a burst of lines or a prompt without its line ending.
-fn forward(
-    app: &AppHandle,
-    alias: &str,
-    pid: u32,
-    stream: &'static str,
-    mut pipe: impl Read + Send + 'static,
-    done: mpsc::Sender<()>,
-) -> io::Result<()> {
-    let app = app.clone();
-    let alias = alias.to_owned();
-
-    thread::Builder::new()
-        .name(format!("{stream} of {alias}"))
-        .spawn(move || {
-            // Dropped with the thread: the watcher waits for it.
-            let _done = done;
-            let mut buffer = vec![0; 64 * 1024];
-            // A character cut in two by a read waits for its end.
-            let mut pending = Vec::new();
-            loop {
-                match pipe.read(&mut buffer) {
-                    Ok(0) => break,
-                    Ok(read) => pending.extend_from_slice(&buffer[..read]),
-                    Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
-                    Err(error) => {
-                        eprintln!("[process] Cannot read the {stream} of \"{alias}\": {error}.");
-                        break;
-                    }
-                }
-                let complete = match std::str::from_utf8(&pending) {
-                    Ok(_) => pending.len(),
-                    // Cut at the end; invalid bytes elsewhere go as U+FFFD.
-                    Err(error) if error.error_len().is_none() => error.valid_up_to(),
-                    Err(_) => pending.len(),
-                };
-                let output: Vec<u8> = pending.drain(..complete).collect();
-                send_output(&app, &alias, pid, stream, &output);
-            }
-            send_output(&app, &alias, pid, stream, &pending);
-        })?;
-
-    Ok(())
-}
-
 /// One event at a time: until PHP handled it, the pipe fills and the
 /// process waits to write more, rather than piling events up in front of the
 /// pages.
 fn send_output(app: &AppHandle, alias: &str, pid: u32, stream: &str, output: &[u8]) {
-    if output.is_empty() {
-        return;
-    }
-
     let (handled, waiting) = mpsc::sync_channel(1);
     events::send_then(
         app,
@@ -532,6 +573,81 @@ mod tests {
         assert_eq!(
             variable(&command, "NATIVELLA_SECRET"),
             Some(Some(OsStr::new("0123abcd")))
+        );
+    }
+
+    /// What `forward` hands over, then the end, in their order.
+    fn record(events: &Arc<Mutex<Vec<String>>>) -> impl Fn(&[u8]) + Send + 'static {
+        let events = Arc::clone(events);
+
+        move |output: &[u8]| {
+            // PHP takes its time: more than the pipes may stay quiet.
+            thread::sleep(Duration::from_millis(300));
+            lock(&events).push(String::from_utf8_lossy(output).into_owned());
+        }
+    }
+
+    #[test]
+    fn the_end_comes_after_the_last_output_however_long_php_takes() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let readers = Readers::new();
+        readers
+            .forward("stdout".to_owned(), &b"done\n"[..], record(&events))
+            .unwrap();
+        readers
+            .forward("stderr".to_owned(), &b"warning\n"[..], record(&events))
+            .unwrap();
+
+        readers.wait(Duration::from_millis(100));
+        lock(&events).push("exited".to_owned());
+
+        let events = lock(&events);
+        assert_eq!(events.len(), 3);
+        assert_eq!(events[2], "exited");
+    }
+
+    #[test]
+    fn a_pipe_left_open_does_not_hold_the_end() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let (reader, mut writer) = io::pipe().unwrap();
+        writer.write_all(b"last words").unwrap();
+        let readers = Readers::new();
+        readers
+            .forward("stdout".to_owned(), reader, record(&events))
+            .unwrap();
+
+        let started = Instant::now();
+        readers.wait(Duration::from_millis(100));
+        assert!(started.elapsed() < Duration::from_secs(2));
+        assert_eq!(*lock(&events), ["last words"]);
+        drop(writer);
+    }
+
+    #[test]
+    fn a_character_cut_in_two_comes_whole() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let (reader, mut writer) = io::pipe().unwrap();
+        let recorded = Arc::clone(&events);
+        let readers = Readers::new();
+        readers
+            .forward("stdout".to_owned(), reader, move |output: &[u8]| {
+                lock(&recorded).push(String::from_utf8_lossy(output).into_owned());
+            })
+            .unwrap();
+
+        writer
+            .write_all("caf\u{e9}".as_bytes().split_last().unwrap().1)
+            .unwrap();
+        thread::sleep(Duration::from_millis(100));
+        writer.write_all(&[0xa9, b'!']).unwrap();
+        drop(writer);
+        readers.wait(Duration::from_secs(1));
+
+        assert_eq!(lock(&events).concat(), "caf\u{e9}!");
+        assert!(
+            lock(&events)
+                .iter()
+                .all(|output| !output.contains('\u{fffd}'))
         );
     }
 
