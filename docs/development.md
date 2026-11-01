@@ -85,8 +85,8 @@ castor builder --service=static -- rustc --version              # in the static 
 ## Quality
 
 ```bash
-castor qa                    # everything, fixing the coding standards
-castor qa --dry-run          # everything, reporting only: what the CI checks
+castor qa                    # everything but the frontend, fixing the coding standards
+castor qa --dry-run          # the same, reporting only: what the CI checks
 ```
 
 | Task | What |
@@ -98,6 +98,7 @@ castor qa --dry-run          # everything, reporting only: what the CI checks
 | `castor qa:phpunit-lowest` | The test suites of the packages, with the lowest versions of their dependencies that their constraints allow, in a copy of `packages/`, `target/lowest/packages/`: their `vendor/` stays as it is. With the PHP of the builder, 8.5, not the lowest one they allow. |
 | `castor qa:rust` | `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings` and `cargo test --locked`, on the workspace: they fail on a `Cargo.lock` that does not match the manifests. |
 | `castor qa:security-audit` | `composer audit` in each project. |
+| `castor qa:frontend` | The website and each demo through the router, as a browser does, without the native features: `castor start` first. |
 
 A task installs a project it checks, or a demo it runs, that is not installed yet, and builds the static PHP that `--static` links: on a fresh clone, `castor qa` checks every project.
 

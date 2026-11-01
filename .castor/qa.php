@@ -24,18 +24,25 @@ use function worktree\get_worktree_ports;
 
 const TOOLS = ['php-cs-fixer', 'phpstan', 'twig-cs-fixer'];
 
-#[AsTask(description: 'Runs all QA tasks', aliases: ['qa'])]
+/**
+ * Every check of the CI but the frontend, which needs the stack up (castor
+ * start, then castor qa:frontend), and the smoke tests of the demos (castor
+ * nativella:smoke).
+ */
+#[AsTask(description: 'Runs all QA tasks, but the frontend', aliases: ['qa'])]
 function all(
     #[AsOption(description: 'Only report coding standard violations, do not fix them')]
     bool $dryRun = false,
 ): int {
+    $securityAudit = securityAudit();
     $cs = cs($dryRun);
     $twigCs = twigCs($dryRun);
     $phpstan = phpstan();
     $phpunit = phpunit();
+    $phpunitLowest = phpunit_lowest();
     $rust = rust();
 
-    return max($cs, $twigCs, $phpstan, $phpunit, $rust);
+    return max($securityAudit, $cs, $twigCs, $phpstan, $phpunit, $phpunitLowest, $rust);
 }
 
 #[AsTask(description: 'Installs tooling')]
