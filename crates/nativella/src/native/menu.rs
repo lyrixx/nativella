@@ -150,7 +150,6 @@ struct Update {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Popup {
     items: Vec<Item>,
-    window: Option<String>,
 }
 
 pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
@@ -168,7 +167,7 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
             .payload::<Update>()
             .and_then(|payload| update(call, &payload)),
         "popup" => call.payload::<Popup>().and_then(|payload| {
-            let window = call.target_window(payload.window.as_deref())?;
+            let window = call.target_window(None)?;
             let menu = build(call, &payload.items, Place::Context)?;
             window.popup_menu(&menu).map_err(failed)?;
             Ok(json!({}))
