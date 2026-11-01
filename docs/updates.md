@@ -47,7 +47,7 @@ The endpoint serves a JSON document in the format of [Tauri's updater](https://v
 }
 ```
 
-`version` may start with a `v`. `notes` and `pub_date` are optional. Each platform, `linux-x86_64`, `linux-aarch64`, `darwin-aarch64`, `windows-x86_64`, gives the URL of the executable of `nativella build` for it, and its signature. A platform the document leaves out gets no update.
+`version` may start with a `v`. `notes` and `pub_date` are optional; `pub_date` is an RFC 3339 date, with or without a fraction of a second, or `Updater::check()` throws. Each platform, `linux-x86_64`, `linux-aarch64`, `darwin-aarch64`, `windows-x86_64`, gives the URL of the executable of `nativella build` for it, and its signature. A platform the document leaves out gets no update.
 
 ## Signing
 

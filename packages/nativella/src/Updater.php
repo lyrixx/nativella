@@ -20,6 +20,8 @@ final readonly class Updater
 
     /**
      * The release of the endpoint, when it is newer than this version.
+     *
+     * @throws \UnexpectedValueException when its "pub_date" is not an RFC 3339 date
      */
     public function check(): ?Update
     {
