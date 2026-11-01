@@ -83,24 +83,33 @@ jobs:
             # Builds the images, installs every project, builds the website,
             # migrates the demos and starts the frontend
             - name: "Build and start the infrastructure"
+              id: start
               run: "castor start"
 
+            # Each check below runs once the stack is up, whatever the ones
+            # before it gave: a new advisory must not hide the rest
             - name: "Check Security issues"
+              if: ${{ !cancelled() && steps.start.outcome == 'success' }}
               run: "castor qa:security-audit"
 
             - name: "Check PHP coding standards"
+              if: ${{ !cancelled() && steps.start.outcome == 'success' }}
               run: "castor qa:cs --dry-run"
 
             - name: "Check Twig coding standards"
+              if: ${{ !cancelled() && steps.start.outcome == 'success' }}
               run: "castor qa:twig-cs --dry-run"
 
             - name: "Run PHPStan"
+              if: ${{ !cancelled() && steps.start.outcome == 'success' }}
               run: "castor qa:phpstan"
 
             - name: "Run PHPUnit"
+              if: ${{ !cancelled() && steps.start.outcome == 'success' }}
               run: "castor qa:phpunit"
 
             # The website on the root domain and www, each demo on its own
             # subdomain: the demos run without the native features there
             - name: "Test the frontend"
+              if: ${{ !cancelled() && steps.start.outcome == 'success' }}
               run: "castor qa:frontend"
