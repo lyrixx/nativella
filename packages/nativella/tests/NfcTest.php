@@ -3,6 +3,7 @@
 namespace Nativella\Tests;
 
 use Nativella\Client\FakeClient;
+use Nativella\Exception\NativeCallException;
 use Nativella\Nfc;
 use Nativella\Nfc\Record;
 use Nativella\Nfc\TypeNameFormat;
@@ -10,6 +11,18 @@ use PHPUnit\Framework\TestCase;
 
 final class NfcTest extends TestCase
 {
+    public function testTheFakeHasNoNfc(): void
+    {
+        $nfc = new Nfc(new FakeClient());
+
+        $this->assertFalse($nfc->isAvailable());
+
+        $this->expectException(NativeCallException::class);
+        $this->expectExceptionMessage('The native call "nfc.read" failed: NFC is not available');
+
+        $nfc->read();
+    }
+
     public function testATagWithAUriAndAText(): void
     {
         $client = new FakeClient();

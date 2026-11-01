@@ -3,6 +3,7 @@
 namespace Nativella\Client;
 
 use Nativella\Client;
+use Nativella\Exception\NativeCallException;
 
 /**
  * A client for tests: it records the calls and answers what the native side
@@ -83,6 +84,10 @@ final class FakeClient implements Client
         }
         if ('app.path' === $method) {
             return ['path' => '/home/nativella/'.$payload['directory']];
+        }
+        if ('nfc.read' === $method) {
+            // What the runtime does when NFC is not available, as nfc.isAvailable answers.
+            throw new NativeCallException($method, new \RuntimeException('NFC is not available: the phone has none, or it is turned off in its settings.'));
         }
 
         return self::DEFAULTS[$method] ?? [];

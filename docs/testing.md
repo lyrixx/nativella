@@ -92,20 +92,34 @@ Without a queued answer, `FakeClient` returns:
 
 | Method | Answer |
 |---|---|
-| `dialog.confirm`, `dialog.ask` | `false` |
-| `dialog.openFile`, `dialog.openDirectory`, `dialog.saveFile` | `null`: cancelled |
-| `dialog.openFiles` | no files |
-| `clipboard.readText` | `null` |
-| `settings.has`, `settings.all` | `false`, no settings |
-| `window.open`, `window.get` | a window with the label asked for, focused, 1024 by 768 |
-| `window.all`, `screen.all` | none |
-| `screen.primary`, `screen.cursorPosition` | none, `(0, 0)` |
 | `app.info` | Nativella 0.1.0, `dev.nativella.app` |
+| `app.isAutostartEnabled` | `false` |
 | `app.path` | `/home/nativella/<directory>` |
-| `app.isAutostartEnabled`, `globalShortcut.isRegistered` | `false` |
+| `app.thirdPartyNotices` | `null`, as a development build of Nativella |
+| `barcodeScanner.scan` | `null`: cancelled |
+| `biometrics.authenticate`, `biometrics.isAvailable` | `false` |
+| `childProcess.all` | none |
+| `childProcess.start` | the process id `1` |
+| `clipboard.readImage`, `clipboard.readText` | `null`: empty |
+| `dialog.ask`, `dialog.confirm` | `false` |
+| `dialog.openDirectory`, `dialog.openFile`, `dialog.saveFile` | `null`: cancelled |
+| `dialog.openFiles` | no files |
+| `geolocation.currentPosition` | `null`: not allowed |
+| `globalShortcut.isRegistered` | `false` |
+| `nfc.isAvailable` | `false` |
+| `nfc.read` | throws a `NativeCallException`, as the runtime does when NFC is not available |
+| `power.status` | on mains, without a battery |
+| `screen.all`, `screen.primary` | none |
+| `screen.cursorPosition` | `(0, 0)` |
+| `secrets.get` | `null` |
+| `settings.all`, `settings.has` | no settings, `false` |
+| `settings.get` | no value: `Settings::get()` returns its default |
 | `system.info`, `system.theme` | Linux, x86_64, `en-US`; `light` |
+| `updater.check`, `updater.install` | `null`: this version is the latest |
+| `window.all` | none |
+| `window.get`, `window.open` | a window with the label asked for, focused, 1024 by 768 |
 
-Every other method answers an empty result, which the API classes turn into nothing (`void`). `settings.get` answers no value, so `Settings::get()` returns its default.
+The other methods return nothing (`void`): they answer an empty result.
 
 ## With a framework
 
