@@ -115,7 +115,7 @@ impl Engine {
                 // exit() unwinds the script and makes PHP report a failure:
                 // front controllers built on symfony/runtime always call it.
                 Ok(()) | Err(EmbedError::ExecuteScriptError) => {}
-                Err(error) => eprintln!(
+                Err(error) => log!(
                     "[php] {} did not run to completion: {error}.",
                     app.front_controller.display()
                 ),
@@ -123,7 +123,7 @@ impl Engine {
 
             unsafe { php_request_shutdown(ptr::null_mut()) };
         } else {
-            eprintln!("[php] The request could not start.");
+            log!("[php] The request could not start.");
             context.status = 500;
         }
 
@@ -171,7 +171,7 @@ impl Sapi for NativeSapi {
     }
 
     fn log_message(message: &str, _syslog_type: i32) {
-        eprintln!("[php] {message}");
+        log!("[php] {message}");
     }
 
     fn send_headers(context: &mut RequestContext, headers: &SapiHeaders) -> SendHeadersResult {
@@ -196,9 +196,9 @@ impl Sapi for NativeSapi {
 
         match header.as_name_value() {
             Some((name, value)) => context.headers.push((name.to_owned(), value.to_owned())),
-            None => eprintln!(
-                "[php] Dropped a response header that is not valid UTF-8 or has no colon."
-            ),
+            None => {
+                log!("[php] Dropped a response header that is not valid UTF-8 or has no colon.")
+            }
         }
     }
 
@@ -290,7 +290,7 @@ impl RequestContext {
             }
 
             let Ok(value) = value.to_str() else {
-                eprintln!("[php] Dropped the request header {name}: its value is not valid UTF-8.");
+                log!("[php] Dropped the request header {name}: its value is not valid UTF-8.");
                 continue;
             };
 
@@ -359,7 +359,7 @@ impl RequestContext {
             .ok()
             .and_then(|code| StatusCode::from_u16(code).ok())
             .unwrap_or_else(|| {
-                eprintln!(
+                log!(
                     "[php] {} is not an HTTP status code, answering 500 instead.",
                     self.status
                 );
@@ -378,7 +378,7 @@ impl RequestContext {
                 (Ok(name), Ok(value)) => {
                     response.headers_mut().append(name, value);
                 }
-                _ => eprintln!("[php] Dropped the invalid response header \"{name}: {value}\"."),
+                _ => log!("[php] Dropped the invalid response header \"{name}: {value}\"."),
             }
         }
 

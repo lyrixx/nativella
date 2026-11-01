@@ -165,7 +165,7 @@ impl PhpRuntime {
         respond: impl FnOnce(Response<Vec<u8>>) + Send + 'static,
     ) {
         if let Some(response) = static_files::serve(&self.app.document_root, request.uri().path()) {
-            eprintln!(
+            log!(
                 "[static] {} {} {}",
                 request.method(),
                 request.uri(),
@@ -188,7 +188,7 @@ impl PhpRuntime {
             let RequestJob {
                 request, respond, ..
             } = *job;
-            eprintln!(
+            log!(
                 "[php] The PHP thread is gone, {} {} is not served.",
                 request.method(),
                 request.uri()
@@ -254,7 +254,7 @@ fn run(app: &PhpApp, queue: &mpsc::Receiver<Job>, pending: &AtomicUsize) {
                     serve(&engine, app, &mut cookies, request, origin)
                 }))
                 .unwrap_or_else(|_| {
-                    eprintln!("[php] The runtime failed on a request: answering 500.");
+                    log!("[php] The runtime failed on a request: answering 500.");
 
                     Response::builder()
                         .status(StatusCode::INTERNAL_SERVER_ERROR)
@@ -287,7 +287,7 @@ fn serve(
         let started = Instant::now();
         let response =
             bridge::with_window(origin.window(), || engine.handle(app, request, &origin));
-        eprintln!(
+        log!(
             "[php] {} {} {} {:.1} ms",
             copy.method(),
             copy.uri(),
@@ -308,7 +308,7 @@ fn serve(
         }
     }
 
-    eprintln!(
+    log!(
         "[redirect] Gave up after {} redirects.",
         redirects::MAX_REDIRECTS
     );

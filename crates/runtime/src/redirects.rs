@@ -49,7 +49,7 @@ pub(crate) fn next(
     let target = match base.join(location) {
         Ok(target) => as_php_url(target, request.uri()),
         Err(error) => {
-            eprintln!("[redirect] Ignored the invalid Location \"{location}\": {error}.");
+            log!("[redirect] Ignored the invalid Location \"{location}\": {error}.");
 
             return Next::Respond(response);
         }
@@ -59,7 +59,7 @@ pub(crate) fn next(
     // Browsers only follow redirects to web pages: a `javascript:` or `data:`
     // Location would run in the origin of the application.
     if !same_origin && !matches!(target.scheme(), "http" | "https") {
-        eprintln!(
+        log!(
             "[redirect] Refused to follow a redirect to a {} URL.",
             target.scheme()
         );
@@ -84,7 +84,7 @@ pub(crate) fn next(
         } else {
             target.to_string()
         };
-        eprintln!(
+        log!(
             "[redirect] {} to {href}, replaced by a client-side navigation.",
             response.status().as_u16()
         );

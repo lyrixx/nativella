@@ -8,6 +8,17 @@
 //! single dedicated thread for the whole life of the process and requests are
 //! queued to it.
 
+/// `eprintln!`, without its panic when the standard error output is gone (a
+/// closed pipe): PHP calls the SAPI from C, and webviews call the scheme
+/// handler from C, where a panic cannot unwind and aborts the process.
+macro_rules! log {
+    ($($argument:tt)*) => {{
+        use std::io::Write as _;
+        // There is nowhere left to report the failure.
+        let _ = writeln!(std::io::stderr(), $($argument)*);
+    }};
+}
+
 mod absolute_urls;
 mod bridge;
 mod cookies;

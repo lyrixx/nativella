@@ -16,7 +16,7 @@ pub(crate) fn serve(document_root: &Path, path: &str) -> Option<Response<Vec<u8>
     let body = match fs::read(&file) {
         Ok(body) => body,
         Err(error) => {
-            eprintln!("[static] Could not read {}: {error}.", file.display());
+            log!("[static] Could not read {}: {error}.", file.display());
 
             return Some(
                 Response::builder()
