@@ -29,6 +29,35 @@ updates:
           - dependency-name: 'jni'
             versions:
                 - '>= 0.22'
+          # The RustCrypto crates of cms and pkcs12, which sign iOS apps and
+          # read their certificates: their stable releases, cms 0.2 and
+          # pkcs12 0.1, are of the generation of der 0.7, and so must be the
+          # crates handed to them or used next to them. Lift these bounds
+          # once cms 0.3 and pkcs12 0.2 are released.
+          - dependency-name: 'cbc'
+            versions:
+                - '>= 0.2'
+          - dependency-name: 'der'
+            versions:
+                - '>= 0.8'
+          - dependency-name: 'des'
+            versions:
+                - '>= 0.9'
+          - dependency-name: 'hmac'
+            versions:
+                - '>= 0.13'
+          - dependency-name: 'pkcs5'
+            versions:
+                - '>= 0.8'
+          - dependency-name: 'rc2'
+            versions:
+                - '>= 0.9'
+          - dependency-name: 'sha1'
+            versions:
+                - '>= 0.11'
+          - dependency-name: 'x509-cert'
+            versions:
+                - '>= 0.3'
       cooldown:
           default-days: 7
 
