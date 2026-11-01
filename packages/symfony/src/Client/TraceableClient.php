@@ -34,6 +34,11 @@ final class TraceableClient implements Client, ResetInterface
         }
     }
 
+    public function isNative(): bool
+    {
+        return $this->client->isNative();
+    }
+
     /**
      * @return list<array{method: string, payload: array<string, mixed>, result: array<string, mixed>|null, error: string|null, duration: float}>
      */

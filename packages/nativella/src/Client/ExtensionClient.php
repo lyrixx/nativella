@@ -28,4 +28,9 @@ final readonly class ExtensionClient implements Client
 
         return json_decode($result, true, flags: \JSON_THROW_ON_ERROR);
     }
+
+    public function isNative(): bool
+    {
+        return Runtime::isNative();
+    }
 }

@@ -89,6 +89,14 @@ final class FakeClient implements Client
     }
 
     /**
+     * Always: the code under test takes its native branches.
+     */
+    public function isNative(): bool
+    {
+        return true;
+    }
+
+    /**
      * @return list<array{method: string, payload: array<string, mixed>}>
      */
     public function calls(?string $method = null): array

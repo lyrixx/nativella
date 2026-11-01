@@ -39,8 +39,9 @@ final readonly class Nativella
     public Updater $updater;
     public Window $window;
 
-    public function __construct(Client $client)
-    {
+    public function __construct(
+        private Client $client,
+    ) {
         $this->app = new App($client);
         $this->barcodeScanner = new BarcodeScanner($client);
         $this->biometrics = new Biometrics($client);
@@ -70,5 +71,14 @@ final readonly class Nativella
     public static function create(): self
     {
         return new self(new ExtensionClient());
+    }
+
+    /**
+     * Whether native calls work: the application runs in Nativella, or the
+     * tests gave it a FakeClient. Offer native features only then.
+     */
+    public function isNative(): bool
+    {
+        return $this->client->isNative();
     }
 }

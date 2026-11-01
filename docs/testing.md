@@ -119,11 +119,11 @@ The integrations replace the client in the container, so that the application un
 An application is a web application first: it also runs with `symfony serve`, `php artisan serve` or `php -S`, in a browser, which is handy for working on templates. The native APIs throw there, so guard the calls that may run outside Nativella:
 
 ```php
-use Nativella\Runtime;
+use Nativella\Nativella;
 
-if (Runtime::isNative()) {
+if ($nativella->isNative()) {
     $window->setTitle($note->title);
 }
 ```
 
-`Runtime::isNative()` tells whether `nativella_call()` exists. In tests, prefer the fake client: it exercises the same code as in the application.
+`isNative()` of `Nativella\Nativella` (a service with Symfony, the `Nativella` facade with Laravel) asks the client: true in Nativella, and under the fake client, so that the tests go through the native code as the application does. `nativella_is_native()` in Twig and `@native` in Blade answer the same. `Runtime::isNative()` only tells whether `nativella_call()` exists, which is false in tests, fake client or not: keep it for where there is no client.

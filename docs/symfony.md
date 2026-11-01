@@ -172,7 +172,7 @@ when@test:
 
 | Function | |
 |---|---|
-| `nativella_is_native()` | Whether Nativella shows the page. Offer native features only then. |
+| `nativella_is_native()` | Whether native calls work: Nativella shows the page, or the tests use the [fake client](#testing). Offer native features only then. |
 | `nativella_is_mobile()` | Whether it runs on a phone or a tablet. |
 | `nativella_platform()` | `linux`, `macos`, `windows`, `android`, `ios`, or null outside Nativella. |
 
@@ -194,7 +194,7 @@ Profiles are written to disk: the values of `secrets.*` calls show as `******`.
 
 ## Testing
 
-With `fake_client: true` in the `test` environment, the container holds a `Nativella\Client\FakeClient` instead of the real client. Tests fetch it to queue answers and check the calls:
+With `fake_client: true` in the `test` environment, the container holds a `Nativella\Client\FakeClient` instead of the real client, and the application behaves as in Nativella: `isNative()` of the `Nativella\Nativella` service and `nativella_is_native()` are true. Tests fetch the fake to queue answers and check the calls:
 
 ```php title="tests/Controller/NoteControllerTest.php"
 use Nativella\Client\FakeClient;
@@ -222,4 +222,4 @@ final class NoteControllerTest extends WebTestCase
 
 ## Running in a browser
 
-The application still runs with `symfony serve` or any web server, which is handy for working on templates. The native APIs throw a `RuntimeUnavailableException` there: guard what must keep working with `Nativella\Runtime::isNative()` in PHP, and `nativella_is_native()` in Twig.
+The application still runs with `symfony serve` or any web server, which is handy for working on templates. The native APIs throw a `RuntimeUnavailableException` there: guard what must keep working with `isNative()` of the `Nativella\Nativella` service in PHP, and `nativella_is_native()` in Twig. Both are true under the fake client, unlike `Nativella\Runtime::isNative()`: the tests then go through the native code.

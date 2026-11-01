@@ -16,6 +16,7 @@ use Nativella\Geolocation;
 use Nativella\Geolocation\Accuracy;
 use Nativella\Menu;
 use Nativella\Menu\MenuItem;
+use Nativella\Nativella;
 use Nativella\Runtime;
 use Nativella\Share;
 use Nativella\Window;
@@ -35,6 +36,7 @@ final class NoteController extends AbstractController
         private readonly NoteActions $actions,
         private readonly Desktop $desktop,
         private readonly EntityManagerInterface $entityManager,
+        private readonly Nativella $nativella,
         private readonly NoteRepository $notes,
     ) {
     }
@@ -84,7 +86,7 @@ final class NoteController extends AbstractController
     #[Route('/notes/{id}', name: 'note_show', requirements: ['id' => Requirement::DIGITS], methods: ['GET'])]
     public function show(Note $note, Window $window): Response
     {
-        if (Runtime::isNative()) {
+        if ($this->nativella->isNative()) {
             $window->setTitle($note->getTitle().' — Notes');
         }
 
@@ -119,7 +121,7 @@ final class NoteController extends AbstractController
     public function delete(Note $note): Response
     {
         // Outside Nativella, the page asked with confirm() already.
-        if (Runtime::isNative()) {
+        if ($this->nativella->isNative()) {
             if (!$this->actions->delete($note)) {
                 return $this->redirectToRoute('note_show', ['id' => $note->getId()]);
             }
@@ -289,7 +291,7 @@ final class NoteController extends AbstractController
 
     private function refreshTray(): void
     {
-        if (Runtime::isNative() && !Runtime::isMobile()) {
+        if ($this->nativella->isNative() && !Runtime::isMobile()) {
             $this->desktop->refreshTray();
         }
     }

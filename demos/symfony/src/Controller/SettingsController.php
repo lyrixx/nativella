@@ -6,6 +6,7 @@ use App\Native\Desktop;
 use App\Repository\NoteRepository;
 use Nativella\App;
 use Nativella\App\Directory;
+use Nativella\Nativella;
 use Nativella\Runtime;
 use Nativella\Screen;
 use Nativella\Shell;
@@ -25,9 +26,9 @@ final class SettingsController extends AbstractController
     }
 
     #[Route('/settings', name: 'settings', methods: ['GET'])]
-    public function index(NoteRepository $notes, Screen $screen, System $system): Response
+    public function index(Nativella $nativella, NoteRepository $notes, Screen $screen, System $system): Response
     {
-        $native = Runtime::isNative();
+        $native = $nativella->isNative();
 
         return $this->render('settings/index.html.twig', [
             'alwaysOnTop' => $native && $this->desktop->isAlwaysOnTop(),

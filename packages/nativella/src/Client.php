@@ -20,4 +20,10 @@ interface Client
      * @throws Exception\RuntimeUnavailableException when PHP does not run in Nativella
      */
     public function call(string $method, array $payload = []): array;
+
+    /**
+     * Whether native calls work: PHP runs in Nativella, or the client is a
+     * fake, under which the application behaves as in Nativella.
+     */
+    public function isNative(): bool;
 }

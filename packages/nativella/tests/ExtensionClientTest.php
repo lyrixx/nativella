@@ -15,4 +15,9 @@ final class ExtensionClientTest extends TestCase
 
         new ExtensionClient()->call('window.open');
     }
+
+    public function testOutsideTheRuntimeNativeCallsDoNotWork(): void
+    {
+        $this->assertFalse(new ExtensionClient()->isNative());
+    }
 }

@@ -77,6 +77,39 @@ final class NoteControllerTest extends NotesTestCase
         $this->assertTrue($this->notes()->find($note->getId())?->isPinned());
     }
 
+    public function testDeletingANoteAsksFirst(): void
+    {
+        $note = $this->createNote();
+        $id = $note->getId();
+        $this->fakeClient()->respond('dialog.confirm', ['confirmed' => true]);
+
+        $this->post("/notes/{$id}/delete");
+
+        $this->assertResponseRedirects('/');
+        $this->assertCount(1, $this->fakeClient()->calls('dialog.confirm'));
+        $this->assertNull($this->notes()->find($id));
+    }
+
+    public function testANoteTheUserDoesNotDeleteStays(): void
+    {
+        $note = $this->createNote();
+
+        $this->post("/notes/{$note->getId()}/delete");
+
+        $this->assertResponseRedirects("/notes/{$note->getId()}");
+        $this->assertNotNull($this->notes()->find($note->getId()));
+    }
+
+    public function testANoteOffersTheNativeFeatures(): void
+    {
+        $note = $this->createNote();
+
+        $this->client->request('GET', "/notes/{$note->getId()}");
+
+        $this->assertSelectorTextContains('.actions', 'Copy as rich text');
+        $this->assertSame([['method' => 'window.setTitle', 'payload' => ['title' => 'Groceries — Notes', 'window' => null]]], $this->fakeClient()->calls());
+    }
+
     public function testAnotherSiteCannotDeleteANote(): void
     {
         $note = $this->createNote();

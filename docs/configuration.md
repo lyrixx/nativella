@@ -139,7 +139,7 @@ On top of the usual CGI variables, the runtime sets these in `$_SERVER`. A reque
 
 | Method | |
 |---|---|
-| `Runtime::isNative(): bool` | Whether PHP runs in Nativella: `nativella_call()` exists. |
+| `Runtime::isNative(): bool` | Whether PHP runs in Nativella: `nativella_call()` exists. False under the [fake client](testing.md) of the tests: guard native features with `Nativella::isNative()`, which asks the client. |
 | `Runtime::dataDir(): ?string` | The data directory. |
 | `Runtime::secret(): ?string` | The secret of the installation. |
 | `Runtime::platform(): ?string` | The platform. |
