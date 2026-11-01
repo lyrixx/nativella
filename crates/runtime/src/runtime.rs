@@ -40,6 +40,17 @@ impl PhpApp {
                 ),
             ));
         }
+        // PHP opens its script by a path of UTF-8 here (ext-php-rs): it would
+        // answer every request with an empty page.
+        if front_controller.to_str().is_none() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "The path of the front controller, {}, is not valid UTF-8: move the project.",
+                    front_controller.display()
+                ),
+            ));
+        }
 
         Ok(Self {
             document_root,
@@ -356,4 +367,24 @@ fn serve_static(document_root: &Path, request: &Request<Vec<u8>>) -> Option<Resp
     );
 
     Some(response)
+}
+
+// macOS and Windows refuse a file name that is not UTF-8.
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_project_path_that_is_not_utf8_is_refused() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+
+        let project = Path::new(env!("OUT_DIR")).join(OsStr::from_bytes(b"caf\xe9"));
+        std::fs::create_dir_all(project.join("public")).unwrap();
+        std::fs::write(project.join("public/index.php"), "<?php").unwrap();
+
+        let error = PhpApp::from_project_dir(&project).unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData, "{error}");
+    }
 }
