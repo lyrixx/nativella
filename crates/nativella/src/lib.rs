@@ -496,17 +496,18 @@ fn start(
 
     app.run(|app, event| match event {
         // Closing the last window quits the application, unless it lives in
-        // the system tray; once PHP has handled the events queued until then
-        // (`window.closed` of that window, for one).
+        // the system tray. Once PHP has handled the events queued until then:
+        // a listener of `window.closed` may set a tray, or open a window.
         RunEvent::ExitRequested {
             code: None, api, ..
         } => {
             api.prevent_exit();
-            if !app.state::<State>().has_tray() {
-                let handle = app.clone();
-                app.state::<PhpRuntime>()
-                    .after_queued(move || handle.exit(0));
-            }
+            let handle = app.clone();
+            app.state::<PhpRuntime>().after_queued(move || {
+                if !handle.state::<State>().has_tray() && handle.webview_windows().is_empty() {
+                    handle.exit(0);
+                }
+            });
         }
         // The processes PHP started do not outlive the application.
         #[cfg(desktop)]
