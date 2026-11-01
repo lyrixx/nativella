@@ -46,7 +46,7 @@ echo '127.0.0.1 nativella.test www.nativella.test symfony.nativella.test laravel
 
 In a browser, the demos run without the native features: there is no window to drive, and no `app.booted` event. That is why `castor migrate` migrates their databases.
 
-The router listens on ports 80, 443 and 8080 (the Traefik dashboard, without a password), of `127.0.0.1` only: the stack is not reachable from the network. If another project uses them, set `PROJECT_HTTP_PORT`, `PROJECT_HTTPS_PORT` or `PROJECT_ADMIN_PORT` before `castor start`.
+The router listens on ports 80, 443 and 8080 (the Traefik dashboard, without a password), of `127.0.0.1` only: the stack is not reachable from the network. If another project uses them, set `PROJECT_HTTP_PORT`, `PROJECT_HTTPS_PORT` or `PROJECT_ADMIN_PORT` before `castor start`, and for the tasks that reach the router (`castor about`, `castor docker:ports`, `castor qa:frontend`).
 
 ### Git worktrees
 

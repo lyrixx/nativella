@@ -79,9 +79,9 @@ function about(): void
     } catch (HttpExceptionInterface) {
     }
 
-    $httpsPort = null !== $worktreeName ? get_worktree_ports($worktreeName)['https'] : null;
+    $httpsPort = get_worktree_ports($worktreeName)['https'];
     $formatUrl = static function (string $host) use ($httpsPort): string {
-        return null !== $httpsPort ? "https://{$host}:{$httpsPort}" : "https://{$host}";
+        return 443 === $httpsPort ? "https://{$host}" : "https://{$host}:{$httpsPort}";
     };
 
     io()->listing(array_map($formatUrl, array_unique($urls)));

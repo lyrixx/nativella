@@ -34,18 +34,32 @@ function get_worktree_name(?string $rootDir = null): ?string
     return strtolower(basename(rtrim($gitdir, '/'))) ?: null;
 }
 
-/** @return array<string, int> */
+/**
+ * The ports of the router: those of PROJECT_HTTP_PORT... when set, as
+ * docker-compose.dev.yml reads them, or the defaults; in a worktree, ports
+ * of its own, derived from its name.
+ *
+ * @return array<string, int>
+ */
 function get_worktree_ports(?string $worktreeName): array
 {
     $specs = get_port_specs();
 
     if (null === $worktreeName) {
-        $defaults = [];
+        $ports = [];
         foreach ($specs as $key => $spec) {
-            $defaults[$key] = $spec['default'];
+            $configured = getenv($spec['env']);
+            if (false === $configured || '' === $configured) {
+                $ports[$key] = $spec['default'];
+
+                continue;
+            }
+
+            $ports[$key] = filter_var($configured, \FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 65535]])
+                ?: throw new \RuntimeException(\sprintf('%s is "%s", not a port.', $spec['env'], $configured));
         }
 
-        return $defaults;
+        return $ports;
     }
 
     $hash = crc32($worktreeName) & 0x7FFFFFFF;
