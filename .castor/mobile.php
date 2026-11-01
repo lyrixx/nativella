@@ -155,6 +155,7 @@ function android_template(
     }
     android_page_permissions("{$root}/crates/nativella/gen/android/app/src/main/AndroidManifest.xml");
     android_bundled_barcode_model("{$root}/crates/nativella/gen/android/app/build.gradle.kts");
+    android_libraries_compile_sdk("{$root}/crates/nativella/gen/android/build.gradle.kts");
 
     $variant = $release ? 'release' : 'debug';
     $build = static fn () => run_in_builder([
@@ -842,6 +843,37 @@ function android_bundled_barcode_model(string $gradle): void
         // Nativella: the barcode model ships in the APK (see .castor/mobile.php).
         dependencies {
             implementation("com.google.mlkit:barcode-scanning:17.3.0")
+        }
+
+        KOTLIN);
+}
+
+/**
+ * Makes the libraries of the Android project, the plugins, compile against
+ * API 36 at least, as tauri-android requires of what depends on it: the
+ * release build refuses tauri-plugin-sharekit 0.3, which compiles against 35.
+ * The debug build does not check it. Does nothing when the project does it
+ * already.
+ */
+function android_libraries_compile_sdk(string $gradle): void
+{
+    $content = (string) file_get_contents($gradle);
+    if (str_contains($content, 'LibraryAndroidComponentsExtension')) {
+        return;
+    }
+
+    fs()->dumpFile($gradle, $content."\n".<<<'KOTLIN'
+        // Nativella: the plugins compile against API 36 at least (see .castor/mobile.php).
+        subprojects {
+            plugins.withId("com.android.library") {
+                extensions.configure<com.android.build.api.variant.LibraryAndroidComponentsExtension> {
+                    finalizeDsl { android ->
+                        if ((android.compileSdk ?: 0) < 36) {
+                            android.compileSdk = 36
+                        }
+                    }
+                }
+            }
         }
 
         KOTLIN);

@@ -38,7 +38,7 @@ On Linux, in the Docker stack of the repository: Docker and Castor, as in [Devel
 ```bash
 git clone https://github.com/lyrixx/nativella.git
 cd nativella
-git checkout v0.4.0              # the version of nativella/nativella in your composer.lock
+git checkout v0.5.0              # the version of nativella/nativella in your composer.lock
 # change the constants of .castor/static-php.php
 castor static-php:build
 castor nativella:build vanilla
