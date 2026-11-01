@@ -3,6 +3,7 @@
 # Written by castor mobile:ios-template, for the time of the build
 /crates/nativella/.cargo/
 /.claude/tmp/
+/.claude/worktrees/
 
 # Docker / Castor
 /.castor.stub.php
