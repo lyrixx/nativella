@@ -5,7 +5,7 @@
 # on each change of this file, then stays the one of the images it builds.
 
 # Composer, for the builder
-FROM composer/composer:2.10.0@sha256:dd1ba1cb7f89fbf718762ad0e7e26024ea0e1470606d21a075aab66644f1ff74 AS composer
+FROM composer/composer:2.10.3@sha256:89e63629f1e5d1ed138d585363c5608d26bab40ed8f6e5900d428c7d7d110e22 AS composer
 
 FROM debian:13.7-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS php-base
 
