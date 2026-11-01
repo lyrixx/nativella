@@ -32,6 +32,8 @@ name: Mobile
             - "infrastructure/docker/**"
             - "mobile/**"
             - "packages/**"
+            # The licenses a crate may have: the templates fail on another one
+            - "tools/cargo-about/**"
             - "!**.md"
     workflow_dispatch:
 

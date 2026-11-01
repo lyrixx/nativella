@@ -9,9 +9,9 @@ name: PHP
 # out what Git ignores), and the Castor tasks and the Docker stack, which
 # every task goes through. Not on the crates: the frontend serves the demos
 # without the runtime. Not on the documentation alone, Markdown but the
-# fixtures of the tests, and what builds it: the Website workflow builds it,
-# and fails on a broken link. Weekly too, for the new advisories of the
-# security audit.
+# fixtures of the tests, and what builds it, nor on the files of the crates
+# it links to: the Website workflow builds it, and fails on a broken link.
+# Weekly too, for the new advisories of the security audit.
 
 "on":
     # Every push to main, whatever the paths: main catches a path missing

@@ -5,6 +5,10 @@ name: Website
 # root, the documentation under docs/. Pages must be set to "GitHub Actions"
 # in the settings of the repository. A pull request runs it on the paths
 # below, Cargo.toml too: the landing page shows the version of the workspace.
+# And on what the documentation links to in the rest of the repository, which
+# the build checks: each file, and for a directory, a file that a rename or a
+# removal of it changes too. Keep in sync with the links of docs/:
+# grep -ohE '\]\(\.\./[^)#]+' docs/*.md | sort -u
 
 "on":
     # Every push to main, whatever the paths: main catches a path missing
@@ -18,7 +22,13 @@ name: Website
             - ".github/workflows/website.yml"
             - "Cargo.toml"
             - "castor.php"
+            - "crates/nativella/Cargo.toml"
+            - "crates/nativella/examples/plain.rs"
+            - "crates/runtime/Cargo.toml"
+            - "crates/runtime/php.ini"
+            - "demos/*/composer.json"
             - "docs/**"
+            - "packages/*/composer.json"
             - "tools/zensical/**"
             - "website/**"
     workflow_dispatch:
