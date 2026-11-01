@@ -108,7 +108,7 @@ Nativella creates it at startup and prints it on the standard error output. PHP 
 
 | File | |
 |---|---|
-| `.nativella-secret` | The secret of the installation: [`NATIVELLA_SECRET`](#what-php-sees). |
+| `.nativella-secret` | The secret of the installation: [`NATIVELLA_SECRET`](#what-php-sees). Back it up with the database: what the framework encrypted with it is unreadable without it. A file that holds no secret, after a restore gone wrong, is set aside as `.nativella-secret.corrupted-<time>`, never overwritten, and a new secret replaces it. |
 | `.nativella-cookies` | The cookies with an expiry date, which outlive the application as in a browser. Session cookies end with it. |
 
 ## Environment variables
