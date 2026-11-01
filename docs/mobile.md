@@ -44,9 +44,12 @@ Pages are drawn under the status and navigation bars: add `viewport-fit=cover` t
 `nativella android` makes the APK of a project from the template APK of its release, `nativella-android-template-arm64.apk`, without any Android tool: no JDK, no Android SDK, no Rust. Take both from the same [release](https://github.com/lyrixx/nativella/releases), and [prepare the project](building.md#preparing-the-project) as for a standalone executable:
 
 ```bash
+sha256sum --check --ignore-missing SHA256SUMS-android
 nativella android path/to/project --template nativella-android-template-arm64.apk -o dist/notes.apk
 adb install dist/notes.apk
 ```
+
+The template becomes your application: check it against the checksums of the release, `SHA256SUMS-android`, first. `nativella android` does not.
 
 > [!NOTE]
 > The command and the template must come from the same version of Nativella: `nativella android` warns when they do not. Both come with Nativella 0.2.0 and later.
@@ -111,7 +114,7 @@ Without Docker, `castor --context=host mobile:android symfony` runs the same bui
 - `nativella-ios-template-iphonesimulator-arm64.zip`, for the iOS simulator of a Mac with Apple silicon;
 - `nativella-ios-template-iphoneos-arm64.zip`, for iPhones and iPads.
 
-Take the command and the template from the same [release](https://github.com/lyrixx/nativella/releases), and [prepare the project](building.md#preparing-the-project) as for a standalone executable.
+Take the command and the template from the same [release](https://github.com/lyrixx/nativella/releases), check the template against its checksums, `SHA256SUMS-ios` (`sha256sum --check --ignore-missing SHA256SUMS-ios`), and [prepare the project](building.md#preparing-the-project) as for a standalone executable.
 
 > [!WARNING]
 > iOS support is experimental: the CI makes the app of the Symfony demo for the simulator, and opens it there. No app made for devices has run on one yet. See [what is tested](#what-is-tested).
