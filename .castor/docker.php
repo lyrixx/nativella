@@ -46,12 +46,6 @@ function about(): void
 
     io()->section('Available URLs for this project:');
 
-    if (!has_router()) {
-        io()->listing([\sprintf('http://127.0.0.1:%s', getenv('HTTP_PORT') ?: '8000')]);
-
-        return;
-    }
-
     $urls = [variable('root_domain'), ...variable('extra_domains')];
 
     $worktreeName = get_worktree_name();
@@ -253,10 +247,6 @@ function destroy(
 
     docker_compose(['down', '--remove-orphans', '--volumes', '--rmi=local'], profiles: ['*']);
 
-    if (!has_router()) {
-        return;
-    }
-
     $files = finder()
         ->in(variable('root_dir').'/infrastructure/docker/services/router/certs/')
         ->name('*.pem')
@@ -270,12 +260,6 @@ function generate_certificates(
     #[AsOption(description: 'Force the certificates re-generation without confirmation', shortcut: 'f')]
     bool $force = false,
 ): void {
-    if (!has_router()) {
-        io()->comment('No router in this stack, no SSL certificates to generate.');
-
-        return;
-    }
-
     $sslDir = variable('root_dir').'/infrastructure/docker/services/router/certs';
 
     if (file_exists("{$sslDir}/cert.pem") && !$force) {
@@ -556,15 +540,6 @@ function docker_exit_code(
     );
 
     return $process->getExitCode() ?? 0;
-}
-
-/**
- * Whether the current stack includes the traefik router (dev), which needs SSL certificates
- * and gives the project its URLs.
- */
-function has_router(): bool
-{
-    return isset(get_services()['router']);
 }
 
 /**

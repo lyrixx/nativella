@@ -13,10 +13,6 @@ use function worktree\get_worktree_name;
 function create_default_context(): Context
 {
     $data = create_default_variables() + [
-        'project_name' => 'nativella',
-        'root_domain' => 'nativella.test',
-        'extra_domains' => [],
-        'php_version' => '8.5',
         'docker_compose_files' => [
             'docker-compose.yml',
             'docker-compose.dev.yml',
@@ -26,8 +22,7 @@ function create_default_context(): Context
         'docker_compose_run_service' => 'builder',
         // The host context runs those commands on the host instead
         'run_on_host' => false,
-        'macos' => false,
-        'power_shell' => false,
+        'macos' => str_contains(strtolower(php_uname('s')), 'darwin'),
         // check if posix_geteuid is available, if not, use getmyuid (windows)
         'user_id' => \function_exists('posix_geteuid') ? posix_geteuid() : getmyuid(),
         'root_dir' => \dirname(__DIR__),
@@ -35,13 +30,6 @@ function create_default_context(): Context
 
     if (file_exists($data['root_dir'].'/infrastructure/docker/docker-compose.override.yml')) {
         $data['docker_compose_files'][] = 'docker-compose.override.yml';
-    }
-
-    $platform = strtolower(php_uname('s'));
-    if (str_contains($platform, 'darwin')) {
-        $data['macos'] = true;
-    } elseif (\in_array($platform, ['win32', 'win64', 'windows nt'], true)) {
-        $data['power_shell'] = true;
     }
 
     //                                                   2³² - 1
