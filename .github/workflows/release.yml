@@ -125,7 +125,7 @@ jobs:
 
     macos:
         name: Build for macOS arm64
-        runs-on: macos-latest
+        runs-on: macos-26
         timeout-minutes: 90
         env:
             # No Docker on macOS runners: the tasks run on the runner itself
@@ -266,7 +266,7 @@ jobs:
     # Both on one runner, for one SHA256SUMS-ios
     ios:
         name: Build the template apps for iOS arm64 (experimental)
-        runs-on: macos-latest
+        runs-on: macos-26
         # PHP for iOS, when it builds again, takes half an hour
         timeout-minutes: 150
         env:

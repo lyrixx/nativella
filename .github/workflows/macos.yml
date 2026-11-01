@@ -54,7 +54,7 @@ env:
 jobs:
     macos:
         name: macOS
-        runs-on: macos-latest
+        runs-on: macos-26
         timeout-minutes: 90
         permissions:
             # Deletes the caches of main that a new one replaces

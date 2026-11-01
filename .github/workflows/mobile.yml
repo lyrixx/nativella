@@ -254,7 +254,7 @@ jobs:
     # one of devices
     ios-template:
         name: iOS template app for the simulator (experimental)
-        runs-on: macos-latest
+        runs-on: macos-26
         # PHP for iOS, when it builds again, takes half an hour
         timeout-minutes: 90
         permissions:
@@ -511,7 +511,7 @@ jobs:
     ios-simulator:
         name: iOS simulator, with the app of the Symfony demo (experimental)
         needs: ios
-        runs-on: macos-latest
+        runs-on: macos-26
         timeout-minutes: 30
         env:
             # No Docker on macOS runners: the tasks run on the runner itself
