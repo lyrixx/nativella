@@ -293,7 +293,6 @@ fn start(
         .plugin(tauri_plugin_os::init())
         .register_asynchronous_uri_scheme_protocol("php", |context, request, responder| {
             #[cfg(target_os = "android")]
-            #[cfg(target_os = "android")]
             let (request, page) = {
                 let mut request = request;
                 as_page_origin(&mut request);
