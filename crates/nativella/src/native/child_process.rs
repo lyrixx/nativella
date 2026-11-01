@@ -122,7 +122,12 @@ impl ChildProcesses {
         command
             .args(arguments)
             .current_dir(cwd)
-            .envs(self.variables.iter().cloned())
+            .envs(self.variables.iter().cloned());
+        #[cfg(target_os = "linux")]
+        if crate::sets_no_at_bridge() {
+            command.env_remove("NO_AT_BRIDGE");
+        }
+        command
             .envs(env)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

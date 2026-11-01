@@ -14,7 +14,7 @@ Nativella is experimental. This page lists what does not work, what is untested 
 
 ### Linux
 
-- **No screen readers.** WebKitGTK 2.52 crashes in its accessibility bridge as soon as a page loads, so Nativella disables the bridge (`NO_AT_BRIDGE=1`). Worth reporting upstream.
+- **No screen readers.** WebKitGTK 2.52 crashes in its accessibility bridge as soon as a page loads, so Nativella disables the bridge (`NO_AT_BRIDGE=1`), in the application only: the [child processes](child-processes.md) it starts and the browser it opens keep theirs. Worth reporting upstream.
 - **Tray icons report no click**: only their menu works.
 - **Menu roles are Nativella's own.** GTK implements few of them, so Nativella does, on the focused page and window. See [Menus](menus.md#roles).
 - **Global shortcuts need X11**: under Wayland, expect them not to fire.

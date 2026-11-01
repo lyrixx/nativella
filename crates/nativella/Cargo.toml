@@ -86,6 +86,9 @@ keyring = { version = "3", features = ["crypto-rust", "sync-secret-service"] }
 md-5 = "0.11"
 # What tauri-plugin-notification uses, for the clicks it does not report.
 notify-rust = "4"
+# What tauri-plugin-opener opens with: src/native/shell.rs opens without the
+# NO_AT_BRIDGE of Nativella.
+open = "5"
 zbus = "5"
 # What wry uses, to print to PDF.
 gtk = "0.18"

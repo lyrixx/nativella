@@ -3177,6 +3177,7 @@ dependencies = [
  "ndk-sys",
  "notify",
  "notify-rust",
+ "open",
  "p256",
  "percent-encoding",
  "pkcs12",

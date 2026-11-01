@@ -62,6 +62,17 @@ pub(crate) const APP_URL: &str = "http://php.localhost/";
 /// The label of the window opened when PHP opens none at boot.
 pub(crate) const MAIN_WINDOW: &str = "main";
 
+/// Whether Nativella set `NO_AT_BRIDGE` for itself, see [`start`].
+#[cfg(target_os = "linux")]
+static SETS_NO_AT_BRIDGE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether `NO_AT_BRIDGE` is Nativella's own: the processes it starts, and
+/// the browser it opens, do not get it.
+#[cfg(target_os = "linux")]
+pub(crate) fn sets_no_at_bridge() -> bool {
+    SETS_NO_AT_BRIDGE.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Where the PHP project comes from.
 enum Source {
     /// A directory: `nativella run`, or a standalone executable once extracted.
@@ -132,11 +143,12 @@ fn start(
     // WebKitGTK 2.52 (Ubuntu 26.04) segfaults in the AT-SPI bridge
     // (spi_register_object_to_path) as soon as a page loads, with or without
     // PHP: see examples/plain.rs. Disabling the bridge avoids it, at the cost
-    // of screen reader support.
+    // of screen reader support, in the application only.
     #[cfg(target_os = "linux")]
     if env::var_os("NO_AT_BRIDGE").is_none() {
         // SAFETY: no other thread exists yet.
         unsafe { env::set_var("NO_AT_BRIDGE", "1") };
+        SETS_NO_AT_BRIDGE.store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
     let mut context = tauri::generate_context!();

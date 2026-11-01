@@ -8,8 +8,6 @@ use tauri::{
     WebviewWindowBuilder,
 };
 
-use tauri_plugin_opener::OpenerExt;
-
 use super::{Call, State, failed};
 use crate::APP_URL;
 use crate::MAIN_WINDOW;
@@ -449,7 +447,7 @@ fn navigate_later(app: &AppHandle, label: &str, target: Url) {
 }
 
 fn open_in_system(app: &AppHandle, url: &Url) {
-    if let Err(error) = app.opener().open_url(url.as_str(), None::<&str>) {
+    if let Err(error) = super::shell::open_url(app, url.as_str()) {
         eprintln!("[window] Could not open {url} in the browser: {error}.");
     }
 }
