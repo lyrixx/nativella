@@ -4,6 +4,7 @@ namespace App\Tests\EventListener;
 
 use App\Native\Desktop;
 use App\Tests\NotesTestCase;
+use Nativella\Exception\NativeCallException;
 
 final class NativeEventsTest extends NotesTestCase
 {
@@ -14,6 +15,15 @@ final class NativeEventsTest extends NotesTestCase
         $this->assertSame(['settings.get', 'menu.set', 'tray.set', 'globalShortcut.register', 'settings.get', 'window.open'], $this->nativeMethods());
         $this->assertSame(['accelerator' => Desktop::QUICK_NOTE_SHORTCUT], $this->fakeClient()->calls('globalShortcut.register')[0]['payload']);
         $this->assertSame('Nativella Notes: 0 notes', $this->fakeClient()->calls('tray.set')[0]['payload']['tooltip']);
+    }
+
+    public function testATakenShortcutStillOpensTheWindow(): void
+    {
+        $this->fakeClient()->respond('globalShortcut.register', new NativeCallException('globalShortcut.register', new \RuntimeException('Already taken.')));
+
+        $this->sendNativeEvent('app.booted');
+
+        $this->assertCount(1, $this->fakeClient()->calls('window.open'));
     }
 
     public function testDeleteFromTheContextMenuAsksFirst(): void

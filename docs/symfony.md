@@ -68,9 +68,11 @@ The bundle answers `POST /_nativella/event` before the router and the firewall r
 namespace App\EventListener;
 
 use Nativella\Event\AppBooted;
+use Nativella\Exception\NativeCallException;
 use Nativella\GlobalShortcut;
 use Nativella\Menu;
 use Nativella\Menu\MenuItem;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener]
@@ -78,6 +80,7 @@ final readonly class BootListener
 {
     public function __construct(
         private GlobalShortcut $globalShortcut,
+        private LoggerInterface $logger,
         private Menu $menu,
     ) {
     }
@@ -94,7 +97,13 @@ final readonly class BootListener
             ),
             MenuItem::editMenu(),
         );
-        $this->globalShortcut->register('CmdOrCtrl+Shift+N');
+
+        try {
+            $this->globalShortcut->register('CmdOrCtrl+Shift+N');
+        } catch (NativeCallException $e) {
+            // Another application holds it: the application works without.
+            $this->logger->warning('The global shortcut is not available.', ['exception' => $e]);
+        }
     }
 }
 ```
