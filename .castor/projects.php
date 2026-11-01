@@ -4,6 +4,7 @@ namespace project;
 
 use Symfony\Component\Console\Completion\CompletionInput;
 
+use function Castor\io;
 use function docker\docker_exit_code;
 
 /**
@@ -120,6 +121,36 @@ function complete_demo_names(CompletionInput $input): array
 function complete_project_paths(CompletionInput $input): array
 {
     return project_paths();
+}
+
+/**
+ * composer install, and for a Laravel application without a .env, the one of
+ * .env.example, with a key.
+ */
+function install(Project $project): void
+{
+    io()->section("Installing {$project->path}");
+
+    run_or_fail($project, ['composer', 'install', '-n', '--prefer-dist', '--optimize-autoloader']);
+
+    // A Laravel application reads its key from .env, which is not versioned
+    if ($project->isLaravel() && !$project->hasFile('.env') && $project->hasFile('.env.example')) {
+        run_or_fail($project, ['cp', '.env.example', '.env']);
+        run_or_fail($project, ['php', 'artisan', 'key:generate', '-n']);
+    }
+}
+
+/**
+ * The project, installed first if it is not yet: on a fresh clone, the
+ * tasks that need its vendor/ install it.
+ */
+function install_if_missing(Project $project): Project
+{
+    if (!$project->isInstalled()) {
+        install($project);
+    }
+
+    return $project;
 }
 
 /**

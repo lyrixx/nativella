@@ -4,7 +4,6 @@ namespace qa;
 
 use Castor\Attribute\AsOption;
 use Castor\Attribute\AsTask;
-use project\Project;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface as HttpExceptionInterface;
 
@@ -15,6 +14,7 @@ use function Castor\variable;
 use function docker\builder_path;
 use function docker\docker_exit_code;
 use function project\demo_names;
+use function project\install_if_missing as install_project_if_missing;
 use function project\select;
 use function worktree\get_worktree_name;
 use function worktree\get_worktree_ports;
@@ -93,7 +93,7 @@ function phpunit(
 ): int {
     $exitCode = 0;
 
-    foreach (installed_projects(select($project)) as $p) {
+    foreach (array_map(install_project_if_missing(...), select($project)) as $p) {
         if (!$p->hasTests()) {
             continue;
         }
@@ -132,7 +132,7 @@ function phpstan(
         $exitCode = docker_exit_code($command, workDir: builder_path());
     }
 
-    foreach (installed_projects(select($project)) as $p) {
+    foreach (array_map(install_project_if_missing(...), select($project)) as $p) {
         io()->section("Running PHPStan on {$p->path}...");
 
         $projectCommand = $command;
@@ -163,7 +163,7 @@ function securityAudit(): int
 {
     $exitCode = 0;
 
-    foreach (installed_projects(select([])) as $p) {
+    foreach (array_map(install_project_if_missing(...), select([])) as $p) {
         io()->section("Auditing the dependencies of {$p->path}...");
 
         $exitCode = max($exitCode, docker_exit_code(['composer', 'audit'], workDir: $p->builderDirectory()));
@@ -210,6 +210,10 @@ function rust(
     #[AsOption(description: 'Link the static PHP of "castor static-php:build"')]
     bool $static = false,
 ): int {
+    if ($static) {
+        \static_php\build();
+    }
+
     $c = context()->withData(['docker_compose_run_environment' => $static ? \static_php\environment() : \static_php\system_php_environment()], recursive: false);
     $service = $static ? \static_php\SERVICE : null;
 
@@ -278,25 +282,4 @@ function install_if_missing(string $tool): void
     if (!is_dir(variable('root_dir')."/tools/{$tool}/vendor")) {
         install();
     }
-}
-
-/**
- * @param list<Project> $projects
- *
- * @return list<Project>
- */
-function installed_projects(array $projects): array
-{
-    $installed = [];
-    foreach ($projects as $project) {
-        if (!$project->isInstalled()) {
-            io()->warning(\sprintf('%s is not installed, run "castor install" first.', $project->path));
-
-            continue;
-        }
-
-        $installed[] = $project;
-    }
-
-    return $installed;
 }

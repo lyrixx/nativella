@@ -24,6 +24,7 @@ use function docker\docker_exit_code;
 use function docker\run_in_builder;
 use function project\demo;
 use function project\demo_names;
+use function project\install_if_missing;
 
 /**
  * A desktop application needs the display of the host: it runs on the host by
@@ -41,7 +42,11 @@ function run_demo(
     #[AsOption(description: 'Link the static PHP of "castor static-php:build", as on macOS')]
     bool $static = false,
 ): int {
-    $project = installed_demo($demo);
+    $project = install_if_missing(demo($demo));
+    // In the context of the task: the host one below only links it
+    if ($static) {
+        \static_php\build();
+    }
 
     io()->title("Running {$project->path}");
 
@@ -95,6 +100,9 @@ function build_demos(
 ): void {
     // Staging installs their dependencies: they need not be installed here
     $projects = array_map(demo(...), $demos ?: demo_names());
+    if ($static) {
+        \static_php\build();
+    }
     $environment = $static ? \static_php\environment() : \static_php\system_php_environment();
     $service = $static ? \static_php\SERVICE : null;
 
@@ -216,7 +224,10 @@ function smoke(
     #[AsOption(description: 'Link the static PHP of "castor static-php:build", as on macOS')]
     bool $static = false,
 ): int {
-    $projects = installed_demos($demos);
+    $projects = array_map(static fn (string $name): Project => install_if_missing(demo($name)), $demos ?: demo_names());
+    if ($static) {
+        \static_php\build();
+    }
     $environment = $static ? \static_php\environment() : \static_php\system_php_environment();
     $service = $static ? \static_php\SERVICE : null;
 
@@ -377,29 +388,6 @@ function target_dir(array $environment): string
 
     // The builder sets CARGO_TARGET_DIR to target/docker
     return context()['run_on_host'] ? "{$root}/target" : "{$root}/target/docker";
-}
-
-function installed_demo(string $name): Project
-{
-    $demo = demo($name);
-
-    if (!$demo->isInstalled()) {
-        throw new \RuntimeException(\sprintf('%s is not installed: run "castor install" first.', $demo->path));
-    }
-
-    return $demo;
-}
-
-/**
- * @param list<string> $names every demo when empty
- *
- * @return list<Project>
- */
-function installed_demos(array $names): array
-{
-    $names = $names ?: demo_names();
-
-    return array_map(installed_demo(...), $names);
 }
 
 /**

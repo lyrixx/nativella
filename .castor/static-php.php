@@ -110,16 +110,12 @@ function build(
 
 /**
  * The environment of a cargo command that links the static PHP, for the
- * commands of the static service (SERVICE).
+ * commands of the static service (SERVICE): build() it first.
  *
  * @return array<string, string>
  */
 function environment(): array
 {
-    if (!is_file(variable('root_dir').'/static-php/buildroot/lib/libphp.a')) {
-        throw new \RuntimeException('There is no static PHP yet: run "castor static-php:build" first.');
-    }
-
     $buildroot = builder_path('static-php/buildroot');
 
     return [

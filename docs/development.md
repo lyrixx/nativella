@@ -98,6 +98,8 @@ castor qa --dry-run          # everything, reporting only: what the CI checks
 | `castor qa:rust` | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test`, on the workspace. |
 | `castor qa:security-audit` | `composer audit` in each project. |
 
+A task installs a project it checks, or a demo it runs, that is not installed yet, and builds the static PHP that `--static` links: on a fresh clone, `castor qa` checks every project.
+
 PHPStan runs from the directory of each project, to find its classes through its own `vendor/`: the projects do not share their dependencies, nor their namespaces (each demo has an `App\`). A project without a PHPStan configuration is analysed with `tools/phpstan/project.neon`, over the directories of its PSR-4 autoloading. One that needs more (an extension, a baseline) adds a `phpstan.dist.neon`:
 
 ```neon
@@ -119,7 +121,7 @@ castor nativella:run symfony --static            # on your machine, with cargo
 castor nativella:run symfony --static --docker   # in a container
 ```
 
-`nativella:run` builds and runs the `nativella` command on a demo (`cargo run -p nativella -- run demos/<demo>`), the demo installed (`castor install`). `--static` links the [static PHP](#static-php), as the releases do: build it first, with `castor static-php:build`. Without `--static`, the tasks link [the PHP of the system](#the-php-of-the-system).
+`nativella:run` builds and runs the `nativella` command on a demo (`cargo run -p nativella -- run demos/<demo>`), which it installs first if needed. `--static` links the [static PHP](#static-php), as the releases do, which `castor static-php:build` builds, and the task first if needed. Without `--static`, the tasks link [the PHP of the system](#the-php-of-the-system).
 
 ### On your machine
 
