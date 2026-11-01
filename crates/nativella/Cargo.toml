@@ -46,22 +46,22 @@ tauri-plugin-os = "2"
 # rsa brings, of the same generation of RustCrypto as they are; and the
 # PKCS #12 files of certificates, as Keychain Access and OpenSSL encrypt
 # them: cbc, des, hmac, pkcs12, pkcs5, rc2.
-cbc = "0.1"
+cbc = "0.2"
 cms = { version = "0.2", features = ["builder"] }
-der = { version = "0.7", features = ["oid"] }
-des = "0.8"
-hmac = "0.12"
+der = { version = "0.8", features = ["oid"] }
+des = "0.9"
+hmac = "0.13"
 image = { version = "0.25", default-features = false, features = ["png"] }
 keepawake = "0.6"
 minisign-verify = "0.3"
 notify = "8"
 p256 = "0.14"
 pkcs12 = { version = "0.1", features = ["kdf"] }
-pkcs5 = { version = "0.7", features = ["alloc", "pbes2", "sha1-insecure"] }
+pkcs5 = { version = "0.8", features = ["alloc", "pbes2", "sha1-insecure"] }
 plist = "1"
-rc2 = "0.8"
+rc2 = "0.9"
 rsa = { version = "0.9", features = ["sha2"] }
-sha1 = "0.10"
+sha1 = "0.11"
 starship-battery = "0.12"
 tauri-plugin-autostart = "2"
 tauri-plugin-deep-link = "2"
@@ -73,7 +73,7 @@ trash = "5"
 # the certificates of the Mozilla root store: the system has none to give
 # on some Linux distributions.
 ureq = { version = "3", default-features = false, features = ["rustls"] }
-x509-cert = "0.2"
+x509-cert = "0.3"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
