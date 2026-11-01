@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
-use tauri::webview::Url;
+use tauri::webview::{NewWindowResponse, Url};
 use tauri::{
     AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder,
@@ -293,8 +293,15 @@ pub(crate) fn open(
     }
 
     let handle = app.clone();
-    let label = label.to_owned();
-    builder = builder.on_navigation(move |url| allow_navigation(&handle, &label, url));
+    let navigating = label.to_owned();
+    builder = builder.on_navigation(move |url| allow_navigation(&handle, &navigating, url));
+    // `target="_blank"` and `window.open()`: Linux does nothing without it.
+    let handle = app.clone();
+    let opening = label.to_owned();
+    builder = builder.on_new_window(move |url, _| {
+        open_elsewhere(&handle, &opening, &url);
+        NewWindowResponse::Deny
+    });
 
     builder.build().map_err(failed)
 }
@@ -349,42 +356,101 @@ fn with_desktop_options<'a>(
     builder
 }
 
-/// Pages of the app stay in the window. Absolute URLs PHP built for
-/// `http://localhost/` (it believes it is served there) are brought back to
-/// the app, and other websites open in the browser.
-fn allow_navigation(app: &AppHandle, label: &str, url: &Url) -> bool {
-    let base = Url::parse(APP_URL).expect("The app URL is valid.");
-    if url.scheme() == base.scheme() && url.host() == base.host() {
-        return true;
+/// Where a navigation goes.
+#[derive(Debug, PartialEq)]
+enum Destination {
+    /// A page of the app.
+    App,
+    /// The page of the app an absolute URL of PHP means: PHP believes it is
+    /// served from `http://localhost/`.
+    Rebased(Url),
+    /// What a page makes itself: `about:blank`, `data:` and `blob:` URLs.
+    Inline,
+    /// Another website, a mail or a phone number: the browser, or the
+    /// application of the system for it.
+    System,
+    /// `file:`, and schemes nothing here knows.
+    Refused,
+}
+
+impl Destination {
+    fn of(url: &Url) -> Self {
+        let base = Url::parse(APP_URL).expect("The app URL is valid.");
+        if url.scheme() == base.scheme() && url.host() == base.host() && url.port() == base.port() {
+            return Self::App;
+        }
+
+        match url.scheme() {
+            // As absolute_urls.js and the runtime have it: `http://localhost:8025`
+            // is another server, Mailpit or a child process.
+            "http" if url.host_str() == Some("localhost") && url.port().is_none() => {
+                let mut target = base;
+                target.set_path(url.path());
+                target.set_query(url.query());
+                target.set_fragment(url.fragment());
+
+                Self::Rebased(target)
+            }
+            "http" | "https" | "mailto" | "tel" => Self::System,
+            "about" | "blob" | "data" => Self::Inline,
+            _ => Self::Refused,
+        }
     }
+}
 
-    match url.scheme() {
-        "http" | "https" if url.host_str() == Some("localhost") => {
-            let mut target = base;
-            target.set_path(url.path());
-            target.set_query(url.query());
-            target.set_fragment(url.fragment());
-
-            // Not from within the navigation callback of the webview.
-            if let Some(window) = app.get_webview_window(label) {
-                std::thread::spawn(move || {
-                    if let Err(error) = window.navigate(target) {
-                        eprintln!("[window] Could not open the app page: {error}.");
-                    }
-                });
-            }
-
+/// Pages of the app stay in the window, absolute URLs of PHP are brought
+/// back to the app, and other websites open in the browser.
+fn allow_navigation(app: &AppHandle, label: &str, url: &Url) -> bool {
+    match Destination::of(url) {
+        Destination::App | Destination::Inline => true,
+        Destination::Rebased(target) => {
+            navigate_later(app, label, target);
             false
         }
-        "http" | "https" | "mailto" | "tel" => {
-            if let Err(error) = app.opener().open_url(url.as_str(), None::<&str>) {
-                eprintln!("[window] Could not open {url} in the browser: {error}.");
-            }
-
+        Destination::System => {
+            open_in_system(app, url);
             false
         }
-        // about:blank, data: and blob: URLs.
-        _ => true,
+        Destination::Refused => {
+            eprintln!("[window] {url} is not opened: only pages of the app and websites are.");
+            false
+        }
+    }
+}
+
+/// What a link to a new window, or `window.open()`, opens: the window
+/// itself for a page of the app, the browser for a website. Nativella opens
+/// no window of its own: PHP does, with `Window::open()`.
+fn open_elsewhere(app: &AppHandle, label: &str, url: &Url) {
+    match Destination::of(url) {
+        Destination::App => navigate_later(app, label, url.clone()),
+        Destination::Rebased(target) => navigate_later(app, label, target),
+        Destination::System => open_in_system(app, url),
+        Destination::Inline => {
+            eprintln!(
+                "[window] A {}: URL is not opened: a page opens no window.",
+                url.scheme()
+            );
+        }
+        Destination::Refused => eprintln!("[window] {url} is not opened: a page opens no window."),
+    }
+}
+
+/// Not from within a callback of the webview, which navigating would enter
+/// again.
+fn navigate_later(app: &AppHandle, label: &str, target: Url) {
+    if let Some(window) = app.get_webview_window(label) {
+        std::thread::spawn(move || {
+            if let Err(error) = window.navigate(target) {
+                eprintln!("[window] Could not open the app page: {error}.");
+            }
+        });
+    }
+}
+
+fn open_in_system(app: &AppHandle, url: &Url) {
+    if let Err(error) = app.opener().open_url(url.as_str(), None::<&str>) {
+        eprintln!("[window] Could not open {url} in the browser: {error}.");
     }
 }
 
@@ -443,4 +509,81 @@ fn with_flag(
     action(&window, flag.enabled).map_err(failed)?;
 
     Ok(json!({}))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn destination(url: &str) -> Destination {
+        Destination::of(&Url::parse(url).unwrap())
+    }
+
+    #[test]
+    fn pages_of_the_app_stay_in_the_window() {
+        assert_eq!(destination(APP_URL), Destination::App);
+        assert_eq!(
+            destination(url("/notes/42?tab=edit").unwrap().as_str()),
+            Destination::App
+        );
+    }
+
+    #[test]
+    fn absolute_urls_of_php_are_brought_back_to_the_app() {
+        assert_eq!(
+            destination("http://localhost/notes/42?tab=edit#title"),
+            Destination::Rebased(url("/notes/42?tab=edit#title").unwrap())
+        );
+        assert_eq!(
+            destination("http://localhost"),
+            Destination::Rebased(url("/").unwrap())
+        );
+    }
+
+    #[test]
+    fn other_servers_of_this_machine_open_in_the_browser() {
+        for other in [
+            "http://localhost:8025/",
+            "https://localhost/",
+            "http://127.0.0.1/",
+            "http://localhost.example/",
+        ] {
+            assert_eq!(destination(other), Destination::System, "{other}");
+        }
+    }
+
+    #[test]
+    fn websites_mails_and_phone_numbers_open_in_the_system() {
+        for external in [
+            "https://example.com/",
+            "http://example.com/",
+            "mailto:me@example.com",
+            "tel:+33123456789",
+        ] {
+            assert_eq!(destination(external), Destination::System, "{external}");
+        }
+    }
+
+    #[test]
+    fn what_a_page_makes_itself_stays_in_the_window() {
+        for inline in [
+            "about:blank",
+            "data:text/html,<p>Hello</p>",
+            "blob:php://localhost/2f6c9a3e",
+        ] {
+            assert_eq!(destination(inline), Destination::Inline, "{inline}");
+        }
+    }
+
+    #[test]
+    fn files_and_unknown_schemes_are_refused() {
+        for refused in [
+            "file:///home/me/.ssh/config",
+            "ftp://example.com/",
+            "javascript:alert(1)",
+            "notes://open/42",
+        ] {
+            assert_eq!(destination(refused), Destination::Refused, "{refused}");
+        }
+    }
 }

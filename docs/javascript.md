@@ -113,8 +113,12 @@ PHP believes it is served from `http://localhost/`, so the absolute URLs it gene
 
 Navigations that leave the application are handled too:
 
-- a link to another website (`http:`, `https:`, `mailto:`, `tel:`) opens in the browser, or the mail client, of the system, instead of inside the window;
-- a navigation to `http://localhost/…` that slipped through, a URL built in JavaScript for instance, is brought back to the application, with a GET.
+- a link to another website (`http:`, `https:`, `mailto:`, `tel:`) opens in the browser, or the mail client, of the system, instead of inside the window. Another server of the machine is another website: `http://localhost:8025/`, a server a [child process](child-processes.md) runs, or `https://localhost/`;
+- a navigation to `http://localhost/…`, without a port, that slipped through, a URL built in JavaScript for instance, is brought back to the application, with a GET;
+- a link with `target="_blank"`, or `window.open()` in answer to a click, opens a website in the browser and a page of the application in the window itself: pages open no window, PHP does, with [`Window::open()`](windows.md). `window.open()` returns `null`, and does nothing when a script calls it on its own, as a browser blocks popups;
+- `file:` URLs and the schemes of other applications open nothing, and print a line on the standard error output. `about:blank`, and the `data:` and `blob:` URLs a page makes, load in the window.
+
+Frames follow the same rules, see [Limitations](limitations.md#the-web-layer): an `<iframe>` of another website opens it in the browser and stays empty.
 
 ## Developer tools
 
