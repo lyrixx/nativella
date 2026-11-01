@@ -16,7 +16,7 @@ interface Client
      *
      * @return array<string, mixed>
      *
-     * @throws Exception\NativeCallException         when the native side fails
+     * @throws Exception\NativeCallException         when the native side fails, or the payload holds a string that is not UTF-8
      * @throws Exception\RuntimeUnavailableException when PHP does not run in Nativella
      */
     public function call(string $method, array $payload = []): array;
