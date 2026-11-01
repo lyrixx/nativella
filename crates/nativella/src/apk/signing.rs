@@ -11,9 +11,13 @@ use std::fs::{self, File};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
+use der::{Decode, Encode};
 use p256::ecdsa::signature::Signer;
 use p256::ecdsa::{DerSignature, SigningKey};
 use p256::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey, LineEnding};
+use pkcs12::pbe_params::EncryptedPrivateKeyInfo;
 use sha2::{Digest, Sha256};
 
 use crate::zip::{self, Unfinished};
@@ -24,6 +28,13 @@ const V2_BLOCK_ID: u32 = 0x7109_871a;
 const ECDSA_WITH_SHA256: u32 = 0x0201;
 const CHUNK_LENGTH: usize = 1024 * 1024;
 
+/// The variable that holds the password of an encrypted key, rather than an
+/// argument, which the other users of the computer see.
+pub const KEY_PASSWORD: &str = "NATIVELLA_KEY_PASSWORD";
+
+/// The label of an encrypted PKCS #8 key in PEM.
+const ENCRYPTED_LABEL: &str = "ENCRYPTED PRIVATE KEY";
+
 /// A signing key, its certificate, and the file it comes from.
 pub struct Key {
     signing_key: SigningKey,
@@ -33,15 +44,33 @@ pub struct Key {
 
 impl Key {
     /// The key of a PKCS #8 PEM file, as `openssl genpkey -algorithm EC
-    /// -pkeyopt ec_paramgen_curve:P-256` writes it.
-    pub fn load(path: &Path) -> io::Result<Self> {
+    /// -pkeyopt ec_paramgen_curve:P-256` writes it, or encrypted with
+    /// `password`, as it does with `-aes256`.
+    pub fn load(path: &Path, password: Option<&str>) -> io::Result<Self> {
         let pem = fs::read_to_string(path).map_err(|error| {
             io::Error::new(
                 error.kind(),
                 format!("Cannot read the key {}: {error}.", path.display()),
             )
         })?;
-        let signing_key = SigningKey::from_pkcs8_pem(&pem).map_err(|error| {
+        warn_if_readable_by_others(path);
+
+        let signing_key = match pem_contents(&pem, ENCRYPTED_LABEL) {
+            Some(encrypted) => {
+                let password = password.ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!(
+                            "The key {} is encrypted: set {KEY_PASSWORD} to its password.",
+                            path.display()
+                        ),
+                    )
+                })?;
+                SigningKey::from_pkcs8_der(&decrypt(encrypted, password)?)
+            }
+            None => SigningKey::from_pkcs8_pem(&pem),
+        }
+        .map_err(|error| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!(
@@ -69,13 +98,67 @@ impl Key {
             create_debug_key(&path)?;
         }
 
-        Self::load(&path)
+        Self::load(&path, None)
     }
 
     /// The file of the key.
     pub fn path(&self) -> &Path {
         &self.path
     }
+}
+
+/// The base64 between the lines `-----BEGIN <label>-----` and `-----END
+/// <label>-----` of `pem`, if it has them.
+fn pem_contents<'a>(pem: &'a str, label: &str) -> Option<&'a str> {
+    let (_, rest) = pem.split_once(&format!("-----BEGIN {label}-----"))?;
+    let (contents, _) = rest.split_once(&format!("-----END {label}-----"))?;
+
+    Some(contents)
+}
+
+/// The PKCS #8 key, in DER, of the encrypted key `encrypted`, in base64:
+/// PBES2, as OpenSSL encrypts keys.
+fn decrypt(encrypted: &str, password: &str) -> io::Result<Vec<u8>> {
+    let invalid = |message: &str| io::Error::new(io::ErrorKind::InvalidData, message);
+    let base64: String = encrypted.split_whitespace().collect();
+    let der = BASE64_STANDARD
+        .decode(base64)
+        .map_err(|_| invalid("The encrypted key is not in base64."))?;
+    // The structure of RFC 5208, which PKCS #12 files hold too.
+    let info = EncryptedPrivateKeyInfo::from_der(&der)
+        .map_err(|_| invalid("The encrypted key is not an encrypted PKCS #8 key."))?;
+    let algorithm = info
+        .encryption_algorithm
+        .to_der()
+        .map_err(io::Error::other)?;
+    let scheme = pkcs5::EncryptionScheme::try_from(algorithm.as_slice()).map_err(|_| {
+        invalid("The key is encrypted in a way this command does not know: PBES2 only, as OpenSSL encrypts keys.")
+    })?;
+
+    scheme
+        .decrypt(password.as_bytes(), info.encrypted_data.as_bytes())
+        .map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!("Cannot decrypt the key: is {KEY_PASSWORD} its password?"),
+            )
+        })
+}
+
+/// Warns when the other users of the computer may read the key `path`.
+fn warn_if_readable_by_others(path: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if fs::metadata(path).is_ok_and(|metadata| metadata.permissions().mode() & 0o044 != 0) {
+            eprintln!(
+                "Warning: the other users of this computer may read the key {}: make it readable by you only (chmod 600).",
+                path.display()
+            );
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = path;
 }
 
 /// Writes a new key to `path`, whole, unless another run of `nativella` has
@@ -358,8 +441,23 @@ mod tests {
             1,
             "Nothing is left aside."
         );
-        Key::load(&path).unwrap();
+        Key::load(&path, None).unwrap();
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// As `openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256
+    /// -aes256 -pass pass:nativella` writes it.
+    #[test]
+    fn an_encrypted_key() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/apk/testdata/encrypted-key.pem");
+
+        Key::load(&path, Some("nativella")).unwrap();
+
+        let error = Key::load(&path, Some("wrong")).err().unwrap();
+        assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+        assert!(error.to_string().contains(KEY_PASSWORD), "{error}");
+        let error = Key::load(&path, None).err().unwrap();
+        assert!(error.to_string().contains(KEY_PASSWORD), "{error}");
     }
 
     #[test]

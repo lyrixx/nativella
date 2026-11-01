@@ -32,7 +32,7 @@ use std::io;
 use std::path::Path;
 
 use self::icon::Icon;
-pub use self::signing::Key;
+pub use self::signing::{KEY_PASSWORD, Key};
 use crate::embedded::{self, LeftOut, PACKAGED_BUNDLE};
 use crate::project::{Permission, Project};
 use crate::zip;
@@ -541,7 +541,7 @@ mod tests {
         fs::write(project_dir.join("key.pem"), pem.as_bytes()).unwrap();
         template(&project_dir.join("template.apk"), &LAUNCHER_ICONS);
         let project = Project::load(&project_dir).unwrap();
-        let key = Key::load(&project_dir.join("key.pem")).unwrap();
+        let key = Key::load(&project_dir.join("key.pem"), None).unwrap();
         let output = project_dir.join("dist/note-taker.apk");
 
         assert_eq!(

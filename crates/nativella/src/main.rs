@@ -6,7 +6,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use nativella_lib::apk::{self, Key};
+use nativella_lib::apk::{self, KEY_PASSWORD, Key};
 use nativella_lib::embedded::{self, LeftOut};
 use nativella_lib::ios::{self, Identity};
 use nativella_lib::{Project, notices};
@@ -16,7 +16,9 @@ const USAGE: &str = "Usage:
   nativella build [<project-dir>] [-o <output>]    Build a standalone executable of the project
   nativella deb [<project-dir>] [-o <output>]      Build a Debian package of the project (Linux)
   nativella android [<project-dir>] --template <apk> [--key <pem>] [-o <output>]
-                                                   Make an Android application (APK) of the project
+                                                   Make an Android application (APK) of the project,
+                                                   signed with the key, whose password, if it is
+                                                   encrypted, is NATIVELLA_KEY_PASSWORD
   nativella ios [<project-dir>] --template <zip> [--certificate <p12> --profile <mobileprovision>] [-o <output>]
                                                    Make an iOS app of the project, for the simulator,
                                                    or for devices (IPA), signed with the certificate,
@@ -271,7 +273,7 @@ fn android(
         ))
     })?;
     let key = match key {
-        Some(key) => Key::load(key)?,
+        Some(key) => Key::load(key, env::var(KEY_PASSWORD).ok().as_deref())?,
         None => {
             let key = Key::debug()?;
             eprintln!(

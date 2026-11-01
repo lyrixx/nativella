@@ -58,12 +58,15 @@ The APK is the template, with:
 - the Android permissions of the [phone APIs](phone-apis.md) the application asks for (`permissions`), and of them only: the template has them all, and the application only registers the ones it asks for;
 - the [`icon`](configuration.md#icon) of the project as its launcher icon, or the Nativella icon without one: drawn for each screen density, from 48 to 192 pixels, inside a margin, its corners rounded, as `tauri icon` draws the launcher icons of Android.
 
-It is aligned, then signed with APK Signature Scheme v2, which Android checks from API level 24, by `--key`: an EC P-256 private key, in PKCS #8 PEM.
+It is aligned, then signed with APK Signature Scheme v2, which Android checks from API level 24, by `--key`: an EC P-256 private key, in PKCS #8 PEM, encrypted or not.
 
 ```bash
-openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out notes-key.pem
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -aes256 -out notes-key.pem
+export NATIVELLA_KEY_PASSWORD='the password of notes-key.pem'
 nativella android path/to/project --template nativella-android-template-arm64.apk --key notes-key.pem
 ```
+
+With `-aes256`, OpenSSL asks for a password, which encrypts the key. `nativella android` takes it from the variable `NATIVELLA_KEY_PASSWORD`, not from an argument, which the other users of the computer see, and warns when they can read the key: make it yours only, with `chmod 600 notes-key.pem`.
 
 Without `--key`, `nativella` signs with the debug key of the computer, which it makes at its first use, in the configuration directory of the user (`~/.config/nativella/android-debug-key.pem` on Linux): enough to try the application, not to publish it. Android installs an update only if it is signed with the same key as the installed application: keep yours.
 
