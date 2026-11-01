@@ -391,6 +391,7 @@ jobs:
         if: github.ref_type == 'tag'
         needs: [linux, macos, android, ios]
         runs-on: ubuntu-26.04
+        timeout-minutes: 15
         permissions:
             # The attestations: a token of GitHub's OIDC provider signs them
             attestations: write

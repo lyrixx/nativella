@@ -51,6 +51,7 @@ jobs:
     build:
         name: Build the website
         runs-on: ubuntu-26.04
+        timeout-minutes: 15
         permissions:
             contents: read
         steps:
@@ -97,6 +98,7 @@ jobs:
         if: github.event_name != 'pull_request'
         needs: build
         runs-on: ubuntu-26.04
+        timeout-minutes: 15
         permissions:
             id-token: write
             pages: write
