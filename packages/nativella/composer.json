@@ -5,12 +5,13 @@
     "keywords": [
         "desktop",
         "native",
-        "tauri",
-        "nativella"
+        "nativella",
+        "tauri"
     ],
     "license": "MIT",
     "require": {
-        "php": ">=8.4"
+        "php": ">=8.4",
+        "ext-mbstring": "*"
     },
     "require-dev": {
         "phpunit/phpunit": "^12.4"
