@@ -301,7 +301,7 @@ fn serve(
             Next::Respond(mut response) => {
                 absolute_urls::rewrite(&uri, &mut response);
 
-                return response;
+                return deliverable(response);
             }
             Next::Follow(target) => {
                 // The target of a redirect may be a file of public/ too.
@@ -321,6 +321,25 @@ fn serve(
 
     Response::builder()
         .status(StatusCode::LOOP_DETECTED)
+        .body(Vec::new())
+        .expect("A response with a status and no header is valid.")
+}
+
+/// Android's webview takes no 3xx from the runtime: wry sends the request to
+/// the network instead, where nothing answers. A redirect the runtime does
+/// not follow (without a Location, to another website for a `fetch()`)
+/// becomes a 502 there.
+fn deliverable(response: Response<Vec<u8>>) -> Response<Vec<u8>> {
+    if !cfg!(target_os = "android") || !response.status().is_redirection() {
+        return response;
+    }
+    log!(
+        "[redirect] Android takes no {} response: answering 502 instead.",
+        response.status().as_u16()
+    );
+
+    Response::builder()
+        .status(StatusCode::BAD_GATEWAY)
         .body(Vec::new())
         .expect("A response with a status and no header is valid.")
 }

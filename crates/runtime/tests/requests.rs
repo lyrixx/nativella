@@ -30,6 +30,9 @@ switch ($_GET['case'] ?? '') {
     case 'input':
         echo $_SERVER['REQUEST_METHOD'], ' ', file_get_contents('php://input');
         break;
+    case 'status':
+        http_response_code((int) $_GET['code']);
+        break;
     default:
         echo 'Hello';
 }
@@ -103,6 +106,14 @@ fn a_photo_of_a_phone_can_be_uploaded() {
     );
 
     assert_eq!(text(&response), format!("0 {}", photo.len()));
+}
+
+#[test]
+fn a_status_beyond_http_answers_a_500() {
+    assert_eq!(get("/?case=status&code=418").status(), 418);
+    assert_eq!(get("/?case=status&code=599").status(), 599);
+    assert_eq!(get("/?case=status&code=600").status(), 500);
+    assert_eq!(get("/?case=status&code=999").status(), 500);
 }
 
 #[test]

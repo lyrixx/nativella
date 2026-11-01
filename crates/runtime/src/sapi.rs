@@ -377,8 +377,11 @@ impl RequestContext {
     }
 
     fn into_response(self) -> Response<Vec<u8>> {
+        // HTTP has no status beyond 599, which webviews refuse: Android's
+        // sends the request to the network then.
         let status = u16::try_from(self.status)
             .ok()
+            .filter(|code| (100..=599).contains(code))
             .and_then(|code| StatusCode::from_u16(code).ok())
             .unwrap_or_else(|| {
                 log!(
