@@ -29,7 +29,7 @@ public function onTimer(TimerFired $event): void
 
 A timer fires every second at most, and once a year at least. Starting a timer replaces the one of the same name.
 
-Timers live as long as the application, not longer: start them when it [boots](lifecycle.md#booting). A timer fires on time, but its event waits in line with the requests: PHP serves one at a time. Keep the work short, or split it, or the pages wait for it.
+Timers live as long as the application, not longer: start them when it [boots](lifecycle.md#booting). A timer fires on time, but its event waits in line with the requests: PHP serves one at a time. Keep the work short, or split it, or the pages wait for it. A tick that comes before PHP has handled the previous one, behind an open [dialog](dialogs.md) for instance, is skipped: ticks do not pile up.
 
 ## Instead of a scheduler and a queue
 

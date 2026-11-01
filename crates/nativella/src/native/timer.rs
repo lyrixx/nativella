@@ -81,6 +81,8 @@ fn start(
 
     let app = app.clone();
     let interval = Duration::from_secs_f64(schedule.seconds);
+    // Set until PHP has handled the last tick.
+    let firing = Arc::new(AtomicBool::new(false));
     thread::Builder::new()
         .name(format!("timer {}", schedule.name))
         .spawn(move || {
@@ -89,7 +91,17 @@ fn start(
                 if stopped.load(Ordering::Relaxed) {
                     return;
                 }
-                events::send(&app, "timer.fired", json!({ "name": schedule.name }));
+                // PHP is busy, with a dialog for one: ticks would pile up.
+                if firing.swap(true, Ordering::SeqCst) {
+                    continue;
+                }
+                let handled = Arc::clone(&firing);
+                events::send_then(
+                    &app,
+                    "timer.fired",
+                    json!({ "name": schedule.name }),
+                    move || handled.store(false, Ordering::SeqCst),
+                );
                 if repeat == Repeat::Once {
                     // Unless another timer took the name since.
                     let state = app.state::<State>();
