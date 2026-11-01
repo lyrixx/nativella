@@ -7,7 +7,6 @@ use static_php\mobile\Target;
 use function Castor\context;
 use function Castor\finder;
 use function Castor\fs;
-use function Castor\http_download;
 use function Castor\run;
 use function Castor\variable;
 use function docker\builder_path;
@@ -27,6 +26,16 @@ const FILE = 'THIRD_PARTY_NOTICES.txt';
 
 /** cargo-about, which gathers the licenses of the Rust crates: tools/cargo-about/ */
 const CARGO_ABOUT_VERSION = '0.9.2';
+
+/**
+ * The SHA-256 of the cargo-about of each target, as its release gives them,
+ * in its .sha256 files.
+ */
+const CARGO_ABOUT_SHA256 = [
+    'aarch64-apple-darwin' => 'ae72f0df0c399a1e96336f696fa55b1b28679fd725632eba8cf8e4568467cc3e',
+    'aarch64-unknown-linux-musl' => 'af5169282fb6f84e13471493f405437e43ac517744c9ae12fbe2cdf0a6f0e5a8',
+    'x86_64-unknown-linux-musl' => '9099a59e820c38a68b9d65f300662a567d56562f9a10f6aa4c7e86c17c2566af',
+];
 
 /**
  * The notices of the nativella command and of the executables it builds, for
@@ -276,7 +285,7 @@ function cargo_about(): string
 
     if (!is_file("{$root}/{$binary}")) {
         $archive = "{$root}/tools/cargo-about/bin/cargo-about.tar.gz";
-        http_download(\sprintf('https://github.com/EmbarkStudios/cargo-about/releases/download/%1$s/cargo-about-%1$s-%2$s.tar.gz', CARGO_ABOUT_VERSION, $target), $archive);
+        \download\verified(\sprintf('https://github.com/EmbarkStudios/cargo-about/releases/download/%1$s/cargo-about-%1$s-%2$s.tar.gz', CARGO_ABOUT_VERSION, $target), $archive, CARGO_ABOUT_SHA256[$target]);
         run(['tar', 'xzf', $archive, '-C', \dirname($archive), '--strip-components=1', \sprintf('cargo-about-%s-%s/cargo-about', CARGO_ABOUT_VERSION, $target)], context: context()->withQuiet());
         fs()->rename(\dirname($archive).'/cargo-about', "{$root}/{$binary}");
         fs()->remove($archive);

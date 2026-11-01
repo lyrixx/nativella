@@ -9,7 +9,6 @@ use Symfony\Component\Process\ExecutableFinder;
 use function Castor\capture;
 use function Castor\context;
 use function Castor\fs;
-use function Castor\http_download;
 use function Castor\io;
 use function Castor\variable;
 use function docker\build as build_image;
@@ -19,6 +18,18 @@ use function docker\run_in_builder;
 
 /** static-php-cli, which builds PHP and the libraries it needs */
 const SPC_VERSION = '2.8.5';
+
+/**
+ * The SHA-256 of the static-php-cli of each platform, as its release gives
+ * them: `gh release view <SPC_VERSION> --repo crazywhalecc/static-php-cli
+ * --json assets --jq '.assets[] | .name + " " + .digest'`.
+ */
+const SPC_SHA256 = [
+    'linux-aarch64' => '675a3840dcdc4ed041fe20eaa54310ce019a9984c1c03951df9ec66df5795213',
+    'linux-x86_64' => '523ba4279c54c7a377156c0dd3a36adf92ee64b01e9a7f5e9e2ec084b8e458e5',
+    'macos-aarch64' => 'acf2f25d56d0cbf8e65aa82e5054fef555f7be7c5c38046c6e0819f266d83225',
+    'macos-x86_64' => 'e8b798048f62ca4960764196543b60ae703f7174aa418824cf542aeec1d2cd6a',
+];
 
 /**
  * The extensions Symfony, Laravel and Doctrine applications need, on the
@@ -266,7 +277,9 @@ function spc(?string $service = null): string
     $dir = variable('root_dir').'/static-php';
 
     if (!is_file("{$dir}/spc")) {
-        http_download(\sprintf('https://github.com/crazywhalecc/static-php-cli/releases/download/%s/spc-%s.tar.gz', SPC_VERSION, builder_platform()), "{$dir}/spc.tar.gz");
+        $platform = builder_platform();
+        $sha256 = SPC_SHA256[$platform] ?? throw new \RuntimeException(\sprintf('static-php-cli has no build for %s.', $platform));
+        \download\verified(\sprintf('https://github.com/crazywhalecc/static-php-cli/releases/download/%s/spc-%s.tar.gz', SPC_VERSION, $platform), "{$dir}/spc.tar.gz", $sha256);
         run_in_builder(['tar', 'xzf', 'spc.tar.gz'], builder_path('static-php'), service: $service);
         fs()->remove("{$dir}/spc.tar.gz");
     }
