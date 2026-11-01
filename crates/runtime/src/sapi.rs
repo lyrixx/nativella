@@ -105,15 +105,12 @@ impl Engine {
     ) -> Response<Vec<u8>> {
         let body = mem::take(request.body_mut());
         let mut context = RequestContext::new(app, request, body, origin);
-
-        let mut info = RequestInfo::default();
-        context.init_request_info(&mut info);
-        let strings = RequestInfoStrings::new(&info);
+        let strings = RequestInfoStrings::new(&context.info);
 
         unsafe {
             let globals = &mut *ext_php_rs_sapi_globals();
             globals.server_context = (&raw mut context).cast();
-            strings.apply(&mut globals.request_info, &info);
+            strings.apply(&mut globals.request_info);
             // PHP keeps the status of the previous request otherwise, and
             // only turns a fatal error into a 500 from a 200, as php-fpm
             // and the built-in server start every request with.
@@ -275,7 +272,17 @@ impl RequestContext {
         // Like the CLI and php-fpm without clear_env, $_SERVER starts with the
         // process environment: that is where APP_ENV and friends come from.
         let mut server_variables: Vec<(String, String)> = env::vars_os()
-            .filter_map(|(name, value)| Some((name.into_string().ok()?, value.into_string().ok()?)))
+            .filter_map(|(name, value)| {
+                if let (Some(name), Some(value)) = (name.to_str(), value.to_str()) {
+                    return Some((name.to_owned(), value.to_owned()));
+                }
+                log!(
+                    "[php] Left the environment variable {} out of $_SERVER: it is not valid UTF-8.",
+                    name.to_string_lossy()
+                );
+
+                None
+            })
             .collect();
 
         server_variables.extend(
@@ -308,14 +315,13 @@ impl RequestContext {
         }
 
         for (name, value) in headers {
+            let Ok(value) = value.to_str() else {
+                log!("[php] Dropped the request header {name}: its value is not printable ASCII.");
+                continue;
+            };
             if name == CONTENT_TYPE || name == CONTENT_LENGTH {
                 continue;
             }
-
-            let Ok(value) = value.to_str() else {
-                log!("[php] Dropped the request header {name}: its value is not valid UTF-8.");
-                continue;
-            };
 
             let value = if name == ORIGIN || name == REFERER {
                 as_php_origin(uri, value)
@@ -411,6 +417,9 @@ impl RequestContext {
     }
 }
 
+/// ext-php-rs only calls `read_post()`: the trait asks for the others, which
+/// nothing calls. The SAPI fills `SG(request_info)` itself (`Engine::handle`),
+/// has its own `read_cookies` callback, and no `fastcgi_finish_request()`.
 impl ServerContext for RequestContext {
     fn init_request_info(&self, info: &mut RequestInfo) {
         info.clone_from(&self.info);
@@ -438,14 +447,15 @@ impl ServerContext for RequestContext {
     }
 }
 
-/// The C strings `SG(request_info)` points to. They must outlive the request,
-/// PHP only borrows them.
+/// What `SG(request_info)` gets of a request: the C strings must outlive the
+/// request, PHP only borrows them.
 struct RequestInfoStrings {
     request_method: Option<CString>,
     query_string: Option<CString>,
     request_uri: Option<CString>,
     path_translated: Option<CString>,
     content_type: Option<CString>,
+    content_length: i64,
 }
 
 impl RequestInfoStrings {
@@ -459,18 +469,21 @@ impl RequestInfoStrings {
             request_uri: c_string(&info.request_uri),
             path_translated: c_string(&info.path_translated),
             content_type: c_string(&info.content_type),
+            content_length: info.content_length,
         }
     }
 
-    fn apply(&self, target: &mut sapi_request_info, info: &RequestInfo) {
+    fn apply(&self, target: &mut sapi_request_info) {
         target.request_method = as_ptr(&self.request_method);
         target.query_string = as_ptr(&self.query_string).cast_mut();
         target.request_uri = as_ptr(&self.request_uri).cast_mut();
         target.path_translated = as_ptr(&self.path_translated).cast_mut();
         target.content_type = as_ptr(&self.content_type);
-        target.content_length = info.content_length;
+        target.content_length = self.content_length;
     }
 
+    /// Forgets the strings of the request, and its cookies, which the
+    /// request context owned.
     fn clear(target: &mut sapi_request_info) {
         target.request_method = ptr::null();
         target.query_string = ptr::null_mut();
@@ -478,6 +491,7 @@ impl RequestInfoStrings {
         target.path_translated = ptr::null_mut();
         target.content_type = ptr::null();
         target.content_length = 0;
+        target.cookie_data = ptr::null_mut();
     }
 }
 

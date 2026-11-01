@@ -203,12 +203,7 @@ impl PhpRuntime {
                 request.method(),
                 request.uri()
             );
-            respond(
-                Response::builder()
-                    .status(StatusCode::SERVICE_UNAVAILABLE)
-                    .body(Vec::new())
-                    .expect("A response with a status and no header is valid."),
-            );
+            respond(crate::empty_response(StatusCode::SERVICE_UNAVAILABLE));
         }
     }
 
@@ -266,10 +261,7 @@ fn run(app: &PhpApp, queue: &mpsc::Receiver<Job>, pending: &AtomicUsize) {
                 .unwrap_or_else(|_| {
                     log!("[php] The runtime failed on a request: answering 500.");
 
-                    Response::builder()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .body(Vec::new())
-                        .expect("A response with a status and no header is valid.")
+                    crate::empty_response(StatusCode::INTERNAL_SERVER_ERROR)
                 });
                 pending.fetch_sub(1, Ordering::SeqCst);
                 respond(response);
@@ -330,10 +322,7 @@ fn serve(
         redirects::MAX_REDIRECTS
     );
 
-    Response::builder()
-        .status(StatusCode::LOOP_DETECTED)
-        .body(Vec::new())
-        .expect("A response with a status and no header is valid.")
+    crate::empty_response(StatusCode::LOOP_DETECTED)
 }
 
 /// Android's webview takes no 3xx from the runtime: wry sends the request to
@@ -349,10 +338,7 @@ fn deliverable(response: Response<Vec<u8>>) -> Response<Vec<u8>> {
         response.status().as_u16()
     );
 
-    Response::builder()
-        .status(StatusCode::BAD_GATEWAY)
-        .body(Vec::new())
-        .expect("A response with a status and no header is valid.")
+    crate::empty_response(StatusCode::BAD_GATEWAY)
 }
 
 /// The file of `public/` that `request` names, if any, as a web server serves

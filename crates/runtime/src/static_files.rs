@@ -18,12 +18,7 @@ pub(crate) fn serve(document_root: &Path, path: &str) -> Option<Response<Vec<u8>
         Err(error) => {
             log!("[static] Could not read {}: {error}.", file.display());
 
-            return Some(
-                Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body(Vec::new())
-                    .expect("A response with a status and no header is valid."),
-            );
+            return Some(crate::empty_response(StatusCode::INTERNAL_SERVER_ERROR));
         }
     };
 

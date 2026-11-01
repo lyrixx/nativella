@@ -32,3 +32,11 @@ mod static_files;
 pub use bridge::{NativeCall, NativeHandler};
 pub use redirects::is_navigation;
 pub use runtime::{PhpApp, PhpRuntime, RequestOrigin};
+
+/// A response with `status` and nothing else.
+fn empty_response(status: http::StatusCode) -> http::Response<Vec<u8>> {
+    let mut response = http::Response::new(Vec::new());
+    *response.status_mut() = status;
+
+    response
+}

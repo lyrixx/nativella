@@ -65,12 +65,7 @@ pub(crate) fn next(
             target.scheme()
         );
 
-        return Next::Respond(
-            Response::builder()
-                .status(StatusCode::BAD_GATEWAY)
-                .body(Vec::new())
-                .expect("A response with a status and no header is valid."),
-        );
+        return Next::Respond(crate::empty_response(StatusCode::BAD_GATEWAY));
     }
 
     if navigation && !same_origin {
