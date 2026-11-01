@@ -7,12 +7,12 @@ use std::fs;
 use std::path::Path;
 use std::sync::OnceLock;
 
-use http::header::CONTENT_TYPE;
+use http::header::{CONTENT_TYPE, SET_COOKIE};
 use http::{Request, Response};
 use nativella_runtime::{PhpApp, PhpRuntime, RequestOrigin};
 use serde_json::json;
 
-const SCRIPT: &str = r"<?php
+const SCRIPT: &str = r#"<?php
 switch ($_GET['case'] ?? '') {
     case 'fatal':
         ini_set('memory_limit', '8M');
@@ -36,10 +36,42 @@ switch ($_GET['case'] ?? '') {
     case 'deleted':
         header('Location: /?case=input');
         break;
+    case 'exception':
+        throw new RuntimeException('Boom.');
+    case 'exit':
+        echo 'Bye';
+        exit(3);
+    case 'cookies':
+        setcookie('first', '1');
+        setcookie('second', '2');
+        break;
+    case 'read-cookies':
+        echo $_COOKIE['first'] ?? '', ' ', $_COOKIE['second'] ?? '';
+        break;
+    case 'headers':
+        header('Bad Name: 1');
+        header("X-Latin-1: caf\xe9");
+        header('X-Good: 1');
+        echo 'Headers';
+        break;
+    case 'origin':
+        echo json_encode([
+            $_SERVER['NATIVELLA_INTERNAL'] ?? null,
+            $_SERVER['NATIVELLA_WINDOW'] ?? null,
+            $_SERVER['HTTP_NATIVELLA_INTERNAL'] ?? null,
+        ]);
+        break;
+    case 'form':
+        $note = $_FILES['note'] ?? null;
+        echo json_encode([
+            'post' => $_POST,
+            'file' => $note ? [$note['name'], file_get_contents($note['tmp_name'])] : null,
+        ]);
+        break;
     default:
         echo 'Hello';
 }
-";
+"#;
 
 fn runtime() -> &'static PhpRuntime {
     static RUNTIME: OnceLock<PhpRuntime> = OnceLock::new();
@@ -92,6 +124,87 @@ fn a_fatal_error_answers_a_500_without_showing_itself() {
     let next = get("/");
     assert_eq!(next.status(), 200);
     assert_eq!(text(&next), "Hello");
+}
+
+#[test]
+fn an_uncaught_exception_answers_a_500_without_showing_itself() {
+    let failed = get("/?case=exception");
+
+    assert_eq!(failed.status(), 500);
+    assert!(!text(&failed).contains("Boom"), "{}", text(&failed));
+    assert_eq!(text(&get("/")), "Hello");
+}
+
+#[test]
+fn exit_ends_the_script_not_the_response() {
+    let response = get("/?case=exit");
+
+    assert_eq!(response.status(), 200);
+    assert_eq!(text(&response), "Bye");
+    assert_eq!(text(&get("/")), "Hello");
+}
+
+#[test]
+fn every_cookie_reaches_the_next_request() {
+    let set = get("/?case=cookies");
+
+    assert_eq!(set.headers().get_all(SET_COOKIE).iter().count(), 2);
+    assert_eq!(text(&get("/?case=read-cookies")), "1 2");
+}
+
+#[test]
+fn an_invalid_header_is_dropped_alone() {
+    let response = get("/?case=headers");
+
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.headers()["x-good"], "1");
+    assert!(!response.headers().contains_key("x-latin-1"));
+    assert_eq!(text(&response), "Headers");
+}
+
+#[test]
+fn a_page_cannot_pass_for_the_runtime() {
+    let forged = send(
+        Request::get("php://localhost/?case=origin")
+            .header("Nativella-Internal", "1")
+            .header("Nativella-Window", "settings")
+            .body(Vec::new())
+            .unwrap(),
+    );
+    assert_eq!(text(&forged), r#"[null,"main","1"]"#);
+
+    let internal = runtime().dispatch_blocking(
+        Request::get("php://localhost/?case=origin")
+            .body(Vec::new())
+            .unwrap(),
+        RequestOrigin::Internal,
+    );
+    assert_eq!(text(&internal), r#"["1",null,null]"#);
+}
+
+#[test]
+fn php_reads_forms_and_files() {
+    let form = send(
+        Request::post("php://localhost/?case=form")
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body(b"title=Groceries&tags%5B%5D=milk&tags%5B%5D=eggs".to_vec())
+            .unwrap(),
+    );
+    assert_eq!(
+        text(&form),
+        r#"{"post":{"title":"Groceries","tags":["milk","eggs"]},"file":null}"#
+    );
+
+    let multipart = send(
+        Request::post("php://localhost/?case=form")
+            .header(CONTENT_TYPE, "multipart/form-data; boundary=boundary")
+            .body(b"--boundary\r\nContent-Disposition: form-data; name=\"title\"\r\n\r\nGroceries\r\n--boundary\r\nContent-Disposition: form-data; name=\"note\"; filename=\"note.txt\"\r\nContent-Type: text/plain\r\n\r\nMilk, eggs\r\n--boundary--\r\n".to_vec())
+            .unwrap(),
+    );
+    assert_eq!(
+        text(&multipart),
+        r#"{"post":{"title":"Groceries"},"file":["note.txt","Milk, eggs"]}"#
+    );
 }
 
 #[test]
