@@ -34,4 +34,4 @@ $window->center();
 
 ## Cursor
 
-`cursorPosition()` returns a `Nativella\Screen\Point`, with `x` and `y` in physical pixels, from the top left corner of the desktop. Divide by the `scaleFactor` of the display to compare it with window positions, which are logical.
+`cursorPosition()` returns a `Nativella\Screen\Point`, with `x` and `y` in physical pixels, from the top left corner of the desktop: the one of the primary display on Windows and macOS, of the leftmost display on X11. Divide by the `scaleFactor` of the display to compare it with window positions, which are logical.
