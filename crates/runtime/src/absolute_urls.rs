@@ -108,20 +108,40 @@ fn replace_origin(haystack: &[u8], from: &[u8], to: &[u8], kind: Kind) -> Option
 }
 
 /// Whether what precedes a URL makes it one to load or link to: an HTML URL
-/// attribute (`href="`, `src='`, `action=`) or a CSS `url(`.
+/// attribute (`href="`, `src='`, `action=`), a candidate of a `srcset` after
+/// the first one (`srcset="a.png 1x, `) or a CSS `url(`.
 fn is_url_context(before: &[u8], kind: Kind) -> bool {
-    let before = before
+    let unquoted = before
         .strip_suffix(b"\"")
         .or_else(|| before.strip_suffix(b"'"))
         .unwrap_or(before);
 
-    if before.len() >= 4 && before[before.len() - 4..].eq_ignore_ascii_case(b"url(") {
+    if unquoted.len() >= 4 && unquoted[unquoted.len() - 4..].eq_ignore_ascii_case(b"url(") {
         return true;
     }
     if kind == Kind::Css {
         return false;
     }
 
+    is_attribute(unquoted, URL_ATTRIBUTES) || is_next_srcset_candidate(before)
+}
+
+/// Whether `before` ends inside a quoted `srcset`, past the comma that
+/// separates two candidates.
+fn is_next_srcset_candidate(before: &[u8]) -> bool {
+    let Some(before) = before.trim_ascii_end().strip_suffix(b",") else {
+        return false;
+    };
+    let Some(quote) = before.iter().rposition(|byte| matches!(byte, b'"' | b'\'')) else {
+        return false;
+    };
+
+    // Within the value of the attribute: no tag ends in between.
+    !before[quote..].contains(&b'>') && is_attribute(&before[..quote], &[b"srcset"])
+}
+
+/// Whether `before` ends with `name=`, `name` one of `names`.
+fn is_attribute(before: &[u8], names: &[&[u8]]) -> bool {
     let Some(before) = before.strip_suffix(b"=") else {
         return false;
     };
@@ -133,10 +153,7 @@ fn is_url_context(before: &[u8], kind: Kind) -> bool {
     // `data-href=` is no URL attribute: the name is a whole attribute.
     let whole = name_start > 0 && before[name_start - 1].is_ascii_whitespace();
 
-    whole
-        && URL_ATTRIBUTES
-            .iter()
-            .any(|attribute| attribute.eq_ignore_ascii_case(name))
+    whole && names.iter().any(|known| known.eq_ignore_ascii_case(name))
 }
 
 #[cfg(test)]
@@ -170,6 +187,22 @@ mod tests {
         assert_eq!(
             page,
             r#"<link rel="stylesheet" href="php://localhost/_wdt/styles"><a href='php://localhost'>Home</a><form action=php://localhost/save><img SRC="php://localhost/logo.png">"#
+        );
+    }
+
+    #[test]
+    fn every_candidate_of_a_srcset() {
+        let page = rewritten(
+            "php://localhost/",
+            response(
+                "text/html",
+                r#"<img srcset="http://localhost/a.png 1x, http://localhost/b.png 2x"><img srcset='http://localhost/a.png 480w,http://localhost/b.png 800w'><img alt="1x, http://localhost/c.png"><img srcset="a.png"> 1x, http://localhost/d.png"#,
+            ),
+        );
+
+        assert_eq!(
+            page,
+            r#"<img srcset="php://localhost/a.png 1x, php://localhost/b.png 2x"><img srcset='php://localhost/a.png 480w,php://localhost/b.png 800w'><img alt="1x, http://localhost/c.png"><img srcset="a.png"> 1x, http://localhost/d.png"#
         );
     }
 
