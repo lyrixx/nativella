@@ -1,6 +1,6 @@
 # Notifications
 
-`Nativella\Notification` shows desktop notifications.
+`Nativella\Notification` shows the notifications of the system, on the desktop and on phones.
 
 ```php
 $notification->send('Export finished', 'notes.zip is in your Downloads folder.');

@@ -1,6 +1,6 @@
 {
     "name": "nativella/laravel",
-    "description": "Runs Laravel applications as desktop applications with Nativella.",
+    "description": "Runs Laravel applications as desktop and mobile applications with Nativella.",
     "type": "library",
     "keywords": ["desktop", "laravel", "native", "nativella"],
     "license": "MIT",

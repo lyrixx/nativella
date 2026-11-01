@@ -36,18 +36,19 @@ Nativella is young and experimental. Linux is the platform it is built and teste
 - [Menus](menus.md): the application menu and context menus.
 - [Tray](tray.md): an icon in the system tray, with its menu.
 - [Dialogs](dialogs.md): message boxes, confirmations and file pickers.
-- [Notifications](notifications.md): desktop notifications.
-- [Clipboard](clipboard.md): read and write text and HTML.
+- [Notifications](notifications.md): the notifications of the system.
+- [Clipboard](clipboard.md): read and write text, HTML and images.
 - [Global shortcuts](global-shortcuts.md): keyboard shortcuts that work in the background.
 - [Settings](settings.md): a key-value store for preferences.
 - [Secrets](secrets.md): tokens and passwords in the keychain of the system.
 - [Timers](timers.md): wake PHP up for periodic work.
 - [Child processes](child-processes.md): start processes, with their output as events.
-- [Phone APIs](phone-apis.md): haptics, geolocation, biometrics, a barcode scanner and the share sheet, on phones.
+- [Phone APIs](phone-apis.md): haptics, geolocation, biometrics, a barcode scanner, NFC tags and the share sheet, on phones.
 - [Shell](shell.md): open URLs and files with the applications of the system.
 - [Screens](screens.md): displays, work areas and the cursor.
 - [System](system.md): the operating system, the locale and the theme.
-- [Power](power.md): the battery, the power source, waking from sleep.
+- [Power](power.md): the battery, the power source, waking from sleep, keeping the computer awake.
+- [Updates](updates.md): standalone executables that update themselves from your releases.
 - [Pages and JavaScript](javascript.md): `nativella:*` DOM events, `fetch()`, context menus.
 
 ## Under the hood

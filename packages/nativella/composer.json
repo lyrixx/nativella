@@ -1,6 +1,6 @@
 {
     "name": "nativella/nativella",
-    "description": "The desktop APIs of Nativella for PHP: windows, menus, dialogs, notifications, clipboard, tray…",
+    "description": "The native APIs of Nativella for PHP, on the desktop and on phones: windows, menus, dialogs, notifications, clipboard, tray…",
     "type": "library",
     "keywords": [
         "desktop",

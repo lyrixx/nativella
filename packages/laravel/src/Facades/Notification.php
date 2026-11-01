@@ -5,8 +5,8 @@ namespace Nativella\Laravel\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * Desktop notifications. Not Laravel's notifications: import this class, or
- * alias it.
+ * The notifications of the system, on the desktop and on phones. Not
+ * Laravel's notifications: import this class, or alias it.
  *
  * @method static void send(string $title, ?string $body = null, ?string $reference = null)
  *

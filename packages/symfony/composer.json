@@ -1,6 +1,6 @@
 {
     "name": "nativella/symfony-bundle",
-    "description": "Runs Symfony applications as desktop applications with Nativella.",
+    "description": "Runs Symfony applications as desktop and mobile applications with Nativella.",
     "type": "symfony-bundle",
     "keywords": ["desktop", "native", "nativella", "symfony"],
     "license": "MIT",
