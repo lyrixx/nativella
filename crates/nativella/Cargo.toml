@@ -77,6 +77,8 @@ signal-hook = "0.4"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { version = "3", features = ["crypto-rust", "sync-secret-service"] }
+# What Debian packages list the digests of their files with (src/deb.rs).
+md-5 = "0.11"
 # What tauri-plugin-notification uses, for the clicks it does not report.
 notify-rust = "4"
 zbus = "5"

@@ -14,6 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use flate2::Compression;
 use flate2::write::GzEncoder;
+use md5::{Digest, Md5};
 use serde_json::Value;
 
 use crate::apk::icon::Icon;
@@ -110,11 +111,10 @@ pub fn build(project: &Project, output: &Path) -> io::Result<LeftOut> {
         .div_ceil(1024);
     let control_text = control.text(installed_kib);
     let data = tar_gz(&files)?;
-    let control_archive = tar_gz(&[DataFile::new(
-        "control".to_owned(),
-        control_text.into_bytes(),
-        0o644,
-    )])?;
+    let control_archive = tar_gz(&[
+        DataFile::new("control".to_owned(), control_text.into_bytes(), 0o644),
+        DataFile::new("md5sums".to_owned(), md5sums(&files).into_bytes(), 0o644),
+    ])?;
 
     let mut target = Output::create(output)?;
     let archive = target.file();
@@ -212,6 +212,22 @@ fn desktop_entry(manifest: &Manifest, control: &Control) -> String {
     }
 
     entry
+}
+
+/// The MD5 of each file, as `debsums` checks them against the installed
+/// files: `<digest>  <path>`, a line each.
+fn md5sums(files: &[DataFile]) -> String {
+    files
+        .iter()
+        .map(|file| {
+            let digest: String = Md5::digest(&file.contents)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect();
+
+            format!("{digest}  {}\n", file.path)
+        })
+        .collect()
 }
 
 /// `value` on one line: control fields and desktop entries end at a newline.
@@ -392,6 +408,19 @@ mod tests {
         assert!(control(&notes, &json!({})).is_err());
         notes.version = "1.2.0 beta".to_owned();
         assert!(control(&notes, &json!({})).is_err());
+    }
+
+    #[test]
+    fn the_digests_of_the_files() {
+        let files = [
+            DataFile::new("usr/bin/notes".to_owned(), b"ELF".to_vec(), 0o755),
+            DataFile::new("usr/share/doc/notes/empty".to_owned(), Vec::new(), 0o644),
+        ];
+
+        assert_eq!(
+            md5sums(&files),
+            "b61b2d6c6fa62903b882aaa53452c111  usr/bin/notes\nd41d8cd98f00b204e9800998ecf8427e  usr/share/doc/notes/empty\n"
+        );
     }
 
     #[test]
