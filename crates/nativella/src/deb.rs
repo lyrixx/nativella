@@ -7,7 +7,7 @@
 //! version of the format, `control.tar.gz`, what dpkg reads, and
 //! `data.tar.gz`, the files, from the root of the system.
 
-use std::fs::{self, File};
+use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -19,6 +19,7 @@ use serde_json::Value;
 use crate::apk::icon::Icon;
 use crate::embedded::{self, LeftOut};
 use crate::notices;
+use crate::output::Output;
 use crate::project::{Manifest, Project};
 
 /// The sizes of the icon desktops pick from, in pixels.
@@ -144,14 +145,13 @@ pub fn build(project: &Project, output: &Path) -> io::Result<LeftOut> {
         0o644,
     )])?;
 
-    if let Some(parent) = output.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let mut archive = File::create(output)?;
+    let mut target = Output::create(output)?;
+    let archive = target.file();
     archive.write_all(b"!<arch>\n")?;
-    ar_member(&mut archive, "debian-binary", b"2.0\n")?;
-    ar_member(&mut archive, "control.tar.gz", &control_archive)?;
-    ar_member(&mut archive, "data.tar.gz", &data)?;
+    ar_member(archive, "debian-binary", b"2.0\n")?;
+    ar_member(archive, "control.tar.gz", &control_archive)?;
+    ar_member(archive, "data.tar.gz", &data)?;
+    target.finish()?;
 
     Ok(left_out)
 }

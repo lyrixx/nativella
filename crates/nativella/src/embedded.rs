@@ -29,6 +29,7 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use serde::{Deserialize, Serialize};
 
+use crate::output::Output;
 use crate::project::{Manifest, Project};
 
 const MAGIC: &[u8; 8] = b"NTVLLA01";
@@ -157,6 +158,34 @@ pub fn packaged() -> io::Result<Option<Packaged>> {
 /// Writes a standalone executable for `project` to `output`. Returns what it
 /// left out of the project.
 pub fn build(project: &Project, output: &Path) -> io::Result<LeftOut> {
+    let mut target = Output::create(output)?;
+    // What the packaging writes, should it be inside the project: the
+    // executable, and the previous one.
+    let staging = target.staging().to_owned();
+    let mut excluded = vec![staging.as_path()];
+    if output.exists() {
+        excluded.push(output);
+    }
+    let left_out = write_executable(project, target.file(), &excluded)?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&staging, fs::Permissions::from_mode(0o755))?;
+    }
+    target.finish()?;
+
+    Ok(left_out)
+}
+
+/// Writes a standalone executable for `project` to `target`: this
+/// executable, then the bundle, which leaves out the `excluded` files.
+/// Returns what else it left out of the project.
+pub(crate) fn write_executable(
+    project: &Project,
+    target: &mut dyn Write,
+    excluded: &[&Path],
+) -> io::Result<LeftOut> {
     let mut base = File::open(env::current_exe()?)?;
     if Bundle::read(&mut base)?.is_some() {
         return Err(io::Error::other(
@@ -164,18 +193,9 @@ pub fn build(project: &Project, output: &Path) -> io::Result<LeftOut> {
         ));
     }
     base.seek(SeekFrom::Start(0))?;
+    io::copy(&mut base, target)?;
 
-    let mut target = create(output)?;
-    io::copy(&mut base, &mut target)?;
-    let left_out = write_bundle(project, &mut target, &[output])?;
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(output, fs::Permissions::from_mode(0o755))?;
-    }
-
-    Ok(left_out)
+    write_bundle(project, target, excluded)
 }
 
 impl<R: Read + Seek> Bundle<R> {
@@ -312,14 +332,6 @@ pub fn remove_other_builds(current: &Path) {
 /// A staging directory that old belongs to an extraction that was killed:
 /// extracting takes seconds.
 const ABANDONED: Duration = Duration::from_secs(3600);
-
-fn create(output: &Path) -> io::Result<File> {
-    if let Some(parent) = output.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    File::create(output)
-}
 
 /// Writes the bundle of `project` to `target`, as it goes. The `excluded`
 /// files, which must exist, are left out, should they be inside the project:

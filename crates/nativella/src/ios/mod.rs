@@ -40,6 +40,7 @@ use self::certificate::Certificate;
 use self::profile::Profile;
 use self::signature::Signer;
 use crate::embedded::{self, LeftOut, PACKAGED_BUNDLE};
+use crate::output::{self, Output};
 use crate::project::{Permission, Project};
 use crate::zip::{self, Entry};
 
@@ -89,6 +90,7 @@ pub fn package(
 ) -> io::Result<LeftOut> {
     let version = bundle_version(&project.manifest.version)?;
 
+    output::refuse_input(output, template)?;
     let mut template_file = File::open(template).map_err(|error| {
         io::Error::new(
             error.kind(),
@@ -503,17 +505,13 @@ fn replace_app(app_dir: &Path, output: &Path) -> io::Result<()> {
 /// Writes the IPA of the app in `staging/Payload/`: a ZIP archive of it,
 /// with the Unix permissions of its files.
 fn write_ipa(staging: &Path, output: &Path) -> io::Result<()> {
-    let mut ipa = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(output)?;
-    let mut writer = zip::Writer::new(&mut ipa);
+    let mut target = Output::create(output)?;
+    let mut writer = zip::Writer::new(target.file());
     add_to_ipa(&mut writer, staging, Path::new("Payload"))?;
     let unfinished = writer.finish()?;
+    zip::close(target.file(), &unfinished)?;
 
-    zip::close(&mut ipa, &unfinished)
+    target.finish()
 }
 
 /// Adds the directory `relative` of `root` to the IPA, then what it holds,

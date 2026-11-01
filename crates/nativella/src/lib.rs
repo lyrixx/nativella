@@ -27,6 +27,7 @@ mod native;
 #[cfg(any(test, all(mobile, feature = "nfc")))]
 mod nfc_tags;
 pub mod notices;
+mod output;
 pub mod project;
 #[cfg(desktop)]
 mod reload;

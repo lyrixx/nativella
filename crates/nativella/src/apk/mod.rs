@@ -27,13 +27,14 @@ mod resources;
 mod signing;
 mod string_pool;
 
-use std::fs::{self, File, OpenOptions};
+use std::fs::File;
 use std::io;
 use std::path::Path;
 
 use self::icon::Icon;
 pub use self::signing::{KEY_PASSWORD, Key};
 use crate::embedded::{self, LeftOut, PACKAGED_BUNDLE};
+use crate::output::{self, Output};
 use crate::project::{Permission, Project};
 use crate::zip;
 
@@ -56,6 +57,7 @@ pub fn package(
     let version_code = version_code(&project.manifest.version)?;
     let icon = Icon::of(project)?;
 
+    output::refuse_input(output, template)?;
     let mut template_file = File::open(template).map_err(|error| {
         io::Error::new(
             error.kind(),
@@ -106,17 +108,18 @@ pub fn package(
         },
     )?;
 
-    if let Some(parent) = output.parent() {
-        fs::create_dir_all(parent)?;
+    let mut target = Output::create(output)?;
+    // The bundle leaves out what the packaging writes and reads, should it be
+    // inside the project: the APK, the previous one, the template and the
+    // key.
+    let staging = target.staging().to_owned();
+    let mut excluded = vec![staging.as_path(), template, key.path()];
+    if output.exists() {
+        excluded.push(output);
     }
-    let mut apk = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(output)?;
+    let apk = target.file();
 
-    let mut writer = zip::Writer::new(&mut apk);
+    let mut writer = zip::Writer::new(apk);
     for entry in &entries {
         if entry.name == MANIFEST {
             writer.add_deflated(MANIFEST, &manifest)?;
@@ -128,15 +131,14 @@ pub fn package(
         }
     }
     // Stored, for the library to read it in place, and written as it goes.
-    // It leaves out what the packaging writes and reads, should it be inside
-    // the project: the APK, which exists by now, the template and the key.
     let mut left_out = LeftOut::default();
     writer.add_stored_with(&asset, |out| {
-        left_out = embedded::write_bundle(project, out, &[output, template, key.path()])?;
+        left_out = embedded::write_bundle(project, out, &excluded)?;
         Ok(())
     })?;
     let unfinished = writer.finish()?;
-    signing::sign(&mut apk, &unfinished, key)?;
+    signing::sign(apk, &unfinished, key)?;
+    target.finish()?;
 
     Ok(left_out)
 }
@@ -349,6 +351,7 @@ fn version_code(version: &str) -> io::Result<u32> {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::{self, OpenOptions};
     use std::io::Write;
     use std::path::PathBuf;
 
@@ -584,6 +587,19 @@ mod tests {
         // An application is no template.
         let error = package(&project, &output, &root.join("again.apk"), &key).unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+
+        // The template stays a template.
+        let template_path = project_dir.join("template.apk");
+        let error = package(&project, &template_path, &template_path, &key).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        assert!(error.to_string().contains("another output"), "{error}");
+        let mut file = File::open(&template_path).unwrap();
+        assert!(
+            !zip::entries(&mut file)
+                .unwrap()
+                .iter()
+                .any(|entry| entry.name.ends_with(PACKAGED_BUNDLE))
+        );
 
         // Nor is an APK with an adaptive icon, which Nativella does not draw.
         let adaptive = root.join("adaptive.apk");
