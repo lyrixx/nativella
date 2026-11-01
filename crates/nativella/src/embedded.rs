@@ -206,7 +206,7 @@ pub(crate) fn write_executable(
 }
 
 impl<R: Read + Seek> Bundle<R> {
-    fn read(mut reader: R) -> io::Result<Option<Self>> {
+    pub(crate) fn read(mut reader: R) -> io::Result<Option<Self>> {
         let length = reader.seek(SeekFrom::End(0))?;
         if length < TRAILER_LENGTH {
             return Ok(None);

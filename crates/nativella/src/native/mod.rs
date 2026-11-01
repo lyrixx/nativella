@@ -70,6 +70,9 @@ pub(crate) struct State {
     /// Where the releases of the application are: `updater.*`.
     #[cfg(desktop)]
     updates: Option<Updates>,
+    /// What `updater.install` did since the start.
+    #[cfg(desktop)]
+    pub(crate) updater: std::sync::Arc<updater::Progress>,
     pub(crate) settings: settings::Store,
     pub(crate) timers: timer::Timers,
     /// Menu item id → the URL its click navigates to.
@@ -115,6 +118,8 @@ impl State {
             default_window,
             #[cfg(desktop)]
             updates,
+            #[cfg(desktop)]
+            updater: std::sync::Arc::default(),
             #[cfg(desktop)]
             menu_links: Mutex::default(),
             #[cfg(desktop)]
