@@ -14,6 +14,8 @@ use std::io;
 
 use plist::{Dictionary, Value};
 
+use crate::binary;
+
 const BOOLEAN: u8 = 0x01;
 const INTEGER: u8 = 0x02;
 const UTF8_STRING: u8 = 0x0c;
@@ -34,10 +36,10 @@ pub fn xml(entitlements: &Dictionary) -> io::Result<Vec<u8>> {
 
 /// The entitlements as DER.
 pub fn der(entitlements: &Dictionary) -> io::Result<Vec<u8>> {
-    let mut content = tlv(INTEGER, &[1]);
+    let mut content = binary::der(INTEGER, &[1]);
     content.extend(dictionary(entitlements)?);
 
-    Ok(tlv(ENTITLEMENTS, &content))
+    Ok(binary::der(ENTITLEMENTS, &content))
 }
 
 fn dictionary(dictionary: &Dictionary) -> io::Result<Vec<u8>> {
@@ -46,30 +48,30 @@ fn dictionary(dictionary: &Dictionary) -> io::Result<Vec<u8>> {
 
     let mut content = Vec::new();
     for (key, value) in entries {
-        let mut entry = tlv(UTF8_STRING, key.as_bytes());
+        let mut entry = binary::der(UTF8_STRING, key.as_bytes());
         entry.extend(value_of(key, value)?);
-        content.extend(tlv(SEQUENCE, &entry));
+        content.extend(binary::der(SEQUENCE, &entry));
     }
 
-    Ok(tlv(DICTIONARY, &content))
+    Ok(binary::der(DICTIONARY, &content))
 }
 
 fn value_of(key: &str, value: &Value) -> io::Result<Vec<u8>> {
     Ok(match value {
-        Value::Boolean(value) => tlv(BOOLEAN, &[if *value { 0xff } else { 0 }]),
+        Value::Boolean(value) => binary::der(BOOLEAN, &[if *value { 0xff } else { 0 }]),
         Value::Integer(integer) => {
             let integer = integer
                 .as_signed()
                 .ok_or_else(|| unsupported(key, "an integer greater than a signed 64-bit one"))?;
-            tlv(INTEGER, &integer_bytes(integer))
+            binary::der(INTEGER, &integer_bytes(integer))
         }
-        Value::String(string) => tlv(UTF8_STRING, string.as_bytes()),
+        Value::String(string) => binary::der(UTF8_STRING, string.as_bytes()),
         Value::Array(array) => {
             let mut content = Vec::new();
             for value in array {
                 content.extend(value_of(key, value)?);
             }
-            tlv(SEQUENCE, &content)
+            binary::der(SEQUENCE, &content)
         }
         Value::Dictionary(nested) => dictionary(nested)?,
         _ => return Err(unsupported(key, "data, a date or a real number")),
@@ -89,26 +91,6 @@ fn integer_bytes(integer: i64) -> Vec<u8> {
     }
 
     bytes[start..].to_vec()
-}
-
-/// A DER element: its tag, its length, its content.
-fn tlv(tag: u8, content: &[u8]) -> Vec<u8> {
-    let mut element = vec![tag];
-    let length = content.len();
-    if length < 0x80 {
-        element.push(length as u8);
-    } else {
-        let bytes = length.to_be_bytes();
-        let bytes = &bytes[bytes
-            .iter()
-            .position(|&byte| byte != 0)
-            .unwrap_or(bytes.len() - 1)..];
-        element.push(0x80 | bytes.len() as u8);
-        element.extend(bytes);
-    }
-    element.extend(content);
-
-    element
 }
 
 fn unsupported(key: &str, what: &str) -> io::Error {
@@ -179,13 +161,11 @@ mod tests {
     }
 
     #[test]
-    fn integers_and_lengths() {
+    fn integers() {
         assert_eq!(integer_bytes(0), [0]);
         assert_eq!(integer_bytes(127), [0x7f]);
         assert_eq!(integer_bytes(128), [0, 0x80]);
         assert_eq!(integer_bytes(-128), [0x80]);
         assert_eq!(integer_bytes(-129), [0xff, 0x7f]);
-        assert_eq!(tlv(0x04, &[0; 200])[..3], [0x04, 0x81, 200]);
-        assert_eq!(tlv(0x04, &[0; 300])[..4], [0x04, 0x82, 0x01, 0x2c]);
     }
 }

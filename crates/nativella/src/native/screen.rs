@@ -11,15 +11,15 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
     Some(match method {
         "all" => app.available_monitors().map_err(failed).map(|monitors| {
             let primary = app.primary_monitor().ok().flatten();
-            let screens: Vec<Value> = monitors
+            let displays: Vec<Value> = monitors
                 .iter()
                 .map(|monitor| display(monitor, primary.as_ref()))
                 .collect();
 
-            json!({ "screens": screens })
+            json!({ "displays": displays })
         }),
         "primary" => app.primary_monitor().map_err(failed).map(|monitor| {
-            json!({ "screen": monitor.as_ref().map(|monitor| display(monitor, Some(monitor))) })
+            json!({ "display": monitor.as_ref().map(|monitor| display(monitor, Some(monitor))) })
         }),
         "cursorPosition" => app.cursor_position().map_err(failed).map(|position| {
             json!({ "x": position.x, "y": position.y })

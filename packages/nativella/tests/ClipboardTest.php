@@ -17,7 +17,7 @@ final class ClipboardTest extends TestCase
         $clipboard->writeImage($png);
         $client->respond('clipboard.readImage', ['png' => base64_encode($png)]);
 
-        $this->assertSame(['png' => base64_encode($png)], $client->calls('clipboard.writeImage')[0]['payload']);
+        $this->assertSame(['png' => base64_encode($png)], $client->calls('clipboard.writeImage')[0]->payload);
         $this->assertSame($png, $clipboard->readImage());
     }
 

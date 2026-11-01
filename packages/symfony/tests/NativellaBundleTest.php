@@ -3,6 +3,7 @@
 namespace Nativella\Symfony\Tests;
 
 use Nativella\Client;
+use Nativella\Client\Call;
 use Nativella\Client\FakeClient;
 use Nativella\Event\MenuItemClicked;
 use Nativella\Symfony\Tests\Fixtures\RecordingListener;
@@ -33,7 +34,7 @@ final class NativellaBundleTest extends TestCase
         $this->service(Window::class, 'test.'.Window::class)->setTitle('Hello');
 
         $this->assertInstanceOf(FakeClient::class, $this->service(Client::class));
-        $this->assertSame([['method' => 'window.setTitle', 'payload' => ['title' => 'Hello', 'window' => null]]], $this->service(FakeClient::class)->calls());
+        $this->assertEquals([new Call('window.setTitle', ['title' => 'Hello', 'window' => null])], $this->service(FakeClient::class)->calls());
     }
 
     public function testAnInternalRequestDispatchesTheTypedEvent(): void

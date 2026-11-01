@@ -8,7 +8,9 @@
 use App\Controller\SnippetController;
 use App\Controller\SystemController;
 use App\Database;
+use App\Http\CsrfToken;
 use App\Http\Request;
+use App\Http\Response;
 use App\Http\Router;
 use App\Import\SnippetImporter;
 use App\Native\DeleteConfirmation;
@@ -69,8 +71,17 @@ if (null !== $event = EventFactory::fromGlobals()) {
 $schema->migrateIfMissing();
 
 $request = Request::fromGlobals();
+$csrfToken = new CsrfToken();
 $flash = new Flash();
-$view = new View($request->path, $flash, $projectDir.'/templates');
+$view = new View($csrfToken, $request->path, $flash, $projectDir.'/templates');
+
+// Every form that posts changes something: in a browser, a page of another
+// site must not post it for the user.
+if ('POST' === $request->method && !$csrfToken->isValid($request)) {
+    new Response('The form expired: reload the page, and send it again.', 403, ['Content-Type' => 'text/plain; charset=UTF-8'])->send();
+
+    return;
+}
 
 $snippets = new SnippetController(new DeleteConfirmation($native), $flash, $importer, $native, $repository, $view);
 $system = new SystemController($connection, $databasePath, $native, $view);

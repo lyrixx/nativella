@@ -1,0 +1,4 @@
+contact_links:
+    - name: Vulnerability
+      url: https://github.com/lyrixx/nativella/security/advisories/new
+      about: Report it privately, not in an issue (see SECURITY.md).

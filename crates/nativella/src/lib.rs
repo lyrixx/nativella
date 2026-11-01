@@ -11,6 +11,8 @@ mod absolute_urls;
 pub mod apk;
 #[cfg(desktop)]
 mod before_unload;
+#[cfg(desktop)]
+mod binary;
 #[cfg(any(test, target_os = "android"))]
 mod deadline;
 #[cfg(target_os = "linux")]
@@ -27,6 +29,7 @@ mod native;
 #[cfg(any(test, all(mobile, feature = "nfc")))]
 mod nfc_tags;
 pub mod notices;
+pub mod output;
 pub mod project;
 #[cfg(desktop)]
 mod reload;
@@ -58,6 +61,17 @@ pub(crate) const APP_URL: &str = "http://php.localhost/";
 
 /// The label of the window opened when PHP opens none at boot.
 pub(crate) const MAIN_WINDOW: &str = "main";
+
+/// Whether Nativella set `NO_AT_BRIDGE` for itself, see [`start`].
+#[cfg(target_os = "linux")]
+static SETS_NO_AT_BRIDGE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether `NO_AT_BRIDGE` is Nativella's own: the processes it starts, and
+/// the browser it opens, do not get it.
+#[cfg(target_os = "linux")]
+pub(crate) fn sets_no_at_bridge() -> bool {
+    SETS_NO_AT_BRIDGE.load(std::sync::atomic::Ordering::Relaxed)
+}
 
 /// Where the PHP project comes from.
 enum Source {
@@ -129,11 +143,12 @@ fn start(
     // WebKitGTK 2.52 (Ubuntu 26.04) segfaults in the AT-SPI bridge
     // (spi_register_object_to_path) as soon as a page loads, with or without
     // PHP: see examples/plain.rs. Disabling the bridge avoids it, at the cost
-    // of screen reader support.
+    // of screen reader support, in the application only.
     #[cfg(target_os = "linux")]
     if env::var_os("NO_AT_BRIDGE").is_none() {
         // SAFETY: no other thread exists yet.
         unsafe { env::set_var("NO_AT_BRIDGE", "1") };
+        SETS_NO_AT_BRIDGE.store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
     let mut context = tauri::generate_context!();
@@ -144,9 +159,14 @@ fn start(
     config.version = Some(manifest.version.clone());
     let package_info = context.package_info_mut();
     package_info.name.clone_from(&manifest.name);
-    if let Ok(version) = manifest.version.parse() {
-        package_info.version = version;
-    }
+    // What updates compare: project.rs checks it, but a bundle may come from
+    // elsewhere.
+    package_info.version = manifest.version.parse().map_err(|error| {
+        format!(
+            "The version \"{}\" of the application is not a semantic version: {error}.",
+            manifest.version
+        )
+    })?;
     if !manifest.deep_links.is_empty() {
         context.config_mut().plugins.0.insert(
             "deep-link".to_owned(),
@@ -156,9 +176,14 @@ fn start(
     if let Source::Project(project) = &source
         && let Some(icon) = project.icon()
     {
-        let icon = tauri::image::Image::from_path(&icon)
-            .map_err(|error| format!("Cannot load the icon {}: {error}", icon.display()))?;
-        context.set_default_window_icon(Some(icon));
+        // The windows go without it rather than the application.
+        match tauri::image::Image::from_path(&icon) {
+            Ok(image) => context.set_default_window_icon(Some(image)),
+            Err(error) => eprintln!(
+                "[nativella] Cannot load the icon {}: {error}",
+                icon.display()
+            ),
+        }
     }
 
     // What the pages may ask of the webview, getUserMedia() for a start.
@@ -268,7 +293,6 @@ fn start(
         .plugin(tauri_plugin_os::init())
         .register_asynchronous_uri_scheme_protocol("php", |context, request, responder| {
             #[cfg(target_os = "android")]
-            #[cfg(target_os = "android")]
             let (request, page) = {
                 let mut request = request;
                 as_page_origin(&mut request);
@@ -352,12 +376,21 @@ fn start(
                 Err(error) => eprintln!("[nativella] Unknown time zone, PHP uses UTC: {error}."),
             }
 
-            let php_app = php_app
-                .with_cookie_file(data_dir.join(".nativella-cookies"))
-                .with_server_variable("NATIVELLA_DATA_DIR", data_dir.to_string_lossy())
-                .with_server_variable("NATIVELLA_SECRET", secret::load(&data_dir)?)
-                .with_server_variable("NATIVELLA_PLATFORM", env::consts::OS)
-                .with_server_variable("NATIVELLA_VERSION", env!("CARGO_PKG_VERSION"));
+            // What PHP finds in $_SERVER, and the processes it starts in
+            // their environment: a worker opens the same database.
+            let variables = vec![
+                (
+                    "NATIVELLA_DATA_DIR",
+                    data_dir.to_string_lossy().into_owned(),
+                ),
+                ("NATIVELLA_SECRET", secret::load(&data_dir)?),
+                ("NATIVELLA_PLATFORM", env::consts::OS.to_owned()),
+                ("NATIVELLA_VERSION", env!("CARGO_PKG_VERSION").to_owned()),
+            ];
+            let mut php_app = php_app.with_cookie_file(data_dir.join(".nativella-cookies"));
+            for (name, value) in &variables {
+                php_app = php_app.with_server_variable(*name, value);
+            }
 
             #[cfg(desktop)]
             if !extracted && reload::enabled() {
@@ -366,6 +399,7 @@ fn start(
             app.manage(State::new(
                 project.dir.clone(),
                 data_dir,
+                variables,
                 project.manifest.window.clone(),
                 project.manifest.updates.clone(),
             ));
@@ -374,6 +408,8 @@ fn start(
             #[cfg(all(desktop, unix))]
             quit_on_signals(app.handle());
 
+            #[cfg(target_os = "linux")]
+            keep_the_locale_of_the_user();
             let handle = app.handle().clone();
             let runtime =
                 PhpRuntime::start(php_app, Box::new(move |call| native::call(&handle, call)));
@@ -459,17 +495,18 @@ fn start(
 
     app.run(|app, event| match event {
         // Closing the last window quits the application, unless it lives in
-        // the system tray; once PHP has handled the events queued until then
-        // (`window.closed` of that window, for one).
+        // the system tray. Once PHP has handled the events queued until then:
+        // a listener of `window.closed` may set a tray, or open a window.
         RunEvent::ExitRequested {
             code: None, api, ..
         } => {
             api.prevent_exit();
-            if !app.state::<State>().has_tray() {
-                let handle = app.clone();
-                app.state::<PhpRuntime>()
-                    .after_queued(move || handle.exit(0));
-            }
+            let handle = app.clone();
+            app.state::<PhpRuntime>().after_queued(move || {
+                if !handle.state::<State>().has_tray() && handle.webview_windows().is_empty() {
+                    handle.exit(0);
+                }
+            });
         }
         // The processes PHP started do not outlive the application.
         #[cfg(desktop)]
@@ -580,4 +617,23 @@ fn quit_on_signals(app: &tauri::AppHandle) {
         // The handlers stay: these signals now do nothing.
         eprintln!("[nativella] Signals cannot quit the application: {error}.");
     }
+}
+
+/// GTK took the locale of the user for the whole process, and PHP sets it
+/// back to C (`PhpRuntime::start`), as do the `setlocale()` calls of PHP code:
+/// the GTK thread, this one, keeps the locale of the user for itself, for its
+/// dialogs and menus.
+#[cfg(target_os = "linux")]
+fn keep_the_locale_of_the_user() {
+    // SAFETY: "" names the locale of the environment, as GTK took it.
+    let locale = unsafe { libc::newlocale(libc::LC_ALL_MASK, c"".as_ptr(), std::ptr::null_mut()) };
+    if locale.is_null() {
+        eprintln!(
+            "[nativella] The locale of the environment is not installed: windows use the C locale."
+        );
+        return;
+    }
+
+    // SAFETY: a valid locale, never freed: the thread uses it until the end.
+    unsafe { libc::uselocale(locale) };
 }

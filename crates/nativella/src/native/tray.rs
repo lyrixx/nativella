@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 use tauri::image::Image;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
-use super::menu::{self, Item};
+use super::menu::{self, Item, Place};
 use super::{Call, failed, lock};
 use crate::events;
 
@@ -36,6 +36,7 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
             let tray = lock(&call.state().tray).take();
             drop(tray);
             *lock(&call.state().tray_menu) = None;
+            call.state().menus.remove(Place::Tray);
             call.app.remove_tray_by_id(TRAY);
             Ok(json!({}))
         }
@@ -54,9 +55,10 @@ fn set(call: &Call<'_>, payload: Set) -> Result<Value, String> {
             .ok_or("The application has no icon: give the tray one.")?,
     };
     let menu = if payload.menu.is_empty() {
+        call.state().menus.remove(Place::Tray);
         None
     } else {
-        Some(menu::build(call, &payload.menu)?)
+        Some(menu::build(call, &payload.menu, Place::Tray)?)
     };
 
     // Tauri runs tray calls on the main thread and waits for them, while the

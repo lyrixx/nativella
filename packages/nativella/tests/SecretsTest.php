@@ -18,6 +18,6 @@ final class SecretsTest extends TestCase
 
         $this->assertSame('ghp_123', $secrets->get('github-token'));
         $this->assertNull($secrets->get('github-token'), 'The fake answers no secret by default.');
-        $this->assertSame(['key' => 'github-token', 'value' => 'ghp_123'], $client->calls('secrets.set')[0]['payload']);
+        $this->assertSame(['key' => 'github-token', 'value' => 'ghp_123'], $client->calls('secrets.set')[0]->payload);
     }
 }

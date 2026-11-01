@@ -5,7 +5,8 @@ name: Release
 # 22.04, for its glibc), and for macOS arm64; the template APK that
 # nativella android makes Android applications of, in the android image; the
 # template apps that nativella ios makes iOS apps of, for the simulator and
-# for devices, on macOS; attaches them to the GitHub release of a v* tag.
+# for devices, on macOS; attaches them to the GitHub release of a v* tag,
+# with an attestation of their provenance.
 #
 # It restores the caches of main, saved by static.yml, macos.yml and
 # mobile.yml, and saves none: those of a tag would serve no other run (see
@@ -37,21 +38,12 @@ jobs:
         runs-on: ubuntu-26.04
         timeout-minutes: 60
         steps:
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-            - name: Log in to registry
-              shell: bash
-              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                 persist-credentials: false
+
+            - name: "Set up the Docker stack"
+              uses: ./.github/actions/stack
 
             # The one of static.yml, from main: its path and its key
             - name: "Restore static PHP"
@@ -63,6 +55,21 @@ jobs:
                   # versions or the extensions changed, not the rest of the file
                   restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
 
+            # The builder installs and stages the projects
+            - name: "Build the builder"
+              run: "castor docker:build --service=builder"
+
+            - name: "Build the static image"
+              run: "castor docker:build --service=static"
+
+            # The Rust of the static image, as in static.yml
+            - name: "Read the version of Rust"
+              id: rust
+              shell: bash
+              run: |
+                  version="$(castor builder --service=static -- rustc --version | cut -d ' ' -f 2)"
+                  echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
             # The cargo registry and the target directory of the static image
             # (see its CARGO_HOME and CARGO_TARGET_DIR): the build of
             # static.yml, from main, its paths and its key
@@ -73,18 +80,13 @@ jobs:
                       .home/.cargo/git
                       .home/.cargo/registry
                       target/docker-static
-                  key: cargo-static-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock') }}
+                  key: cargo-static-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock') }}
                   restore-keys: |
-                      cargo-static-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      cargo-static-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
                       cargo-static-
 
-            # The builder installs and stages the projects
-            - name: "Build the builder"
-              run: "castor docker:build --service=builder"
-
-            # Builds the static image first. static-php-cli asks the GitHub API
-            # for its downloads: without a token, the runners share its rate
-            # limit
+            # static-php-cli asks the GitHub API for its downloads: without a
+            # token, the runners share its rate limit
             - name: "Build PHP as a static library"
               run: "castor static-php:build"
               env:
@@ -112,7 +114,7 @@ jobs:
 
     macos:
         name: Build for macOS arm64
-        runs-on: macos-latest
+        runs-on: macos-26
         timeout-minutes: 90
         env:
             # No Docker on macOS runners: the tasks run on the runner itself
@@ -122,8 +124,8 @@ jobs:
               with:
                 persist-credentials: false
 
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+            - name: "Set up Castor"
+              uses: ./.github/actions/castor
 
             # Composer and PHP stage the demos for production
             - name: "Set up PHP"
@@ -131,7 +133,9 @@ jobs:
               with:
                   php-version: "8.5"
                   extensions: intl, pdo_sqlite, sqlite3
-                  tools: composer
+                  # The Composer of the builder: keep in sync with the
+                  # Dockerfile of infrastructure/docker/services/php/
+                  tools: composer:2.10.0@sha256:a346538851988ead111d11e3cbd7d372eeba44abd0af412e09890d3c21ea6c31
 
             # The one of macos.yml, from main: its path and its key
             - name: "Restore static PHP"
@@ -168,21 +172,12 @@ jobs:
         runs-on: ubuntu-26.04
         timeout-minutes: 90
         steps:
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-            - name: Log in to registry
-              shell: bash
-              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                 persist-credentials: false
+
+            - name: "Set up the Docker stack"
+              uses: ./.github/actions/stack
 
             # The one of the Android job of mobile.yml, from main: its path and
             # its key
@@ -197,6 +192,21 @@ jobs:
                       static-php-android-arm64-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
                       static-php-android-arm64-
 
+            # Downloads the sources of PHP
+            - name: "Build the builder"
+              run: "castor docker:build --service=builder"
+
+            - name: "Build the android image"
+              run: "castor docker:build --service=android"
+
+            # The Rust of the android image, as in mobile.yml
+            - name: "Read the version of Rust"
+              id: rust
+              shell: bash
+              run: |
+                  version="$(castor builder --service=android -- rustc --version | cut -d ' ' -f 2)"
+                  echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
             # The cargo registry and the dependencies of Gradle live in the
             # home of the containers (.home/): the downloads of the Android job
             # of mobile.yml, from main, its paths and its key. Its build is a
@@ -209,18 +219,14 @@ jobs:
                       .home/.cargo/registry
                       .home/.gradle/caches
                       target/docker
-                  key: android-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock', '.castor/mobile.php') }}
+                  key: android-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock', '.castor/mobile.php') }}
                   restore-keys: |
-                      android-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      android-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
                       android-
 
-            # Downloads the sources of PHP
-            - name: "Build the builder"
-              run: "castor docker:build --service=builder"
-
-            # Builds the android image first, then PHP for Android, unless
-            # restored. static-php-cli asks the GitHub API for the sources of
-            # PHP: without a token, the runners share its rate limit
+            # PHP for Android, unless restored. static-php-cli asks the GitHub
+            # API for the sources of PHP: without a token, the runners share
+            # its rate limit
             - name: "Build the template APK"
               run: "castor mobile:android-template --release --output=release/nativella-android-template-arm64.apk"
               env:
@@ -236,7 +242,7 @@ jobs:
     # Both on one runner, for one SHA256SUMS-ios
     ios:
         name: Build the template apps for iOS arm64 (experimental)
-        runs-on: macos-latest
+        runs-on: macos-26
         # PHP for iOS, when it builds again, takes half an hour
         timeout-minutes: 150
         env:
@@ -247,48 +253,16 @@ jobs:
               with:
                 persist-credentials: false
 
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-
-            # As in mobile.yml: XcodeGen from its release, pinned, and
-            # stand-ins for what cargo tauri ios init looks for, but neither
-            # build uses
-            - name: "Install XcodeGen"
-              shell: bash
-              run: |
-                  set -e
-
-                  curl -sSfL -o "${RUNNER_TEMP}/xcodegen.zip" https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
-                  echo "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806  ${RUNNER_TEMP}/xcodegen.zip" | shasum -a 256 -c -
-                  unzip -q -o -d "${RUNNER_TEMP}" "${RUNNER_TEMP}/xcodegen.zip"
-                  echo "${RUNNER_TEMP}/xcodegen/bin" >> "${GITHUB_PATH}"
-
-            - name: "Stand in for libimobiledevice and CocoaPods"
-              shell: bash
-              run: |
-                  set -e
-
-                  mkdir -p "${RUNNER_TEMP}/stand-ins"
-                  for command in idevicesyslog pod; do
-                      if ! command -v "${command}" > /dev/null; then
-                          printf '#!/bin/sh\necho "%s: a stand-in of the CI, for cargo tauri ios init." >&2\nexit 1\n' "${command}" > "${RUNNER_TEMP}/stand-ins/${command}"
-                          chmod +x "${RUNNER_TEMP}/stand-ins/${command}"
-                      fi
-                  done
-                  echo "${RUNNER_TEMP}/stand-ins" >> "${GITHUB_PATH}"
+            - name: "Set up Castor"
+              uses: ./.github/actions/castor
 
             - name: "Add the iOS targets of Rust"
               run: "rustup target add aarch64-apple-ios aarch64-apple-ios-sim"
 
-            - name: "Install the Tauri command"
-              shell: bash
-              run: |
-                  set -e
-
-                  mkdir -p "${HOME}/.local/bin"
-                  curl -sSfL -o "${RUNNER_TEMP}/cargo-tauri.zip" https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v2.12.2/cargo-tauri-aarch64-apple-darwin.zip
-                  unzip -o -d "${HOME}/.local/bin" "${RUNNER_TEMP}/cargo-tauri.zip" cargo-tauri
-                  echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+            # XcodeGen, stand-ins for what the templates do not use, and the
+            # Tauri command
+            - name: "Set up the tools of the iOS templates"
+              uses: ./.github/actions/ios-tools
 
             - name: "Read the version of Rust"
               id: rust
@@ -350,13 +324,20 @@ jobs:
                   path: release/
                   if-no-files-found: error
 
+    # The release is immutable once published (a setting of the repository):
+    # it is created as a draft, gets its files, then is published. A run
+    # again on its tag, after a failure, finishes the draft
     publish:
         name: Publish the release
         if: github.ref_type == 'tag'
         needs: [linux, macos, android, ios]
         runs-on: ubuntu-26.04
+        timeout-minutes: 15
         permissions:
+            # The attestations: a token of GitHub's OIDC provider signs them
+            attestations: write
             contents: write
+            id-token: write
         steps:
             - name: "Download the executables"
               uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -365,7 +346,15 @@ jobs:
                   merge-multiple: true
                   path: release/
 
-            - name: "Create the release, or update its files"
+            # Signed by GitHub: each file was built by this workflow, from this
+            # tag. `gh attestation verify <file> --repo lyrixx/nativella`
+            # checks it (docs/installation.md)
+            - name: "Attest the provenance of the files"
+              uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+              with:
+                  subject-path: release/*
+
+            - name: "Publish the release with its files"
               shell: bash
               env:
                   GH_TOKEN: ${{ github.token }}
@@ -376,7 +365,9 @@ jobs:
                   `nativella-<platform>` runs a PHP project (`nativella run <project-dir>`)
                   and builds standalone applications (`nativella build`);
                   `nativella-demo-*-<platform>` are the demos, as standalone applications.
-                  `SHA256SUMS-<platform>` holds their checksums.
+                  `SHA256SUMS-<platform>` holds their checksums. Each file has an attestation
+                  of its provenance: `gh attestation verify <file> --repo lyrixx/nativella`
+                  checks that the Release workflow of the repository built it.
 
                   `THIRD_PARTY_NOTICES-<platform>.txt` holds the licenses of the software they
                   contain: PHP, its libraries, the Rust crates and, on Android, the Java
@@ -408,9 +399,13 @@ jobs:
                   run yet.
                   EOF
 
-                  if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
-                      gh release upload "${GITHUB_REF_NAME}" release/* --repo "${GITHUB_REPOSITORY}" --clobber
-                  else
-                      gh release create "${GITHUB_REF_NAME}" release/* --repo "${GITHUB_REPOSITORY}" \
+                  if ! draft="$(gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --json isDraft --jq .isDraft)"; then
+                      gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --draft \
                           --title "${GITHUB_REF_NAME}" --notes-file "${RUNNER_TEMP}/notes.md" --verify-tag
+                  elif [ "${draft}" != "true" ]; then
+                      echo "The release ${GITHUB_REF_NAME} is published already: its files cannot change." >&2
+                      exit 1
                   fi
+
+                  gh release upload "${GITHUB_REF_NAME}" release/* --repo "${GITHUB_REPOSITORY}" --clobber
+                  gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --draft=false

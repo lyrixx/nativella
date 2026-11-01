@@ -2,12 +2,14 @@ services:
     router:
         build: services/router
         volumes:
-            - "/var/run/docker.sock:/var/run/docker.sock"
+            - "/var/run/docker.sock:/var/run/docker.sock:ro"
             - "./services/router/certs:/etc/ssl/certs"
+        # On this machine only, not on its network: the stack is for
+        # development, and the dashboard asks for no password
         ports:
-            - "${PROJECT_HTTP_PORT:-80}:80"
-            - "${PROJECT_HTTPS_PORT:-443}:443"
-            - "${PROJECT_ADMIN_PORT:-8080}:8080"
+            - "127.0.0.1:${PROJECT_HTTP_PORT:-80}:80"
+            - "127.0.0.1:${PROJECT_HTTPS_PORT:-443}:443"
+            - "127.0.0.1:${PROJECT_ADMIN_PORT:-8080}:8080"
         networks:
             - default
         profiles:

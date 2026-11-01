@@ -47,11 +47,13 @@ On iOS, the bundle ID is the identifier as it is: Apple accepts letters, digits,
 
 ## `version`
 
-The version of the application, as [`App::info()`](app.md) reports it. Defaults to the `version` of `composer.json`, then to `0.1.0`. [Updates](updates.md) compare it as a semantic version: `1.2.0`.
+The version of the application, as [`App::info()`](app.md) reports it. Defaults to the `version` of `composer.json`, then to `0.1.0`. A semantic version, `1.2.0`, which [updates](updates.md) compare; `1.2` and `1` stand for `1.2.0` and `1.0.0`. Nativella refuses to start with anything else, `v1.2.0` or `dev-main`.
 
 ## `icon`
 
 A PNG file, relative to the project. It is the icon of the windows, of the [tray](tray.md) unless the tray sets its own, and the launcher icon of the [Android application](mobile.md#building-an-apk). Without it, the application uses the Nativella icon.
+
+The windows of a [standalone executable](building.md) take it from the project the executable carries: the build refuses an icon that does not [ship](building.md#what-ships), such as one under `tests/`. An icon that cannot be read leaves the windows with the Nativella icon, and a warning.
 
 Make it square, 512 or 1024 pixels: Android shows it at up to 192 pixels, and `nativella android` warns below that. A rectangle is centered on a transparent square.
 
@@ -106,7 +108,7 @@ Nativella creates it at startup and prints it on the standard error output. PHP 
 
 | File | |
 |---|---|
-| `.nativella-secret` | The secret of the installation: [`NATIVELLA_SECRET`](#what-php-sees). |
+| `.nativella-secret` | The secret of the installation: [`NATIVELLA_SECRET`](#what-php-sees). Back it up with the database: what the framework encrypted with it is unreadable without it. A file that holds no secret, after a restore gone wrong, is set aside as `.nativella-secret.corrupted-<time>`, never overwritten, and a new secret replaces it. |
 | `.nativella-cookies` | The cookies with an expiry date, which outlive the application as in a browser. Session cookies end with it. |
 
 ## Environment variables
@@ -115,7 +117,7 @@ Nativella creates it at startup and prints it on the standard error output. PHP 
 |---|---|
 | `NATIVELLA_DATA_DIR` | Moves the data directory: handy to start from a clean state while developing, or to run two copies side by side. |
 | `NATIVELLA_RELOAD` | `0` stops `nativella run` from [reloading the windows](getting-started.md#reloading) when a file of the project changes. |
-| `NO_AT_BRIDGE` | Nativella sets it to `1` on Linux unless it is already set, to work around a crash of WebKitGTK in the accessibility bridge. See [Limitations](limitations.md#linux). |
+| `NO_AT_BRIDGE` | Nativella sets it to `1` on Linux unless it is already set, to work around a crash of WebKitGTK in the accessibility bridge: for itself, not for the [child processes](child-processes.md) and the browser it starts. See [Limitations](limitations.md#linux). |
 
 Like PHP-FPM without `clear_env`, PHP gets the environment of the process in `$_SERVER`: `APP_ENV=prod nativella run .` works as you would expect.
 
@@ -139,7 +141,7 @@ On top of the usual CGI variables, the runtime sets these in `$_SERVER`. A reque
 
 | Method | |
 |---|---|
-| `Runtime::isNative(): bool` | Whether PHP runs in Nativella: `nativella_call()` exists. |
+| `Runtime::isNative(): bool` | Whether PHP runs in Nativella: `nativella_call()` exists. False under the [fake client](testing.md) of the tests: guard native features with `Nativella::isNative()`, which asks the client. |
 | `Runtime::dataDir(): ?string` | The data directory. |
 | `Runtime::secret(): ?string` | The secret of the installation. |
 | `Runtime::platform(): ?string` | The platform. |
@@ -152,9 +154,18 @@ Each one returns null, or false, outside Nativella.
 
 ## `php.ini`
 
-PHP reads the php.ini of Nativella, [`crates/runtime/php.ini`](../crates/runtime/php.ini), compiled into the `nativella` command, and no other: neither a php.ini of the machine, which belongs to another PHP, nor the files `PHPRC` and `PHP_INI_SCAN_DIR` point to. It keeps the defaults of PHP, except for `hard_timeout` (see below). An application changes the settings it needs with `ini_set()`, at the top of its front controller: `memory_limit`, `display_errors`… The ones PHP reads only when it starts, like the size of the memory of opcache, take a change of that file, in a `nativella` [of your own](custom-php.md).
+PHP reads the php.ini of Nativella, [`crates/runtime/php.ini`](../crates/runtime/php.ini), compiled into the `nativella` command, and no other: neither a php.ini of the machine, which belongs to another PHP, nor the files `PHPRC` and `PHP_INI_SCAN_DIR` point to. It keeps the defaults of PHP, except for these:
 
-Nativella overrides two of them, which point at the system otherwise:
+| Setting | Value |
+|---|---|
+| `display_errors` | `Off`: errors go to the standard error output, the terminal of `nativella run` (logcat on Android), not into the page. A fatal error answers a 500, which PHP only does when it does not display the error. |
+| `zend.assertions` | `-1`, as in production. |
+| `post_max_size`, `upload_max_filesize` | `512M`: the 2 MB of PHP are less than a photo of a phone. |
+| `hard_timeout` | `0`, see below. |
+
+An application changes the settings it needs with `ini_set()`, at the top of its front controller: `memory_limit`, `max_execution_time`… `ini_set()` cannot change the ones PHP reads before the script runs, like `post_max_size` and `upload_max_filesize`, nor the ones it reads only when it starts, like the size of the memory of opcache: they take a change of that file, in a `nativella` [of your own](custom-php.md).
+
+At startup, Nativella sets two more, which point at the system otherwise:
 
 | Setting | Value |
 |---|---|

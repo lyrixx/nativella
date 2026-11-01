@@ -166,9 +166,10 @@
             "dist": {
                 "type": "path",
                 "url": "../../packages/nativella",
-                "reference": "2e31773235b23b50be243b32da8a5a28e48ee73f"
+                "reference": "e265511b13e847e3ea8cbe3c9e4e89a6349c260c"
             },
             "require": {
+                "ext-mbstring": "*",
                 "php": ">=8.4"
             },
             "require-dev": {
@@ -193,7 +194,7 @@
             "license": [
                 "MIT"
             ],
-            "description": "The desktop APIs of Nativella for PHP: windows, menus, dialogs, notifications, clipboard, tray…",
+            "description": "The native APIs of Nativella for PHP, on the desktop and on phones: windows, menus, dialogs, notifications, clipboard, tray…",
             "keywords": [
                 "desktop",
                 "native",

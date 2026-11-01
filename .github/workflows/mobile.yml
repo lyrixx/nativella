@@ -23,6 +23,9 @@ name: Mobile
         branches: ["main"]
         paths:
             - ".castor/**"
+            - ".github/actions/castor/**"
+            - ".github/actions/ios-tools/**"
+            - ".github/actions/stack/**"
             - ".github/workflows/mobile.yml"
             - "Cargo.lock"
             - "Cargo.toml"
@@ -32,6 +35,8 @@ name: Mobile
             - "infrastructure/docker/**"
             - "mobile/**"
             - "packages/**"
+            # The licenses a crate may have: the templates fail on another one
+            - "tools/cargo-about/**"
             - "!**.md"
     workflow_dispatch:
 
@@ -60,22 +65,18 @@ jobs:
         name: Android APK of the Symfony demo
         runs-on: ubuntu-26.04
         timeout-minutes: 60
+        permissions:
+            # Deletes the caches of main that a new one replaces
+            actions: write
+            contents: read
+            packages: read
         steps:
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-            - name: Log in to registry
-              shell: bash
-              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                 persist-credentials: false
+
+            - name: "Set up the Docker stack"
+              uses: ./.github/actions/stack
 
             # PHP for Android, keyed on the image, for its NDK, then on what it
             # is built from: static-php-cli and the extensions, the recipes,
@@ -92,12 +93,29 @@ jobs:
                       static-php-android-arm64-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
                       ${{ github.ref != 'refs/heads/main' && 'static-php-android-arm64-' || '' }}
 
+            # Downloads the sources of PHP, and stages and bundles the demo, in
+            # the builder
+            - name: "Build the builder"
+              run: "castor docker:build --service=builder"
+
+            - name: "Build the android image"
+              run: "castor docker:build --service=android"
+
+            # The Rust of the android image, as in rust.yml
+            - name: "Read the version of Rust"
+              id: rust
+              shell: bash
+              run: |
+                  version="$(castor builder --service=android -- rustc --version | cut -d ' ' -f 2)"
+                  echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
             # The cargo registry and the dependencies of Gradle live in the
             # home of the containers (.home/), the build in the target
             # directory of the builder. Not the distribution of Gradle
             # (.home/.gradle/wrapper/): downloaded as fast as restored. Keyed
-            # on the image, for its Rust and its Tauri command, as in rust.yml.
-            # release.yml restores it too: keep the paths and the key in sync
+            # on the Rust of the image and on the image, for its Tauri
+            # command, as in rust.yml. release.yml restores it too: keep the
+            # paths and the key in sync
             - name: "Restore the Rust and Gradle downloads and builds"
               id: android
               uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -107,19 +125,13 @@ jobs:
                       .home/.cargo/registry
                       .home/.gradle/caches
                       target/docker
-                  key: android-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock', '.castor/mobile.php') }}
+                  key: android-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock', '.castor/mobile.php') }}
                   restore-keys: |
-                      android-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      android-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
                       ${{ github.ref != 'refs/heads/main' && 'android-' || '' }}
 
-            # Downloads the sources of PHP, and stages and bundles the demo, in
-            # the builder
-            - name: "Build the builder"
-              run: "castor docker:build --service=builder"
-
-            # Builds the android image first. static-php-cli asks the GitHub
-            # API for the sources: without a token, the runners share its rate
-            # limit
+            # static-php-cli asks the GitHub API for the sources: without a
+            # token, the runners share its rate limit
             - name: "Build PHP for Android"
               run: "castor static-php:android"
               env:
@@ -128,11 +140,19 @@ jobs:
             # Main only, as soon as built, whatever fails next, as static.yml
             # saves the static PHP of the desktop
             - name: "Save PHP for Android"
+              id: save-static-php
               if: github.ref == 'refs/heads/main' && steps.static-php.outputs.cache-hit != 'true'
               uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/android-arm64/buildroot
                   key: ${{ steps.static-php.outputs.cache-primary-key }}
+
+            - name: "Delete the PHP for Android it replaces"
+              if: steps.save-static-php.outcome == 'success'
+              uses: ./.github/actions/delete-replaced-caches
+              with:
+                  key: ${{ steps.static-php.outputs.cache-primary-key }}
+                  prefix: static-php-android-arm64-
 
             # The template APK, with the PHP built above, then the APK of the
             # demo from it
@@ -153,6 +173,7 @@ jobs:
               run: "castor nativella:prune-target"
 
             - name: "Save the Rust and Gradle downloads and builds"
+              id: save-android
               if: github.ref == 'refs/heads/main' && steps.android.outputs.cache-hit != 'true'
               uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
@@ -162,6 +183,13 @@ jobs:
                       .home/.gradle/caches
                       target/docker
                   key: ${{ steps.android.outputs.cache-primary-key }}
+
+            - name: "Delete the downloads and builds it replaces"
+              if: steps.save-android.outcome == 'success'
+              uses: ./.github/actions/delete-replaced-caches
+              with:
+                  key: ${{ steps.android.outputs.cache-primary-key }}
+                  prefix: android-
 
     android-emulator:
         name: Android emulator, with the APK of the Symfony demo
@@ -173,8 +201,8 @@ jobs:
               with:
                 persist-credentials: false
 
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+            - name: "Set up Castor"
+              uses: ./.github/actions/castor
 
             - name: "Download the APK"
               uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -216,9 +244,13 @@ jobs:
     # one of devices
     ios-template:
         name: iOS template app for the simulator (experimental)
-        runs-on: macos-latest
+        runs-on: macos-26
         # PHP for iOS, when it builds again, takes half an hour
         timeout-minutes: 90
+        permissions:
+            # Deletes the caches of main that a new one replaces
+            actions: write
+            contents: read
         env:
             # Line tables, not no debug info: swift-rs builds the Swift of
             # Tauri in debug only when cargo builds with debug info (its DEBUG
@@ -233,52 +265,16 @@ jobs:
               with:
                 persist-credentials: false
 
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-
-            # cargo tauri ios init installs with brew what it does not find:
-            # XcodeGen, which generates the Xcode project, from its release
-            # here, pinned, in seconds rather than minutes
-            - name: "Install XcodeGen"
-              shell: bash
-              run: |
-                  set -e
-
-                  curl -sSfL -o "${RUNNER_TEMP}/xcodegen.zip" https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
-                  echo "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806  ${RUNNER_TEMP}/xcodegen.zip" | shasum -a 256 -c -
-                  unzip -q -o -d "${RUNNER_TEMP}" "${RUNNER_TEMP}/xcodegen.zip"
-                  echo "${RUNNER_TEMP}/xcodegen/bin" >> "${GITHUB_PATH}"
-
-            # And what a simulator build does not use, but cargo tauri ios init
-            # looks for: libimobiledevice (idevicesyslog), for the logs of a
-            # phone, and CocoaPods (pod), for the pods of an app that has some.
-            # Stand-ins, which fail if run, in the place of what is missing
-            - name: "Stand in for libimobiledevice and CocoaPods"
-              shell: bash
-              run: |
-                  set -e
-
-                  mkdir -p "${RUNNER_TEMP}/stand-ins"
-                  for command in idevicesyslog pod; do
-                      if ! command -v "${command}" > /dev/null; then
-                          printf '#!/bin/sh\necho "%s: a stand-in of the CI, for cargo tauri ios init." >&2\nexit 1\n' "${command}" > "${RUNNER_TEMP}/stand-ins/${command}"
-                          chmod +x "${RUNNER_TEMP}/stand-ins/${command}"
-                      fi
-                  done
-                  echo "${RUNNER_TEMP}/stand-ins" >> "${GITHUB_PATH}"
+            - name: "Set up Castor"
+              uses: ./.github/actions/castor
 
             - name: "Add the iOS simulator target of Rust"
               run: "rustup target add aarch64-apple-ios-sim"
 
-            - name: "Install the Tauri command"
-              shell: bash
-              run: |
-                  set -e
-
-                  mkdir -p "${HOME}/.local/bin"
-                  curl -sSfL -o "${RUNNER_TEMP}/cargo-tauri.zip" https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v2.12.2/cargo-tauri-aarch64-apple-darwin.zip
-                  unzip -o -d "${HOME}/.local/bin" "${RUNNER_TEMP}/cargo-tauri.zip" cargo-tauri
-                  echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+            # XcodeGen, stand-ins for what the templates do not use, and the
+            # Tauri command
+            - name: "Set up the tools of the iOS templates"
+              uses: ./.github/actions/ios-tools
 
             # The Rust of the runner, which its image updates
             - name: "Read the version of Rust"
@@ -337,6 +333,7 @@ jobs:
             # Main only, as soon as built, whatever fails next, as static.yml
             # saves the static PHP of the desktop
             - name: "Save PHP for iOS"
+              id: save-static-php
               if: github.ref == 'refs/heads/main' && steps.static-php.outputs.cache-hit != 'true'
               uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
@@ -344,6 +341,13 @@ jobs:
                       static-php/ios-arm64/buildroot
                       static-php/ios-simulator-arm64/buildroot
                   key: ${{ steps.static-php.outputs.cache-primary-key }}
+
+            - name: "Delete the PHP for iOS it replaces"
+              if: steps.save-static-php.outcome == 'success'
+              uses: ./.github/actions/delete-replaced-caches
+              with:
+                  key: ${{ steps.static-php.outputs.cache-primary-key }}
+                  prefix: static-php-ios-
 
             # With the PHP built above, and its third-party notices
             - name: "Build the template app"
@@ -355,6 +359,7 @@ jobs:
               run: "castor nativella:prune-target"
 
             - name: "Save the Rust downloads and builds"
+              id: save-ios
               if: github.ref == 'refs/heads/main' && steps.ios.outputs.cache-hit != 'true'
               uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
@@ -364,6 +369,13 @@ jobs:
                       target/*
                       !target/nativella
                   key: ${{ steps.ios.outputs.cache-primary-key }}
+
+            - name: "Delete the downloads and builds it replaces"
+              if: steps.save-ios.outcome == 'success'
+              uses: ./.github/actions/delete-replaced-caches
+              with:
+                  key: ${{ steps.ios.outputs.cache-primary-key }}
+                  prefix: ios-
 
             - name: "Upload the template app"
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -381,21 +393,24 @@ jobs:
         runs-on: ubuntu-26.04
         timeout-minutes: 30
         steps:
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-            - name: Log in to registry
-              shell: bash
-              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                 persist-credentials: false
+
+            - name: "Set up the Docker stack"
+              uses: ./.github/actions/stack
+
+            # Stages the demo and runs nativella ios in the builder
+            - name: "Build the builder"
+              run: "castor docker:build --service=builder"
+
+            # The Rust of the builder, as in rust.yml
+            - name: "Read the version of Rust"
+              id: rust
+              shell: bash
+              run: |
+                  version="$(castor builder -- rustc --version | cut -d ' ' -f 2)"
+                  echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
             # The build of rust.yml, read only: its dependencies are the ones
             # of the nativella command. Its paths and its key are the ones of
@@ -407,9 +422,9 @@ jobs:
                       .home/.cargo/git
                       .home/.cargo/registry
                       target/docker
-                  key: cargo-debug-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock') }}
+                  key: cargo-debug-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock') }}
                   restore-keys: |
-                      cargo-debug-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      cargo-debug-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
                       cargo-debug-
 
             - name: "Download the template app"
@@ -417,10 +432,6 @@ jobs:
               with:
                   name: nativella-ios-template-iphonesimulator-debug
                   path: target/nativella/
-
-            # Stages the demo and runs nativella ios in the builder
-            - name: "Build the builder"
-              run: "castor docker:build --service=builder"
 
             - name: "Make the app"
               run: "castor mobile:ios symfony --template=target/nativella/ios-template-iphonesimulator-debug.zip"
@@ -440,7 +451,7 @@ jobs:
     ios-simulator:
         name: iOS simulator, with the app of the Symfony demo (experimental)
         needs: ios
-        runs-on: macos-latest
+        runs-on: macos-26
         timeout-minutes: 30
         env:
             # No Docker on macOS runners: the tasks run on the runner itself
@@ -450,8 +461,8 @@ jobs:
               with:
                 persist-credentials: false
 
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+            - name: "Set up Castor"
+              uses: ./.github/actions/castor
 
             - name: "Download the app"
               uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2

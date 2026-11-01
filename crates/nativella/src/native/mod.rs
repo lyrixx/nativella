@@ -54,8 +54,6 @@ use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 #[cfg(desktop)]
 use tauri::Wry;
-#[cfg(desktop)]
-use tauri::menu::CheckMenuItem;
 use tauri::{AppHandle, Manager, WebviewWindow};
 
 use crate::MAIN_WINDOW;
@@ -70,14 +68,14 @@ pub(crate) struct State {
     /// Where the releases of the application are: `updater.*`.
     #[cfg(desktop)]
     updates: Option<Updates>,
+    /// What `updater.install` did since the start.
+    #[cfg(desktop)]
+    pub(crate) updater: std::sync::Arc<updater::Progress>,
     pub(crate) settings: settings::Store,
     pub(crate) timers: timer::Timers,
-    /// Menu item id → the URL its click navigates to.
+    /// What the clicks of the menus need, menu by menu.
     #[cfg(desktop)]
-    pub(crate) menu_links: Mutex<HashMap<String, String>>,
-    /// Menu item id → its checkbox, to tell PHP whether it is checked.
-    #[cfg(desktop)]
-    pub(crate) checkboxes: Mutex<HashMap<String, CheckMenuItem<Wry>>>,
+    pub(crate) menus: menu::Menus,
     /// Shortcut id → the accelerator PHP registered it with.
     #[cfg(desktop)]
     pub(crate) shortcuts: Mutex<HashMap<u32, String>>,
@@ -103,12 +101,13 @@ impl State {
     pub(crate) fn new(
         project_dir: PathBuf,
         data_dir: PathBuf,
+        variables: Vec<(&'static str, String)>,
         default_window: Map<String, Value>,
         updates: Option<Updates>,
     ) -> Self {
         Self {
             #[cfg(desktop)]
-            child_processes: child_process::ChildProcesses::new(project_dir),
+            child_processes: child_process::ChildProcesses::new(project_dir, variables),
             settings: settings::Store::new(data_dir.join("settings.json")),
             timers: timer::Timers::default(),
             data_dir,
@@ -116,9 +115,9 @@ impl State {
             #[cfg(desktop)]
             updates,
             #[cfg(desktop)]
-            menu_links: Mutex::default(),
+            updater: std::sync::Arc::default(),
             #[cfg(desktop)]
-            checkboxes: Mutex::default(),
+            menus: menu::Menus::default(),
             #[cfg(desktop)]
             shortcuts: Mutex::default(),
             #[cfg(desktop)]

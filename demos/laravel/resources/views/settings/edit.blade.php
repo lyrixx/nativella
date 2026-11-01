@@ -10,8 +10,8 @@
                     <strong>Open at login</strong>
                     <small>Start Tasks when you log in to this computer.</small>
                 </span>
-                <input type="hidden" name="open_at_login" value="0">
-                <input type="checkbox" name="open_at_login" value="1" role="switch" @checked($openAtLogin) @disabled(! $native)>
+                <input type="hidden" name="autostart" value="0">
+                <input type="checkbox" name="autostart" value="1" role="switch" @checked($autostart) @disabled(! $native)>
             </label>
             <div class="setting">
                 <span>

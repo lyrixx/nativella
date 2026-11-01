@@ -3,6 +3,7 @@
 namespace Nativella\Laravel\Tests;
 
 use Nativella\Client;
+use Nativella\Client\Call;
 use Nativella\Client\FakeClient;
 use Nativella\Dialog;
 use Nativella\Exception\RuntimeUnavailableException;
@@ -29,7 +30,7 @@ final class FakeTest extends TestCase
         Notification::send('Saved', 'Your note is safe.');
 
         $this->assertSame($native, app(Client::class));
-        $this->assertSame([['method' => 'notification.send', 'payload' => ['title' => 'Saved', 'body' => 'Your note is safe.', 'reference' => null]]], $native->calls());
+        $this->assertEquals([new Call('notification.send', ['title' => 'Saved', 'body' => 'Your note is safe.', 'reference' => null])], $native->calls());
     }
 
     public function testTheFakeAnswersAsTheTestSays(): void

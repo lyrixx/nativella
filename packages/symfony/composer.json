@@ -1,12 +1,13 @@
 {
     "name": "nativella/symfony-bundle",
-    "description": "Runs Symfony applications as desktop applications with Nativella.",
+    "description": "Runs Symfony applications as desktop and mobile applications with Nativella.",
     "type": "symfony-bundle",
-    "keywords": ["desktop", "native", "symfony", "nativella"],
+    "keywords": ["desktop", "native", "nativella", "symfony"],
     "license": "MIT",
     "require": {
         "php": ">=8.4",
         "nativella/nativella": "^0.4",
+        "psr/log": "^1.0|^2.0|^3.0",
         "symfony/config": "^7.4|^8.0",
         "symfony/dependency-injection": "^7.4|^8.0",
         "symfony/event-dispatcher": "^7.4|^8.0",

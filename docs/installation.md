@@ -35,6 +35,16 @@ sudo mv nativella /usr/local/bin/
 
 The executable is not signed: downloaded with a browser, it is quarantined, and `xattr -d com.apple.quarantine nativella` lets it run.
 
+### Checking the download
+
+Each file of a release has an attestation of its provenance, which GitHub signs: the Release workflow of the repository built it, from the tag of the release. The [GitHub CLI](https://cli.github.com) checks it:
+
+```bash
+gh attestation verify nativella --repo lyrixx/nativella
+```
+
+The same goes for the templates of Android and iOS. `SHA256SUMS-<platform>`, next to the files of each platform, holds their checksums.
+
 ### What is inside
 
 The executable carries PHP 8.5, linked statically, built with [static-php-cli](https://github.com/crazywhalecc/static-php-cli), with the extensions a Symfony, Laravel or Doctrine application needs: see [Building](building.md#the-php-inside) for the list. The PHP of the machine, if any, is only for your project: Composer, the console. Check that it runs:

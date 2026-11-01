@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Task;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Nativella\Client\Call;
 use Nativella\Laravel\Facades\Nativella;
 use Tests\TestCase;
 
@@ -19,8 +20,8 @@ final class CopyTasksTest extends TestCase
 
         $this->post('/tasks/copy')->assertRedirect('/')->assertSessionHas('status', '2 tasks copied to the clipboard.');
 
-        $this->assertSame(
-            [['method' => 'clipboard.writeText', 'payload' => ['text' => "# Tasks\n\n- [ ] Water the plants\n- [x] Install Nativella\n"]]],
+        $this->assertEquals(
+            [new Call('clipboard.writeText', ['text' => "# Tasks\n\n- [ ] Water the plants\n- [x] Install Nativella\n"])],
             $native->calls('clipboard.writeText'),
         );
     }

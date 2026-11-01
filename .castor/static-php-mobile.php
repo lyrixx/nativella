@@ -20,7 +20,7 @@ use function mobile\ndk_home;
 use function static_php\spc;
 
 use const static_php\EXTENSIONS;
-use const static_php\PHP_BRANCH;
+use const static_php\PHP_RELEASE;
 use const static_php\SPC_VERSION;
 
 /**
@@ -142,13 +142,13 @@ function build(Target $target, bool $force = false): string
 
     $toolchain = toolchain($target);
     // The recipes too, which are these, not static-php-cli's
-    $identity = implode(' ', [SPC_VERSION, PHP_BRANCH, $target->name, $toolchain->version, EXTENSIONS, hash_file('xxh128', __FILE__)]);
+    $identity = implode(' ', [SPC_VERSION, PHP_RELEASE, $target->name, $toolchain->version, EXTENSIONS, hash_file('xxh128', __FILE__)]);
 
     if (!$force && is_file($stamp) && file_get_contents($stamp) === $identity) {
         return $buildroot;
     }
 
-    io()->title(\sprintf('Building PHP %s as a static library for %s', PHP_BRANCH, $target->name));
+    io()->title(\sprintf('Building PHP %s as a static library for %s', PHP_RELEASE, $target->name));
 
     $libraries = libraries();
     $archives = download(['php-src', ...$libraries]);
@@ -235,7 +235,7 @@ function download(array $sources): array
 {
     io()->section('Downloading the sources');
 
-    run_in_builder([builder_path(spc()), 'download', implode(',', $sources), '--with-php='.PHP_BRANCH], builder_path('static-php'));
+    \static_php\download([builder_path(spc()), 'download', implode(',', $sources)], builder_path('static-php'));
 
     $lock = json_decode((string) file_get_contents(variable('root_dir').'/static-php/downloads/.lock.json'), true, flags: \JSON_THROW_ON_ERROR);
 
@@ -324,8 +324,14 @@ function build_php(Build $build, string $archive): void
         ...array_values(array_unique($options)),
         // The SDK of iOS has posix_spawn_file_actions_addchdir_np(), which
         // configure finds, but marks it unavailable: proc_open() changes the
-        // directory of the child process itself, as without it
-        ...($build->target->isAndroid() ? [] : ['ac_cv_func_posix_spawn_file_actions_addchdir_np=no']),
+        // directory of the child process itself, as without it. PHP 8.5.12
+        // also checks posix_spawn_file_actions_addchdir(), which the SDK of
+        // iOS 26 has, then calls the _np one all the same on Apple systems
+        // older than macOS 26, which iOS is to it
+        ...($build->target->isAndroid() ? [] : [
+            'ac_cv_func_posix_spawn_file_actions_addchdir=no',
+            'ac_cv_func_posix_spawn_file_actions_addchdir_np=no',
+        ]),
     ]);
 
     if ($build->target->isAndroid()) {

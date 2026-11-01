@@ -31,7 +31,7 @@ Labels are made of letters, digits, `-`, `/`, `:` and `_`.
 
 ## Opening a window
 
-`open(string $label, ?WindowOptions $options = null): WindowInfo` opens a window and returns its [`WindowInfo`](#window-info). If a window with that label is already open, `open()` focuses it instead, and ignores the options.
+`open(string $window, ?WindowOptions $options = null): WindowInfo` opens the window of label `$window` and returns its [`WindowInfo`](#window-info). If a window with that label is already open, `open()` focuses it instead, and ignores the options.
 
 The `main` window starts from the [`window`](configuration.md#window) options of `composer.json`, which the options you pass complete: `$window->open('main')` opens it again exactly as at startup.
 
@@ -92,7 +92,7 @@ The first request of the new window waits for the current one to finish, since o
 
 | Property | Type | |
 |---|---|---|
-| `label` | `string` | |
+| `window` | `string` | Its label, as the `$window` argument of the methods and the events take it. |
 | `title` | `?string` | |
 | `url` | `?string` | The URL of the page: `php://localhost/notes/42`. |
 | `width`, `height` | `?float` | The size of the page area, in logical pixels. |

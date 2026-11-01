@@ -2,6 +2,7 @@
 
 namespace App\Tests\View;
 
+use App\Http\CsrfToken;
 use App\Snippet\SnippetInput;
 use App\Snippet\SnippetSummary;
 use App\View\Flash;
@@ -14,7 +15,7 @@ final class ViewTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->view = new View('/', new Flash(), \dirname(__DIR__, 2).'/templates');
+        $this->view = new View(new CsrfToken(), '/', new Flash(), \dirname(__DIR__, 2).'/templates');
     }
 
     protected function tearDown(): void
@@ -86,6 +87,13 @@ final class ViewTest extends TestCase
         $_SERVER['NATIVELLA_PLATFORM'] = 'linux';
 
         $this->assertStringNotContainsString('data-mobile', $this->view->page('Not found', 'not-found', ['message' => 'Gone.'])->body);
+    }
+
+    public function testTheFormsThatPostCarryTheCsrfToken(): void
+    {
+        $html = $this->view->render('snippets/new', ['errors' => [], 'input' => new SnippetInput('', '')]);
+
+        $this->assertStringContainsString(\sprintf('<input type="hidden" name="_token" value="%s">', new CsrfToken()->value()), $html);
     }
 
     public function testTheFormKeepsALeadingLineBreakOfTheContent(): void

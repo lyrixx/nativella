@@ -14,8 +14,9 @@ Nativella is experimental. This page lists what does not work, what is untested 
 
 ### Linux
 
-- **No screen readers.** WebKitGTK 2.52 crashes in its accessibility bridge as soon as a page loads, so Nativella disables the bridge (`NO_AT_BRIDGE=1`). Worth reporting upstream.
+- **No screen readers.** WebKitGTK 2.52 crashes in its accessibility bridge as soon as a page loads, so Nativella disables the bridge (`NO_AT_BRIDGE=1`), in the application only: the [child processes](child-processes.md) it starts and the browser it opens keep theirs. Worth reporting upstream.
 - **Tray icons report no click**: only their menu works.
+- **Downloads made by pages need the first window.** A file a page makes, a `blob:` or `data:` URL (an export built in JavaScript), is cancelled without a word once the first window the application opened is closed, until a window of the same label opens again: WebKitGTK asks the windows in the order they opened, and Tauri answers no for a closed one. [Downloads](downloads.md) that PHP answers are not affected.
 - **Menu roles are Nativella's own.** GTK implements few of them, so Nativella does, on the focused page and window. See [Menus](menus.md#roles).
 - **Global shortcuts need X11**: under Wayland, expect them not to fire.
 - **No primary display under Wayland**: `Screen::primary()` returns null.
@@ -25,14 +26,17 @@ Nativella is experimental. This page lists what does not work, what is untested 
 - **One PHP thread.** Every request of every window goes through the same PHP thread, one after the other. A slow request holds back the others, and so does an open [dialog](dialogs.md). Files of `public/` are served without PHP, and keep loading.
 - **No worker mode.** The framework boots on every request, as under PHP-FPM: about 3 ms for Symfony, on top of your code.
 - **No background work in PHP.** PHP only runs to answer a request, a native event or a [timer](timers.md): a timer stands in for cron. A queue worker can run as a [child process](child-processes.md), with PHP's command line on the machine.
+- **`putenv()` is not thread-safe.** PHP runs in the process of the window: `putenv()` changes the environment the threads of the window read at any time, and the C library does not guard against both at once. The application may crash, if rarely. Laravel calls it for every variable of `.env`, on every request, until its configuration is cached: `Illuminate\Support\Env::disablePutenv()`, at the top of `bootstrap/app.php`, leaves them in `$_ENV` and `$_SERVER` only.
 
 ## The web layer
 
 - **Sessions end with the application**, as in a browser, unless their cookie has an expiry date: a cookie with one is kept in the [data directory](configuration.md#the-data-directory). Keep what must last in the [database](database.md) or the [settings](settings.md).
-- **Redirects and `fetch()`.** A `fetch()` that is redirected gets the right response, but `response.redirected` is `false` and `response.url` is the original URL.
+- **Redirects and `fetch()`.** A `fetch()` that is redirected gets the right response, but `response.redirected` is `false` and `response.url` is the original URL. A form sent to a `307` or a `308` shows the page of the target at the address of the form.
 - **Redirect loops.** A `fetch()` gives up after 20 redirects, but a page that redirects to itself keeps reloading, where a browser would stop with an error.
 - **Absolute URLs.** PHP believes it is served from `http://localhost/`. The runtime rewrites such URLs in the URL attributes of HTML and the `url()` of CSS that PHP answers, and brings back the requests `fetch()`, `XMLHttpRequest` and `EventSource` send there, not more: an absolute URL in a static file of `public/`, or one a script uses otherwise (the `src` of an image), still points to where nothing listens. Prefer relative URLs there.
+- **No frames of other websites.** Nativella cannot tell the navigation of a frame from the one of its window: wry, the webview library of Tauri, does not say which frame navigates. An `<iframe>` of another website (a video, a map, a payment form) opens it in the browser, and stays empty; one of `http://localhost/…` takes its window to that page of the application. Frames of the application's own pages work. Windows tells its frames apart, untested.
 - **Static files are read whole**, by the thread that receives the request, and `Range` requests are not supported: fine for styles, scripts and images, not for a large video.
+- **No streaming.** A response reaches the page once PHP is done with it: `flush()` sends nothing, a streamed response arrives whole, and server-sent events (`text/event-stream`) all at once, at the end. A stream that never ends holds the PHP thread, and every window, forever: `connection_aborted()` is always false, and `sleep()` does not count against `max_execution_time` on Linux. The runtime warns of a `text/event-stream` response in its logs. Push to the page with [events](javascript.md#from-php-to-the-page-events) instead. The bodies of requests and responses are whole in memory too: fine for a form or a photo, not for a large video.
 - **Uploads break on Linux.** wry, the webview library of Tauri, stops reading the body of a request at the first short read: a form with a file reaches PHP cut after its first part, and `$_FILES` holds `UPLOAD_ERR_PARTIAL`. The fix is proposed upstream, [tauri-apps/wry#1911](https://github.com/tauri-apps/wry/pull/1911). Until it ships, [file dialogs](dialogs.md) give PHP the path of a file instead. Untested elsewhere.
 
 ## The native side

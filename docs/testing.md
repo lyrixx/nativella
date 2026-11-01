@@ -55,7 +55,7 @@ final class ExporterTest extends TestCase
         (new Exporter(new Dialog($client), new Notification($client)))->export(['Groceries', 'Ideas']);
 
         $this->assertStringEqualsFile($target, "Groceries\n\nIdeas");
-        $this->assertSame('Exported', $client->calls('notification.send')[0]['payload']['title']);
+        $this->assertSame('Exported', $client->calls('notification.send')[0]->payload['title']);
     }
 
     public function testNothingHappensWhenTheUserCancels(): void
@@ -73,7 +73,7 @@ final class ExporterTest extends TestCase
 | Method | |
 |---|---|
 | `respond(string $method, array\|Throwable $result): void` | Answers the next call to `$method` with `$result`, or throws it. Call it several times to queue answers. |
-| `calls(?string $method = null): list<array{method: string, payload: array}>` | The calls made so far, all of them or those to `$method`. |
+| `calls(?string $method = null): list<Call>` | The calls made so far, all of them or those to `$method`. A `Nativella\Client\Call` has the `method` and the `payload`. |
 | `reset(): void` | Forgets the calls and the queued answers. |
 
 Methods are the native ones, `<domain>.<method>`: `window.open`, `dialog.confirm`, `clipboard.readText`… The payloads are the JSON objects the API classes send, with camelCase keys. The quickest way to learn them is to make the call and look at `$client->calls()`.
@@ -92,20 +92,34 @@ Without a queued answer, `FakeClient` returns:
 
 | Method | Answer |
 |---|---|
-| `dialog.confirm`, `dialog.ask` | `false` |
-| `dialog.openFile`, `dialog.openDirectory`, `dialog.saveFile` | `null`: cancelled |
-| `dialog.openFiles` | no files |
-| `clipboard.readText` | `null` |
-| `settings.has`, `settings.all` | `false`, no settings |
-| `window.open`, `window.get` | a window with the label asked for, focused, 1024 by 768 |
-| `window.all`, `screen.all` | none |
-| `screen.primary`, `screen.cursorPosition` | none, `(0, 0)` |
 | `app.info` | Nativella 0.1.0, `dev.nativella.app` |
+| `app.isAutostartEnabled` | `false` |
 | `app.path` | `/home/nativella/<directory>` |
-| `app.isAutostartEnabled`, `globalShortcut.isRegistered` | `false` |
+| `app.thirdPartyNotices` | `null`, as a development build of Nativella |
+| `barcodeScanner.scan` | `null`: cancelled |
+| `biometrics.authenticate`, `biometrics.isAvailable` | `false` |
+| `childProcess.all` | none |
+| `childProcess.start` | the process id `1` |
+| `clipboard.readImage`, `clipboard.readText` | `null`: empty |
+| `dialog.ask`, `dialog.confirm` | `false` |
+| `dialog.openDirectory`, `dialog.openFile`, `dialog.saveFile` | `null`: cancelled |
+| `dialog.openFiles` | no files |
+| `geolocation.currentPosition` | `null`: not allowed |
+| `globalShortcut.isRegistered` | `false` |
+| `nfc.isAvailable` | `false` |
+| `nfc.read` | throws a `NativeCallException`, as the runtime does when NFC is not available |
+| `power.status` | on mains, without a battery |
+| `screen.all`, `screen.primary` | none |
+| `screen.cursorPosition` | `(0, 0)` |
+| `secrets.get` | `null` |
+| `settings.all`, `settings.has` | no settings, `false` |
+| `settings.get` | no value: `Settings::get()` returns its default |
 | `system.info`, `system.theme` | Linux, x86_64, `en-US`; `light` |
+| `updater.check`, `updater.install` | `null`: this version is the latest |
+| `window.all` | none |
+| `window.get`, `window.open` | the window asked for, `main` by default, focused, 1024 by 768 |
 
-Every other method answers an empty result, which the API classes turn into nothing (`void`). `settings.get` answers no value, so `Settings::get()` returns its default.
+The other methods return nothing (`void`): they answer an empty result.
 
 ## With a framework
 
@@ -119,11 +133,11 @@ The integrations replace the client in the container, so that the application un
 An application is a web application first: it also runs with `symfony serve`, `php artisan serve` or `php -S`, in a browser, which is handy for working on templates. The native APIs throw there, so guard the calls that may run outside Nativella:
 
 ```php
-use Nativella\Runtime;
+use Nativella\Nativella;
 
-if (Runtime::isNative()) {
+if ($nativella->isNative()) {
     $window->setTitle($note->title);
 }
 ```
 
-`Runtime::isNative()` tells whether `nativella_call()` exists. In tests, prefer the fake client: it exercises the same code as in the application.
+`isNative()` of `Nativella\Nativella` (a service with Symfony, the `Nativella` facade with Laravel) asks the client: true in Nativella, and under the fake client, so that the tests go through the native code as the application does. `nativella_is_native()` in Twig and `@native` in Blade answer the same. `Runtime::isNative()` only tells whether `nativella_call()` exists, which is false in tests, fake client or not: keep it for where there is no client.

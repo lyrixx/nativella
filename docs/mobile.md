@@ -12,7 +12,7 @@ On a phone there is no `nativella` executable to append the project to: the appl
 - The library is built once per release, without any project, into templates: a template APK for Android, template apps for iOS. `nativella android` and `nativella ios` add the project to one, packed the same way `nativella build` does: an asset of the APK, a file of the app. The application extracts it once per build, in its cache directory, at first launch.
 - PHP is linked statically: phones have no PHP to share. The build of the library links the PHP of the desktop, built for the phone as a static `libphp.a`, with its libraries and its headers (see [PHP for the phone](#php-for-the-phone)).
 - Pages are served from `http://php.localhost/`, as Tauri does for custom schemes on Android. PHP sees that origin too.
-- Android's WebView drops the body of the requests it hands to the application: Nativella injects a script that sends the body of forms, `fetch()` and `XMLHttpRequest` to the runtime first, through Tauri's IPC. Synchronous `XMLHttpRequest` bodies cannot be captured.
+- Android's WebView drops the body of the requests it hands to the application: Nativella injects a script that sends the body of forms, `fetch()` and `XMLHttpRequest` to the runtime first, through Tauri's IPC. Synchronous `XMLHttpRequest` bodies cannot be captured. When the IPC fails, the request fails as on a network error (`fetch()` rejects with a `TypeError`, `XMLHttpRequest` fires `error`), and a form is not submitted, rather than reach PHP empty: the console of the page says why.
 - What PHP writes to stderr goes to logcat, under the `nativella` tag.
 
 ## In PHP
@@ -44,26 +44,32 @@ Pages are drawn under the status and navigation bars: add `viewport-fit=cover` t
 `nativella android` makes the APK of a project from the template APK of its release, `nativella-android-template-arm64.apk`, without any Android tool: no JDK, no Android SDK, no Rust. Take both from the same [release](https://github.com/lyrixx/nativella/releases), and [prepare the project](building.md#preparing-the-project) as for a standalone executable:
 
 ```bash
+sha256sum --check --ignore-missing SHA256SUMS-android
 nativella android path/to/project --template nativella-android-template-arm64.apk -o dist/notes.apk
 adb install dist/notes.apk
 ```
+
+The template becomes your application: check it against the checksums of the release, `SHA256SUMS-android`, first. `nativella android` does not.
 
 > [!NOTE]
 > The command and the template must come from the same version of Nativella: `nativella android` warns when they do not. Both come with Nativella 0.2.0 and later.
 
 The APK is the template, with:
 
-- the bundle of the project, as the asset `nativella.bundle`, which the application reads in place at startup: what [ships](building.md#what-ships) in a standalone executable, the local overrides left out and listed;
+- the bundle of the project, as the asset `nativella.bundle`, which the application reads in place at startup: what [ships](building.md#what-ships) in a standalone executable, the local overrides, credentials and SQLite databases left out and listed;
 - the identity of the project, from the `extra.nativella` section of its `composer.json`, in its manifest: its application ID, what Android knows the application by, made of the `identifier`; the `name` under the icon; the `version` as the version name, and as the version code, `major × 1,000,000 + minor × 1,000 + patch`, which Android compares to accept an update;
 - the Android permissions of the [phone APIs](phone-apis.md) the application asks for (`permissions`), and of them only: the template has them all, and the application only registers the ones it asks for;
 - the [`icon`](configuration.md#icon) of the project as its launcher icon, or the Nativella icon without one: drawn for each screen density, from 48 to 192 pixels, inside a margin, its corners rounded, as `tauri icon` draws the launcher icons of Android.
 
-It is aligned, then signed with APK Signature Scheme v2, which Android checks from API level 24, by `--key`: an EC P-256 private key, in PKCS #8 PEM.
+It is aligned, then signed with APK Signature Scheme v2, which Android checks from API level 24, by `--key`: an EC P-256 private key, in PKCS #8 PEM, encrypted or not.
 
 ```bash
-openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out notes-key.pem
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -aes256 -out notes-key.pem
+export NATIVELLA_KEY_PASSWORD='the password of notes-key.pem'
 nativella android path/to/project --template nativella-android-template-arm64.apk --key notes-key.pem
 ```
+
+With `-aes256`, OpenSSL asks for a password, which encrypts the key. `nativella android` takes it from the variable `NATIVELLA_KEY_PASSWORD`, not from an argument, which the other users of the computer see, and warns when they can read the key: make it yours only, with `chmod 600 notes-key.pem`.
 
 Without `--key`, `nativella` signs with the debug key of the computer, which it makes at its first use, in the configuration directory of the user (`~/.config/nativella/android-debug-key.pem` on Linux): enough to try the application, not to publish it. Android installs an update only if it is signed with the same key as the installed application: keep yours.
 
@@ -99,7 +105,7 @@ castor mobile:android-emulator symfony
 
 installs the APK afresh, without the data of a previous install, on the emulator, or the phone, that `adb` sees (from `ANDROID_HOME`, or `PATH`), opens it, and waits for PHP to answer a page: it fails if PHP answers none within 2 minutes, or if the app stops. The screenshot and what the app wrote to logcat land in `target/nativella/`.
 
-Without Docker, `castor --context=host mobile:android symfony` runs the same build on your machine, with its tools: what the desktop build needs, from [Developing Nativella](development.md#on-your-machine); PHP and Composer; the Android SDK with an NDK (`ANDROID_HOME`, the most recent NDK unless `NDK_HOME` says otherwise); a JDK 17 or later (`JAVA_HOME`); `rustup target add aarch64-linux-android` (`x86_64-linux-android` for `--abi=x86_64`) and `cargo install tauri-cli --version '^2' --locked`; for PHP, a C and C++ compiler for your machine, which builds the tools of ICU, CMake, make, Perl and pkg-config. The task says what is missing before it starts.
+Without Docker, `castor --context=host mobile:android symfony` runs the same build on your machine, with its tools: what the desktop build needs, from [Developing Nativella](development.md#on-your-machine); PHP and Composer; the Android SDK with an NDK (`ANDROID_HOME`, the most recent NDK unless `NDK_HOME` says otherwise); a JDK 17 or later (`JAVA_HOME`); `rustup target add aarch64-linux-android` (`x86_64-linux-android` for `--abi=x86_64`) and the Tauri command of the templates, which `castor --context=host mobile:tauri-cli` installs into `tools/tauri-cli/bin/`, to add to your `PATH`; for PHP, a C and C++ compiler for your machine, which builds the tools of ICU, CMake, make, Perl and pkg-config. The task says what is missing before it starts.
 
 ## Building an iOS app
 
@@ -108,7 +114,7 @@ Without Docker, `castor --context=host mobile:android symfony` runs the same bui
 - `nativella-ios-template-iphonesimulator-arm64.zip`, for the iOS simulator of a Mac with Apple silicon;
 - `nativella-ios-template-iphoneos-arm64.zip`, for iPhones and iPads.
 
-Take the command and the template from the same [release](https://github.com/lyrixx/nativella/releases), and [prepare the project](building.md#preparing-the-project) as for a standalone executable.
+Take the command and the template from the same [release](https://github.com/lyrixx/nativella/releases), check the template against its checksums, `SHA256SUMS-ios` (`sha256sum --check --ignore-missing SHA256SUMS-ios`), and [prepare the project](building.md#preparing-the-project) as for a standalone executable.
 
 > [!WARNING]
 > iOS support is experimental: the CI makes the app of the Symfony demo for the simulator, and opens it there. No app made for devices has run on one yet. See [what is tested](#what-is-tested).
@@ -126,7 +132,7 @@ xcrun simctl launch booted dev.nativella.notes
 
 The app is the app of the template, with:
 
-- the bundle of the project, as the file `nativella.bundle`, next to its executable, which the app reads in place at startup: what [ships](building.md#what-ships) in a standalone executable, the local overrides left out and listed;
+- the bundle of the project, as the file `nativella.bundle`, next to its executable, which the app reads in place at startup: what [ships](building.md#what-ships) in a standalone executable, the local overrides, credentials and SQLite databases left out and listed;
 - the identity of the project, from the `extra.nativella` section of its `composer.json`, in its `Info.plist`: the `identifier` as its bundle ID, as it is, since Apple allows letters, digits, dashes and dots there; the `name` under the icon; the `version`, which iOS compares to accept an update, as three integers, without its pre-release or build suffix: `1.2.0-beta.1` becomes `1.2.0`;
 - the reasons iOS gives the user when the app uses a [phone API](phone-apis.md) it asks for (`permissions`), and for them only: Face ID for `biometrics`, the location for `geolocation`, the camera for `barcodeScanner` and `camera`, the microphone for `microphone`. The template has the plugins of them all, and the app only registers the ones it asks for.
 
@@ -177,7 +183,7 @@ As an APK, an iOS app contains the software of others, under their licenses: the
 
 ### From the repository, on a Mac
 
-`castor mobile:ios symfony` does the same for a demo, for the simulator, with a template built from the repository, on a Mac with Xcode, [XcodeGen](https://github.com/yonaskolb/XcodeGen), `rustup target add aarch64-apple-ios-sim` and the Tauri command (`cargo install tauri-cli --version '^2' --locked`). It:
+`castor mobile:ios symfony` does the same for a demo, for the simulator, with a template built from the repository, on a Mac with Xcode, [XcodeGen](https://github.com/yonaskolb/XcodeGen), `rustup target add aarch64-apple-ios-sim` and the Tauri command of the templates, which `castor --context=host mobile:tauri-cli` installs into `tools/tauri-cli/bin/`, to add to your `PATH`. It:
 
 1. builds the template, as `castor mobile:ios-template` does: it builds [PHP for the simulator](#php-for-the-phone) first, gathers the third-party notices, generates the Xcode project of `crates/nativella/tauri.conf.json` in `crates/nativella/gen/apple`, runs `cargo tauri ios build --no-sign` with every phone API, and zips the app in `target/nativella/ios-template-iphonesimulator-debug.zip`. `mobile:ios-template --device` builds the template of devices instead, with `rustup target add aarch64-apple-ios`, and `--release` one without debug symbols, as a release does;
 2. stages the demo, as `castor mobile:android` does;

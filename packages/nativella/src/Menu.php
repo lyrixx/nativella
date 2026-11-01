@@ -58,7 +58,7 @@ final readonly class Menu
      *
      * @return list<array<string, mixed>>
      */
-    public static function items(array $items): array
+    private static function items(array $items): array
     {
         return array_values(array_map(static fn (MenuItem $item): array => $item->toArray(), $items));
     }

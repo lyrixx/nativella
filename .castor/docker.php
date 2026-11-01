@@ -46,12 +46,6 @@ function about(): void
 
     io()->section('Available URLs for this project:');
 
-    if (!has_router()) {
-        io()->listing([\sprintf('http://127.0.0.1:%s', getenv('HTTP_PORT') ?: '8000')]);
-
-        return;
-    }
-
     $urls = [variable('root_domain'), ...variable('extra_domains')];
 
     $worktreeName = get_worktree_name();
@@ -79,9 +73,9 @@ function about(): void
     } catch (HttpExceptionInterface) {
     }
 
-    $httpsPort = null !== $worktreeName ? get_worktree_ports($worktreeName)['https'] : null;
+    $httpsPort = get_worktree_ports($worktreeName)['https'];
     $formatUrl = static function (string $host) use ($httpsPort): string {
-        return null !== $httpsPort ? "https://{$host}:{$httpsPort}" : "https://{$host}";
+        return 443 === $httpsPort ? "https://{$host}" : "https://{$host}:{$httpsPort}";
     };
 
     io()->listing(array_map($formatUrl, array_unique($urls)));
@@ -113,12 +107,11 @@ function build(
         $command = ['--profile', 'default', '--profile', 'builder'];
     }
 
-    $command = [
-        ...$command,
-        'build',
-        '--build-arg', 'PHP_VERSION='.variable('php_version'),
-        '--build-arg', 'PROJECT_NAME='.variable('project_name'),
-    ];
+    $command[] = 'build';
+    foreach (build_arguments() as $argument) {
+        $command[] = '--build-arg';
+        $command[] = $argument;
+    }
 
     if ($service) {
         $command[] = $service;
@@ -185,11 +178,15 @@ function stop(
  * @param list<string> $params
  */
 #[AsTask(description: 'Opens a shell (bash) or proxy any command to the builder container', aliases: ['builder'])]
-function builder(#[AsArgsAfterOptionEnd] array $params = []): int
-{
+function builder(
+    #[AsOption(description: 'Run it in another service built from the builder image, e.g. static (the CI reads the version of its Rust)', autocomplete: 'docker\complete_service_names')]
+    ?string $service = null,
+    #[AsArgsAfterOptionEnd]
+    array $params = [],
+): int {
     $context = context()->withEnvironment($_ENV + $_SERVER);
 
-    return (int) docker_compose_run($params, $context)->getExitCode();
+    return (int) docker_compose_run($params, $context, $service)->getExitCode();
 }
 
 /**
@@ -249,10 +246,6 @@ function destroy(
 
     docker_compose(['down', '--remove-orphans', '--volumes', '--rmi=local'], profiles: ['*']);
 
-    if (!has_router()) {
-        return;
-    }
-
     $files = finder()
         ->in(variable('root_dir').'/infrastructure/docker/services/router/certs/')
         ->name('*.pem')
@@ -266,12 +259,6 @@ function generate_certificates(
     #[AsOption(description: 'Force the certificates re-generation without confirmation', shortcut: 'f')]
     bool $force = false,
 ): void {
-    if (!has_router()) {
-        io()->comment('No router in this stack, no SSL certificates to generate.');
-
-        return;
-    }
-
     $sslDir = variable('root_dir').'/infrastructure/docker/services/router/certs';
 
     if (file_exists("{$sslDir}/cert.pem") && !$force) {
@@ -342,6 +329,23 @@ function generate_certificates(
     if ($force) {
         io()->note('Please restart the infrastructure to use the new certificates with "castor up" or "castor start".');
     }
+}
+
+/**
+ * The arguments of the builds of the images, NAME=value: the Tauri command of
+ * the android image is the one of .castor/mobile.php, for Linux x86_64, the
+ * platform of that image.
+ *
+ * @return list<string>
+ */
+function build_arguments(): array
+{
+    return [
+        'PHP_VERSION='.variable('php_version'),
+        'PROJECT_NAME='.variable('project_name'),
+        'TAURI_CLI_SHA256='.\mobile\TAURI_CLI_ARCHIVES['linux-x86_64'][1],
+        'TAURI_CLI_VERSION='.\mobile\TAURI_CLI_VERSION,
+    ];
 }
 
 /**
@@ -441,10 +445,14 @@ function docker_compose_run(
         $command[] = $workDir;
     }
 
-    foreach ($c['docker_compose_run_environment'] as $key => $value) {
+    // The values through the environment of docker compose, which passes them
+    // on: not in its arguments, which every process of the machine can read
+    // (GITHUB_TOKEN)
+    foreach (array_keys($c['docker_compose_run_environment']) as $key) {
         $command[] = '-e';
-        $command[] = "{$key}={$value}";
+        $command[] = $key;
     }
+    $c = $c->withEnvironment($c['docker_compose_run_environment']);
 
     if (0 === \count($params)) {
         $params = ['bash'];
@@ -551,15 +559,6 @@ function docker_exit_code(
 }
 
 /**
- * Whether the current stack includes the traefik router (dev), which needs SSL certificates
- * and gives the project its URLs.
- */
-function has_router(): bool
-{
-    return isset(get_services()['router']);
-}
-
-/**
  * Pushes the build cache of every service declaring a `cache_from` to the
  * registry, so that the CI builds the images from it.
  */
@@ -590,8 +589,10 @@ function push(bool $dryRun = false): void
         $command[] = $file;
     }
 
-    $command[] = '--set';
-    $command[] = '*.args.PHP_VERSION='.$c['php_version'];
+    foreach (build_arguments() as $argument) {
+        $command[] = '--set';
+        $command[] = "*.args.{$argument}";
+    }
 
     foreach ($cacheFroms as $service => $cacheFrom) {
         $command[] = '--set';

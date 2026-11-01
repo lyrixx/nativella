@@ -2,6 +2,7 @@
 
 namespace Nativella\Tests;
 
+use Nativella\Client\Call;
 use Nativella\Client\FakeClient;
 use Nativella\Event\EventFactory;
 use Nativella\Event\PowerResumed;
@@ -41,9 +42,9 @@ final class PowerTest extends TestCase
         $power->keepAwake('Exporting the notes');
         $power->allowSleep();
 
-        $this->assertSame([
-            ['method' => 'power.keepAwake', 'payload' => ['reason' => 'Exporting the notes']],
-            ['method' => 'power.allowSleep', 'payload' => []],
+        $this->assertEquals([
+            new Call('power.keepAwake', ['reason' => 'Exporting the notes']),
+            new Call('power.allowSleep', []),
         ], $client->calls());
     }
 

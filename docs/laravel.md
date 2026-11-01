@@ -45,7 +45,9 @@ The package routes `POST /_nativella/event` outside the `web` middleware group (
 ```php title="app/Listeners/SetApplicationMenu.php"
 namespace App\Listeners;
 
+use Illuminate\Support\Facades\Log;
 use Nativella\Event\AppBooted;
+use Nativella\Exception\NativeCallException;
 use Nativella\Laravel\Facades\GlobalShortcut;
 use Nativella\Laravel\Facades\Menu;
 use Nativella\Menu\MenuItem;
@@ -64,7 +66,13 @@ final class SetApplicationMenu
             ),
             MenuItem::editMenu(),
         );
-        GlobalShortcut::register('CmdOrCtrl+Alt+Shift+T');
+
+        try {
+            GlobalShortcut::register('CmdOrCtrl+Alt+Shift+T');
+        } catch (NativeCallException $e) {
+            // Another application holds it: the application works without.
+            Log::warning('The global shortcut is not available.', ['exception' => $e]);
+        }
     }
 }
 ```

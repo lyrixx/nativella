@@ -18,7 +18,7 @@ Done: dist/notes
 nativella build [<project-dir>] [-o <output>]
 ```
 
-The project directory defaults to the current one. The executable goes to `dist/` in the current directory, named after the [`name`](configuration.md#name) of the application, in lower case with dashes (`.exe` on Windows); `-o` picks another path.
+The project directory defaults to the current one. The executable goes to `dist/` in the current directory, named after the [`name`](configuration.md#name) of the application, in lower case with dashes, of ASCII letters and digits: `Notes/Pro` makes `dist/notes-pro` (`.exe` on Windows); `-o` picks another path.
 
 > [!TIP]
 > `nativella build` from the project directory works too: the `dist/` it writes to is never packed, so the builds of earlier runs do not ship. With `-o` to another directory of the project, only the executable being written is left out of the archive.
@@ -31,18 +31,27 @@ The whole project directory, `vendor/` included, as a compressed archive, except
 |---|---|
 | `.git`, `.idea`, `dist`, `node_modules`, `tests` | At the root of the project. `dist` is where `nativella build` writes: a `dist` directory of your own there does not ship either, but `public/dist` does. |
 | `.env.local`, and every path ending with `.local` | Local overrides, which tend to hold secrets. The build lists the ones it leaves out. |
+| `.pem`, `.key` and `.p8` files that hold a private key; `.p12`, `.pfx`, `.jks`, `.keystore` and `.mobileprovision` files; `auth.json`, at the root of the project | Private keys, keystores, provisioning profiles, and the tokens of Composer. Anywhere in the project: the certificates of a `.pem` file without a private key ship, like the ones of `composer/ca-bundle`. The build lists the ones it leaves out. |
+| `.db`, `.sqlite` and `.sqlite3` files, and their `-journal`, `-wal` and `-shm` files | SQLite databases, the ones of your machine: the application makes its own, in its [data directory](configuration.md#the-data-directory). The build lists the ones it leaves out. |
 
 | Shipped empty | |
 |---|---|
-| `var/cache`, `var/log` | Symfony's cache and logs. |
-| `storage/framework/cache`, `storage/framework/sessions`, `storage/framework/views`, `storage/logs` | Laravel's caches, sessions and logs. |
+| `var` | What Symfony writes, its cache and its logs, and what the application writes there, like a SQLite database. Symfony makes the directories it needs. |
+| `storage/app`, `storage/framework/cache`, `storage/framework/sessions`, `storage/framework/views`, `storage/logs` | What Laravel writes: its files, caches, sessions and logs. |
 
-The caches, logs and sessions of your machine stay behind, but the directories ship: the frameworks expect them to exist.
+What your application wrote on your machine stays behind, but the directories ship: the frameworks expect them to exist.
+
+```text
+Packaging Notes 1.2.0 into dist/notes…
+Left out .env.local: local overrides never ship. Set the production environment in a file that does, like the .env.local.php of `composer dump-env prod` with Symfony.
+Left out auth.json, config/jwt/private.pem: private keys and credentials never ship, as anyone who has the application could read them.
+Done: dist/notes
+```
 
 Symbolic links are followed, so the packages Composer links from [path repositories](https://getcomposer.org/doc/05-repositories.md#path) ship as real files.
 
 > [!WARNING]
-> Everything else ships, and anyone who has the executable can read it: `.env` files, keys, credentials. A desktop application has no secrets from its users. Keep out of the project anything they should not see: [Credentials](#credentials) says where each kind goes.
+> Everything else ships, and anyone who has the executable can read it: `.env` files, and the keys and credentials of any other file. A desktop application has no secrets from its users. Keep out of the project anything they should not see: [Credentials](#credentials) says where each kind goes.
 
 ## Preparing the project
 
@@ -74,11 +83,19 @@ The executable finds the project it carries and extracts it, once per build, int
 | macOS | `~/Library/Caches/<identifier>/<build>` |
 | Windows | `%LOCALAPPDATA%\<identifier>\<build>` |
 
-The next launches of the same build start right away. A new build extracts again, next to the previous one, and removes it once it runs: when no other instance of the application can be running from there. The data directory stays. Extraction is safe when two instances start at once: each one extracts aside, and the first to finish wins.
+The next launches of the same build start right away. A build of other files, or by another version of Nativella, extracts again, next to the previous one, and removes it once it runs: when no other instance of the application can be running from there. The data directory stays. Extraction is safe when two instances start at once: each one extracts aside, and the first to finish wins.
 
 Then the application runs exactly as with `nativella run`. Its command line belongs to the application: a second launch forwards it to the running instance as [`AppReopened`](lifecycle.md#a-second-launch).
 
 The [data directory](configuration.md#the-data-directory) is separate from the extracted project: the database and the settings survive updates, as long as the identifier does not change.
+
+## Reproducible builds
+
+The same project, built by the same `nativella`, makes the same executable, byte for byte: the archive of the project keeps neither the dates nor the owners of its files, and `<build>`, at startup, is a digest of it. So do APKs, whose entries are all dated 1981-01-01, as Android's build tools do. A Debian package dates its files, and an iOS app for devices its signature: with `SOURCE_DATE_EPOCH`, in seconds since 1970, when it is set, as [reproducible builds](https://reproducible-builds.org/docs/source-date-epoch/) ask, with the time of the build otherwise.
+
+```bash
+SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) nativella deb notes
+```
 
 ## What the machine needs
 
@@ -86,9 +103,9 @@ The executable carries the project and PHP: the machine needs neither PHP nor Co
 
 ## The PHP inside
 
-The executable carries the PHP of the `nativella` command that built it: for the [releases](https://github.com/lyrixx/nativella/releases), PHP 8.5, linked statically, built with [static-php-cli](https://github.com/crazywhalecc/static-php-cli), in the latest patch release of the day of the build: 8.5.11 for 0.4.0. `nativella licenses` starts with it, and `phpinfo()`, in the application, gives the versions of the libraries too. The Symfony demo makes a 91 MB executable: see [Size and memory](#size-and-memory).
+The executable carries the PHP of the `nativella` command that built it: for the [releases](https://github.com/lyrixx/nativella/releases), PHP 8.5, linked statically, built with [static-php-cli](https://github.com/crazywhalecc/static-php-cli), in the patch release the repository pins ([The version of PHP](development.md#the-version-of-php)): 8.5.11 for 0.4.0. `nativella licenses` starts with it, and `phpinfo()`, in the application, gives the versions of the libraries too. The Symfony demo makes a 91 MB executable: see [Size and memory](#size-and-memory).
 
-It has the extensions a Symfony, Laravel or Doctrine application needs (bcmath, ctype, curl, dom, fileinfo, filter, iconv, intl, mbstring, opcache, openssl, pdo_sqlite, phar, session, simplexml, sodium, sqlite3, tokenizer, xml, xmlreader, xmlwriter, zip, zlib), and the [`php.ini`](configuration.md#phpini) of Nativella only: PHP runs with its defaults, plus the settings Nativella sets (sessions in the cache directory of the application, the time zone of the system). intl carries ICU and its data, for every locale: 36 MB of the executable.
+It has the extensions a Symfony, Laravel or Doctrine application needs (bcmath, ctype, curl, dom, fileinfo, filter, iconv, intl, mbstring, opcache, openssl, pdo_sqlite, phar, session, simplexml, sodium, sqlite3, tokenizer, xml, xmlreader, xmlwriter, zip, zlib), and the [`php.ini`](configuration.md#phpini) of Nativella only: PHP runs with its defaults, plus the settings Nativella sets (errors in the logs rather than the page, uploads up to 512 MB, sessions in the cache directory of the application, the time zone of the system). intl carries ICU and its data, for every locale: 36 MB of the executable.
 
 Android and iOS applications carry the same PHP, with the same extensions, built for the phone: see [PHP for the phone](mobile.md#php-for-the-phone).
 
@@ -142,7 +159,7 @@ nativella deb [<project-dir>] [-o <output>]
 | `/usr/share/icons/hicolor/*/apps/<package>.png` | The [icon](configuration.md#icon), from 32 to 512 pixels: give it 512 pixels or more. |
 | `/usr/share/doc/<package>/THIRD_PARTY_NOTICES.txt` | The [licenses](#licenses) of the software inside. |
 
-The package is named after the [`name`](configuration.md#name) of the application, in lower case with dashes, and so are its executable and its entry: the desktop matches the windows to the entry, and so to the icon, by that name. Its version is the [`version`](configuration.md#version), which has to start with a digit. composer.json gives the rest: the `description`, the `homepage`, and the first of the `authors` as the maintainer, or the name of the application.
+The package is named after the [`name`](configuration.md#name) of the application, in lower case with dashes, and so are its executable and its entry: the desktop matches the windows to the entry, and so to the icon, by that name. Its version is the [`version`](configuration.md#version), which has to start with a digit, a pre-release after a `~` rather than a `-`: `1.2.0-beta.1` becomes `1.2.0~beta.1`, which Debian sorts before `1.2.0`, as a pre-release. composer.json gives the rest: the `description`, the `homepage`, and the first of the `authors` as the maintainer, or the name of the application.
 
 It depends on `libwebkit2gtk-4.1-0` and a glibc 2.35 or later (Ubuntu 22.04, Debian 12), and recommends `libayatana-appindicator3-1`, for a [tray](tray.md) icon. It is made for the processor of the machine that builds it, `amd64` or `arm64`: build it with the `nativella` of the [releases](installation.md), whose PHP is linked statically. A development build of `nativella` links the PHP of its machine, and warns that its packages will not run elsewhere.
 

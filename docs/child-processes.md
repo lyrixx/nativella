@@ -22,7 +22,7 @@ $processes->stop('worker');
 
 `$command` is the program, then its arguments: no shell is involved, so nothing needs quoting, and `|`, `>` or `$VAR` mean nothing. For those, start a shell: `['sh', '-c', 'du -sh ~ | sort -h']`.
 
-The process starts in the project directory, or in `$cwd`, relative to it. It gets the environment of the application, plus `$env`.
+The process starts in the project directory, or in `$cwd`, relative to it. It gets the environment of the application, plus the variables of Nativella that PHP finds in `$_SERVER`, `NATIVELLA_DATA_DIR`, `NATIVELLA_SECRET`, `NATIVELLA_PLATFORM` and `NATIVELLA_VERSION`, plus `$env`, which wins. A worker of the application opens the same database, with the same secret, as the requests do.
 
 ## Output and end
 
@@ -44,7 +44,7 @@ public function onExit(ChildProcessExited $event): void
 }
 ```
 
-`ChildProcessOutput::$output` is what the process wrote, as it came: often whole lines with their line endings, sometimes a prompt or a part of a line, never half a character. `ChildProcessExited` comes after the last output of the process.
+`ChildProcessOutput::$output` is what the process wrote, as it came: often whole lines with their line endings, sometimes a prompt or a part of a line, never half a character. `ChildProcessExited` comes after the last output of the process, however long PHP takes to handle it. A process it started outside of its group, a daemon, may keep its output open after its end: Nativella then waits for 2 seconds of quiet, not more.
 
 Both carry the `pid`. A process started again under the same alias, after a `stop()` or from a listener of `ChildProcessExited`, may run before the events of the previous one are handled: compare the `pid` to tell them apart.
 

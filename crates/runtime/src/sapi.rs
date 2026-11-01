@@ -4,7 +4,8 @@
 //! Everything here runs on the PHP thread.
 
 use std::env;
-use std::ffi::{CString, c_char};
+use std::ffi::{CString, c_char, c_int};
+use std::mem;
 use std::ptr;
 
 use ext_php_rs::embed::{
@@ -23,7 +24,7 @@ use crate::bridge;
 use crate::runtime::{PhpApp, RequestOrigin};
 
 /// `SG(request_info).proto_num` for HTTP/1.1, encoded the way PHP's own SAPIs do.
-const HTTP_1_1: u16 = 1001;
+const HTTP_1_1: c_int = 1001;
 
 /// The php.ini of Nativella, which PHP reads before the settings of the
 /// application.
@@ -44,6 +45,7 @@ impl Engine {
         // ext-php-rs answers with a new C string for every request and PHP
         // never frees it: hand PHP the one the request context owns instead.
         module.read_cookies = Some(read_cookies);
+        module.activate = Some(activate);
 
         // The static PHP looks for /usr/local/etc/php/php.ini and its conf.d/,
         // where static-php-cli built it to, and for PHPRC and PHP_INI_SCAN_DIR:
@@ -76,6 +78,11 @@ impl Engine {
             }
         }
 
+        // PHP 8 starts in the C locale, as its functions expect, whatever the
+        // environment says. The host may have taken the locale of the user
+        // (GTK does): sprintf('%.1f') would write "12,5" in French.
+        unsafe { libc::setlocale(libc::LC_ALL, c"C".as_ptr()) };
+
         let started = unsafe { php_module_startup(module, bridge::module_entry()) };
         assert!(
             started == ZEND_RESULT_CODE_SUCCESS,
@@ -88,22 +95,22 @@ impl Engine {
         }
     }
 
+    /// Runs PHP for `request`. Its body goes to PHP and comes back, for the
+    /// redirects that send it again.
     pub(crate) fn handle(
         &self,
         app: &PhpApp,
-        request: Request<Vec<u8>>,
+        request: &mut Request<Vec<u8>>,
         origin: &RequestOrigin,
     ) -> Response<Vec<u8>> {
-        let mut context = RequestContext::new(app, request, origin);
-
-        let mut info = RequestInfo::default();
-        context.init_request_info(&mut info);
-        let strings = RequestInfoStrings::new(&info);
+        let body = mem::take(request.body_mut());
+        let mut context = RequestContext::new(app, request, body, origin);
+        let strings = RequestInfoStrings::new(&context.info);
 
         unsafe {
             let globals = &mut *ext_php_rs_sapi_globals();
             globals.server_context = (&raw mut context).cast();
-            strings.apply(&mut globals.request_info, &info);
+            strings.apply(&mut globals.request_info);
             // PHP keeps the status of the previous request otherwise, and
             // only turns a fatal error into a 500 from a 200, as php-fpm
             // and the built-in server start every request with.
@@ -115,7 +122,7 @@ impl Engine {
                 // exit() unwinds the script and makes PHP report a failure:
                 // front controllers built on symfony/runtime always call it.
                 Ok(()) | Err(EmbedError::ExecuteScriptError) => {}
-                Err(error) => eprintln!(
+                Err(error) => log!(
                     "[php] {} did not run to completion: {error}.",
                     app.front_controller.display()
                 ),
@@ -123,7 +130,7 @@ impl Engine {
 
             unsafe { php_request_shutdown(ptr::null_mut()) };
         } else {
-            eprintln!("[php] The request could not start.");
+            log!("[php] The request could not start.");
             context.status = 500;
         }
 
@@ -134,6 +141,7 @@ impl Engine {
         }
         drop(strings);
 
+        *request.body_mut() = mem::take(&mut context.body);
         context.into_response()
     }
 }
@@ -171,7 +179,7 @@ impl Sapi for NativeSapi {
     }
 
     fn log_message(message: &str, _syslog_type: i32) {
-        eprintln!("[php] {message}");
+        log!("[php] {message}");
     }
 
     fn send_headers(context: &mut RequestContext, headers: &SapiHeaders) -> SendHeadersResult {
@@ -194,12 +202,24 @@ impl Sapi for NativeSapi {
             return;
         }
 
-        match header.as_name_value() {
-            Some((name, value)) => context.headers.push((name.to_owned(), value.to_owned())),
-            None => eprintln!(
-                "[php] Dropped a response header that is not valid UTF-8 or has no colon."
-            ),
+        let Some((name, value)) = header.as_name_value() else {
+            log!("[php] Dropped a response header that is not valid UTF-8 or has no colon.");
+
+            return;
+        };
+
+        // Headers come before the first output: the warning comes in time,
+        // even for a stream that never ends.
+        if name.eq_ignore_ascii_case("content-type")
+            && value.to_ascii_lowercase().starts_with("text/event-stream")
+        {
+            log!(
+                "[php] {} streams server-sent events: the page gets them all at once, when the script ends, and never if the stream does not end. See docs/limitations.md.",
+                context.info.request_uri.as_deref().unwrap_or("/")
+            );
         }
+
+        context.headers.push((name.to_owned(), value.to_owned()));
     }
 
     fn register_server_variables(context: &mut RequestContext, registrar: &mut ServerVarRegistrar) {
@@ -224,19 +244,22 @@ struct RequestContext {
 }
 
 impl RequestContext {
-    fn new(app: &PhpApp, request: Request<Vec<u8>>, origin: &RequestOrigin) -> Self {
-        let (parts, body) = request.into_parts();
+    fn new(
+        app: &PhpApp,
+        request: &Request<Vec<u8>>,
+        body: Vec<u8>,
+        origin: &RequestOrigin,
+    ) -> Self {
+        let (method, uri, headers) = (request.method(), request.uri(), request.headers());
 
-        let request_uri = parts
-            .uri
+        let request_uri = uri
             .path_and_query()
             .map_or("/", |path| path.as_str())
             .to_owned();
-        let query_string = parts.uri.query().unwrap_or_default().to_owned();
-        let content_type = header_str(&parts.headers, &CONTENT_TYPE);
+        let query_string = uri.query().unwrap_or_default().to_owned();
+        let content_type = header_str(headers, &CONTENT_TYPE);
         // An HTTP header value cannot contain a NUL byte.
-        let cookie =
-            header_str(&parts.headers, &COOKIE).and_then(|cookie| CString::new(cookie).ok());
+        let cookie = header_str(headers, &COOKIE).and_then(|cookie| CString::new(cookie).ok());
         let script_filename = app.front_controller.to_string_lossy().into_owned();
         let script_name = format!(
             "/{}",
@@ -249,16 +272,23 @@ impl RequestContext {
         // Like the CLI and php-fpm without clear_env, $_SERVER starts with the
         // process environment: that is where APP_ENV and friends come from.
         let mut server_variables: Vec<(String, String)> = env::vars_os()
-            .filter_map(|(name, value)| Some((name.into_string().ok()?, value.into_string().ok()?)))
+            .filter_map(|(name, value)| {
+                if let (Some(name), Some(value)) = (name.to_str(), value.to_str()) {
+                    return Some((name.to_owned(), value.to_owned()));
+                }
+                log!(
+                    "[php] Left the environment variable {} out of $_SERVER: it is not valid UTF-8.",
+                    name.to_string_lossy()
+                );
+
+                None
+            })
             .collect();
 
         server_variables.extend(
             [
                 ("SERVER_SOFTWARE", "nativella".to_owned()),
-                (
-                    "SERVER_NAME",
-                    parts.uri.host().unwrap_or("localhost").to_owned(),
-                ),
+                ("SERVER_NAME", uri.host().unwrap_or("localhost").to_owned()),
                 ("SERVER_PORT", "80".to_owned()),
                 ("SERVER_PROTOCOL", "HTTP/1.1".to_owned()),
                 ("GATEWAY_INTERFACE", "CGI/1.1".to_owned()),
@@ -270,7 +300,7 @@ impl RequestContext {
                 ("SCRIPT_FILENAME", script_filename.clone()),
                 ("SCRIPT_NAME", script_name.clone()),
                 ("PHP_SELF", script_name),
-                ("REQUEST_METHOD", parts.method.to_string()),
+                ("REQUEST_METHOD", method.to_string()),
                 ("REQUEST_URI", request_uri.clone()),
                 ("QUERY_STRING", query_string.clone()),
             ]
@@ -284,18 +314,17 @@ impl RequestContext {
             server_variables.push(("CONTENT_LENGTH".to_owned(), body.len().to_string()));
         }
 
-        for (name, value) in &parts.headers {
+        for (name, value) in headers {
+            let Ok(value) = value.to_str() else {
+                log!("[php] Dropped the request header {name}: its value is not printable ASCII.");
+                continue;
+            };
             if name == CONTENT_TYPE || name == CONTENT_LENGTH {
                 continue;
             }
 
-            let Ok(value) = value.to_str() else {
-                eprintln!("[php] Dropped the request header {name}: its value is not valid UTF-8.");
-                continue;
-            };
-
             let value = if name == ORIGIN || name == REFERER {
-                as_php_origin(&parts.uri, value)
+                as_php_origin(uri, value)
             } else {
                 value.to_owned()
             };
@@ -310,10 +339,10 @@ impl RequestContext {
         }
 
         // WebKit sends no Host header for a custom scheme.
-        if !parts.headers.contains_key(HOST) {
+        if !headers.contains_key(HOST) {
             server_variables.push((
                 "HTTP_HOST".to_owned(),
-                parts.uri.host().unwrap_or("localhost").to_owned(),
+                uri.host().unwrap_or("localhost").to_owned(),
             ));
         }
 
@@ -329,16 +358,15 @@ impl RequestContext {
         }
 
         let info = RequestInfo {
-            request_method: Some(parts.method.to_string()),
+            request_method: Some(method.to_string()),
             query_string: Some(query_string),
             request_uri: Some(request_uri),
             path_translated: Some(script_filename),
             content_type,
             content_length: i64::try_from(body.len())
                 .expect("A request body fits in memory, so in an i64."),
-            proto_num: HTTP_1_1,
-            auth_user: None,
-            auth_password: None,
+            // PHP resets the protocol of every request: see activate().
+            ..RequestInfo::default()
         };
 
         Self {
@@ -355,11 +383,14 @@ impl RequestContext {
     }
 
     fn into_response(self) -> Response<Vec<u8>> {
+        // HTTP has no status beyond 599, which webviews refuse: Android's
+        // sends the request to the network then.
         let status = u16::try_from(self.status)
             .ok()
+            .filter(|code| (100..=599).contains(code))
             .and_then(|code| StatusCode::from_u16(code).ok())
             .unwrap_or_else(|| {
-                eprintln!(
+                log!(
                     "[php] {} is not an HTTP status code, answering 500 instead.",
                     self.status
                 );
@@ -378,7 +409,7 @@ impl RequestContext {
                 (Ok(name), Ok(value)) => {
                     response.headers_mut().append(name, value);
                 }
-                _ => eprintln!("[php] Dropped the invalid response header \"{name}: {value}\"."),
+                _ => log!("[php] Dropped the invalid response header \"{name}: {value}\"."),
             }
         }
 
@@ -386,6 +417,9 @@ impl RequestContext {
     }
 }
 
+/// ext-php-rs only calls `read_post()`: the trait asks for the others, which
+/// nothing calls. The SAPI fills `SG(request_info)` itself (`Engine::handle`),
+/// has its own `read_cookies` callback, and no `fastcgi_finish_request()`.
 impl ServerContext for RequestContext {
     fn init_request_info(&self, info: &mut RequestInfo) {
         info.clone_from(&self.info);
@@ -413,14 +447,15 @@ impl ServerContext for RequestContext {
     }
 }
 
-/// The C strings `SG(request_info)` points to. They must outlive the request,
-/// PHP only borrows them.
+/// What `SG(request_info)` gets of a request: the C strings must outlive the
+/// request, PHP only borrows them.
 struct RequestInfoStrings {
     request_method: Option<CString>,
     query_string: Option<CString>,
     request_uri: Option<CString>,
     path_translated: Option<CString>,
     content_type: Option<CString>,
+    content_length: i64,
 }
 
 impl RequestInfoStrings {
@@ -434,19 +469,21 @@ impl RequestInfoStrings {
             request_uri: c_string(&info.request_uri),
             path_translated: c_string(&info.path_translated),
             content_type: c_string(&info.content_type),
+            content_length: info.content_length,
         }
     }
 
-    fn apply(&self, target: &mut sapi_request_info, info: &RequestInfo) {
+    fn apply(&self, target: &mut sapi_request_info) {
         target.request_method = as_ptr(&self.request_method);
         target.query_string = as_ptr(&self.query_string).cast_mut();
         target.request_uri = as_ptr(&self.request_uri).cast_mut();
         target.path_translated = as_ptr(&self.path_translated).cast_mut();
         target.content_type = as_ptr(&self.content_type);
-        target.content_length = info.content_length;
-        target.proto_num = i32::from(info.proto_num);
+        target.content_length = self.content_length;
     }
 
+    /// Forgets the strings of the request, and its cookies, which the
+    /// request context owned.
     fn clear(target: &mut sapi_request_info) {
         target.request_method = ptr::null();
         target.query_string = ptr::null_mut();
@@ -454,7 +491,18 @@ impl RequestInfoStrings {
         target.path_translated = ptr::null_mut();
         target.content_type = ptr::null();
         target.content_length = 0;
+        target.cookie_data = ptr::null_mut();
     }
+}
+
+/// Called by `sapi_activate()`, at the start of every request, once it has
+/// set `SG(request_info).proto_num` to HTTP/1.0. HTTP/1.1 makes
+/// `header('Location: …')` answer a POST, a PUT or a DELETE with a 303, as
+/// under PHP-FPM: the redirect is followed with a GET, not the same method.
+extern "C" fn activate() -> c_int {
+    unsafe { (*ext_php_rs_sapi_globals()).request_info.proto_num = HTTP_1_1 };
+
+    ZEND_RESULT_CODE_SUCCESS
 }
 
 /// `SG(request_info).cookie_data`: PHP reads it during the request and never

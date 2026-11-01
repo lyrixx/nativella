@@ -11,11 +11,16 @@ use std::fs::{self, File};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
+use der::{Decode, Encode};
 use p256::ecdsa::signature::Signer;
 use p256::ecdsa::{DerSignature, SigningKey};
 use p256::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey, LineEnding};
+use pkcs12::pbe_params::EncryptedPrivateKeyInfo;
 use sha2::{Digest, Sha256};
 
+use crate::binary::der;
 use crate::zip::{self, Unfinished};
 
 const BLOCK_MAGIC: &[u8; 16] = b"APK Sig Block 42";
@@ -23,6 +28,13 @@ const V2_BLOCK_ID: u32 = 0x7109_871a;
 /// ECDSA with SHA2-256, the content digested in chunks of 1 MiB.
 const ECDSA_WITH_SHA256: u32 = 0x0201;
 const CHUNK_LENGTH: usize = 1024 * 1024;
+
+/// The variable that holds the password of an encrypted key, rather than an
+/// argument, which the other users of the computer see.
+pub const KEY_PASSWORD: &str = "NATIVELLA_KEY_PASSWORD";
+
+/// The label of an encrypted PKCS #8 key in PEM.
+const ENCRYPTED_LABEL: &str = "ENCRYPTED PRIVATE KEY";
 
 /// A signing key, its certificate, and the file it comes from.
 pub struct Key {
@@ -33,15 +45,33 @@ pub struct Key {
 
 impl Key {
     /// The key of a PKCS #8 PEM file, as `openssl genpkey -algorithm EC
-    /// -pkeyopt ec_paramgen_curve:P-256` writes it.
-    pub fn load(path: &Path) -> io::Result<Self> {
+    /// -pkeyopt ec_paramgen_curve:P-256` writes it, or encrypted with
+    /// `password`, as it does with `-aes256`.
+    pub fn load(path: &Path, password: Option<&str>) -> io::Result<Self> {
         let pem = fs::read_to_string(path).map_err(|error| {
             io::Error::new(
                 error.kind(),
                 format!("Cannot read the key {}: {error}.", path.display()),
             )
         })?;
-        let signing_key = SigningKey::from_pkcs8_pem(&pem).map_err(|error| {
+        warn_if_readable_by_others(path);
+
+        let signing_key = match pem_contents(&pem, ENCRYPTED_LABEL) {
+            Some(encrypted) => {
+                let password = password.ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!(
+                            "The key {} is encrypted: set {KEY_PASSWORD} to its password.",
+                            path.display()
+                        ),
+                    )
+                })?;
+                SigningKey::from_pkcs8_der(&decrypt(encrypted, password)?)
+            }
+            None => SigningKey::from_pkcs8_pem(&pem),
+        }
+        .map_err(|error| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!(
@@ -62,20 +92,77 @@ impl Key {
     /// The debug key of this computer, made at its first use: enough to try
     /// an application, not to publish it, as the key could be lost.
     pub fn debug() -> io::Result<Self> {
-        let path = config_dir()?
+        let path = dirs::config_dir()
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::NotFound, "The user has no home directory.")
+            })?
             .join("nativella")
             .join("android-debug-key.pem");
         if !path.is_file() {
             create_debug_key(&path)?;
         }
 
-        Self::load(&path)
+        Self::load(&path, None)
     }
 
     /// The file of the key.
     pub fn path(&self) -> &Path {
         &self.path
     }
+}
+
+/// The base64 between the lines `-----BEGIN <label>-----` and `-----END
+/// <label>-----` of `pem`, if it has them.
+fn pem_contents<'a>(pem: &'a str, label: &str) -> Option<&'a str> {
+    let (_, rest) = pem.split_once(&format!("-----BEGIN {label}-----"))?;
+    let (contents, _) = rest.split_once(&format!("-----END {label}-----"))?;
+
+    Some(contents)
+}
+
+/// The PKCS #8 key, in DER, of the encrypted key `encrypted`, in base64:
+/// PBES2, as OpenSSL encrypts keys.
+fn decrypt(encrypted: &str, password: &str) -> io::Result<Vec<u8>> {
+    let invalid = |message: &str| io::Error::new(io::ErrorKind::InvalidData, message);
+    let base64: String = encrypted.split_whitespace().collect();
+    let der = BASE64_STANDARD
+        .decode(base64)
+        .map_err(|_| invalid("The encrypted key is not in base64."))?;
+    // The structure of RFC 5208, which PKCS #12 files hold too.
+    let info = EncryptedPrivateKeyInfo::from_der(&der)
+        .map_err(|_| invalid("The encrypted key is not an encrypted PKCS #8 key."))?;
+    let algorithm = info
+        .encryption_algorithm
+        .to_der()
+        .map_err(io::Error::other)?;
+    let scheme = pkcs5::EncryptionScheme::try_from(algorithm.as_slice()).map_err(|_| {
+        invalid("The key is encrypted in a way this command does not know: PBES2 only, as OpenSSL encrypts keys.")
+    })?;
+
+    scheme
+        .decrypt(password.as_bytes(), info.encrypted_data.as_bytes())
+        .map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!("Cannot decrypt the key: is {KEY_PASSWORD} its password?"),
+            )
+        })
+}
+
+/// Warns when the other users of the computer may read the key `path`.
+fn warn_if_readable_by_others(path: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if fs::metadata(path).is_ok_and(|metadata| metadata.permissions().mode() & 0o044 != 0) {
+            eprintln!(
+                "Warning: the other users of this computer may read the key {}: make it readable by you only (chmod 600).",
+                path.display()
+            );
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = path;
 }
 
 /// Writes a new key to `path`, whole, unless another run of `nativella` has
@@ -278,50 +365,131 @@ fn certificate(signing_key: &SigningKey) -> io::Result<Vec<u8>> {
     Ok(der(0x30, &[to_be_signed, algorithm, signature].concat()))
 }
 
-/// A DER value: its tag, its length, its content.
-fn der(tag: u8, content: &[u8]) -> Vec<u8> {
-    let mut value = vec![tag];
-    let length = content.len();
-    if length < 0x80 {
-        value.push(length as u8);
-    } else {
-        let bytes = length.to_be_bytes();
-        let significant = &bytes[bytes
-            .iter()
-            .position(|&byte| byte != 0)
-            .unwrap_or(bytes.len() - 1)..];
-        value.push(0x80 | significant.len() as u8);
-        value.extend(significant);
-    }
-    value.extend(content);
-    value
-}
-
-/// The per-user configuration directory of the platform.
-fn config_dir() -> io::Result<PathBuf> {
-    let from_env = |name: &str| {
-        std::env::var_os(name)
-            .filter(|value| !value.is_empty())
-            .map(PathBuf::from)
-    };
-    let missing = || io::Error::new(io::ErrorKind::NotFound, "The user has no home directory.");
-
-    if cfg!(windows) {
-        from_env("APPDATA").ok_or_else(missing)
-    } else if cfg!(target_os = "macos") {
-        from_env("HOME")
-            .map(|home| home.join("Library/Application Support"))
-            .ok_or_else(missing)
-    } else {
-        from_env("XDG_CONFIG_HOME")
-            .or_else(|| from_env("HOME").map(|home| home.join(".config")))
-            .ok_or_else(missing)
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use std::fs::OpenOptions;
+
+    use p256::ecdsa::VerifyingKey;
+    use p256::ecdsa::signature::Verifier;
+    use p256::pkcs8::DecodePublicKey;
+
     use super::*;
+    use crate::binary::{u32_at, u64_at};
+
+    /// The values of `data`, a sequence of values after their length on 4
+    /// bytes.
+    fn values(mut data: &[u8]) -> Vec<&[u8]> {
+        let mut values = Vec::new();
+        while !data.is_empty() {
+            let length = u32_at(data, 0) as usize;
+            values.push(&data[4..4 + length]);
+            data = &data[4 + length..];
+        }
+
+        values
+    }
+
+    /// The digest of `sections`, as the v2 scheme defines it: of each chunk
+    /// of 1 MiB of each section, then of those digests.
+    fn content_digest(sections: &[&[u8]]) -> Vec<u8> {
+        let chunks: Vec<&[u8]> = sections
+            .iter()
+            .flat_map(|section| section.chunks(CHUNK_LENGTH))
+            .collect();
+        let mut top = vec![0x5a];
+        top.extend((chunks.len() as u32).to_le_bytes());
+        for chunk in chunks {
+            let mut prefix = vec![0xa5];
+            prefix.extend((chunk.len() as u32).to_le_bytes());
+            top.extend(Sha256::digest([prefix, chunk.to_vec()].concat()));
+        }
+
+        Sha256::digest(top).to_vec()
+    }
+
+    /// Reads the APK Signing Block back, as Android does: the block before
+    /// the central directory, its v2 signer, whose signature, digest and
+    /// certificate must hold.
+    #[test]
+    fn android_verifies_the_signature() {
+        let path =
+            Path::new(env!("OUT_DIR")).join(format!("signing-test-{}.apk", std::process::id()));
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .unwrap();
+        let mut writer = zip::Writer::new(&mut file);
+        writer
+            .add_deflated("AndroidManifest.xml", &[1; 3000])
+            .unwrap();
+        // Over a chunk of 1 MiB.
+        writer
+            .add_stored_with("assets/big", |out| {
+                out.write_all(&vec![2; CHUNK_LENGTH + 10])
+            })
+            .unwrap();
+        let unfinished = writer.finish().unwrap();
+        let signing_key = SigningKey::from_slice(&[7; 32]).unwrap();
+        let key = Key {
+            certificate: certificate(&signing_key).unwrap(),
+            signing_key,
+            path: PathBuf::new(),
+        };
+
+        sign(&mut file, &unfinished, &key).unwrap();
+
+        let apk = fs::read(&path).unwrap();
+        // The end of central directory, without a comment.
+        let end = apk.len() - 22;
+        assert_eq!(u32_at(&apk, end), 0x0605_4b50);
+        let central_directory = u32_at(&apk, end + 16) as usize;
+        // The block: its size, its pairs, its size again and its magic.
+        assert_eq!(&apk[central_directory - 16..central_directory], BLOCK_MAGIC);
+        let size = u64_at(&apk, central_directory - 24) as usize;
+        let block = central_directory - size - 8;
+        assert_eq!(u64_at(&apk, block), size as u64);
+        let pairs = &apk[block + 8..central_directory - 24];
+        assert_eq!(u64_at(pairs, 0) as usize, pairs.len() - 8, "One pair.");
+        assert_eq!(u32_at(pairs, 8), V2_BLOCK_ID);
+
+        let signers = values(&pairs[12..]);
+        let signers = values(signers[0]);
+        assert_eq!(signers.len(), 1);
+        let [signed_data, signatures, public_key] = values(signers[0])[..] else {
+            panic!("A signer is its signed data, its signatures and its public key.");
+        };
+        let [digests, certificates, attributes] = values(signed_data)[..] else {
+            panic!("The signed data are digests, certificates and attributes.");
+        };
+        assert_eq!(values(certificates), [key.certificate.as_slice()]);
+        assert!(attributes.is_empty());
+
+        // The signature of the signed data, by the key of the certificate.
+        let signatures = values(signatures);
+        assert_eq!(signatures.len(), 1);
+        assert_eq!(u32_at(signatures[0], 0), ECDSA_WITH_SHA256);
+        let signature = DerSignature::from_bytes(values(&signatures[0][4..])[0]).unwrap();
+        VerifyingKey::from_public_key_der(public_key)
+            .unwrap()
+            .verify(signed_data, &signature)
+            .unwrap();
+
+        // The digest of the entries, of the central directory, and of its
+        // end as if the block were not there.
+        let digests = values(digests);
+        assert_eq!(u32_at(digests[0], 0), ECDSA_WITH_SHA256);
+        let mut unsigned_end = apk[end..].to_vec();
+        unsigned_end[16..20].copy_from_slice(&(block as u32).to_le_bytes());
+        assert_eq!(
+            values(&digests[0][4..])[0],
+            content_digest(&[&apk[..block], &apk[central_directory..end], &unsigned_end])
+        );
+
+        fs::remove_file(path).unwrap();
+    }
 
     /// Android updates an application only if the new APK has the same
     /// certificate, byte for byte: any change to the certificate (its dates,
@@ -358,14 +526,22 @@ mod tests {
             1,
             "Nothing is left aside."
         );
-        Key::load(&path).unwrap();
+        Key::load(&path, None).unwrap();
         fs::remove_dir_all(dir).unwrap();
     }
 
+    /// As `openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256
+    /// -aes256 -pass pass:nativella` writes it.
     #[test]
-    fn der_lengths() {
-        assert_eq!(der(0x04, &[1; 3])[..2], [0x04, 3]);
-        assert_eq!(der(0x04, &[1; 200])[..3], [0x04, 0x81, 200]);
-        assert_eq!(der(0x04, &[1; 300])[..4], [0x04, 0x82, 0x01, 0x2c]);
+    fn an_encrypted_key() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/apk/testdata/encrypted-key.pem");
+
+        Key::load(&path, Some("nativella")).unwrap();
+
+        let error = Key::load(&path, Some("wrong")).err().unwrap();
+        assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+        assert!(error.to_string().contains(KEY_PASSWORD), "{error}");
+        let error = Key::load(&path, None).err().unwrap();
+        assert!(error.to_string().contains(KEY_PASSWORD), "{error}");
     }
 }

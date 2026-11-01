@@ -16,7 +16,7 @@ final class NotificationTest extends TestCase
 
         new Notification($client)->send('New message', 'From Alice', reference: 'message-42');
 
-        $this->assertSame(['title' => 'New message', 'body' => 'From Alice', 'reference' => 'message-42'], $client->calls('notification.send')[0]['payload']);
+        $this->assertSame(['title' => 'New message', 'body' => 'From Alice', 'reference' => 'message-42'], $client->calls('notification.send')[0]->payload);
         $this->assertEquals(new NotificationClicked('message-42'), EventFactory::create('notification.clicked', ['reference' => 'message-42']));
     }
 }

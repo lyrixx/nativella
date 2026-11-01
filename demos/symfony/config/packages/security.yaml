@@ -1,0 +1,6 @@
+security:
+    # Nobody signs in to the notes: the firewall is there for the CSRF tokens
+    # of #[IsCsrfTokenValid], since the application also runs in a browser.
+    firewalls:
+        main:
+            stateless: true

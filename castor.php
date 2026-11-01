@@ -64,15 +64,7 @@ function install(): void
     io()->title('Installing the projects');
 
     foreach (project\all() as $project) {
-        io()->section("Installing {$project->path}");
-
-        run_or_fail($project, ['composer', 'install', '-n', '--prefer-dist', '--optimize-autoloader']);
-
-        // A Laravel application reads its key from .env, which is not versioned
-        if ($project->isLaravel() && !$project->hasFile('.env') && $project->hasFile('.env.example')) {
-            run_or_fail($project, ['cp', '.env.example', '.env']);
-            run_or_fail($project, ['php', 'artisan', 'key:generate', '-n']);
-        }
+        project\install($project);
     }
 
     qa\install();

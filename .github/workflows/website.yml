@@ -5,6 +5,10 @@ name: Website
 # root, the documentation under docs/. Pages must be set to "GitHub Actions"
 # in the settings of the repository. A pull request runs it on the paths
 # below, Cargo.toml too: the landing page shows the version of the workspace.
+# And on what the documentation links to in the rest of the repository, which
+# the build checks: each file, and for a directory, a file that a rename or a
+# removal of it changes too. Keep in sync with the links of docs/:
+# grep -ohE '\]\(\.\./[^)#]+' docs/*.md | sort -u
 
 "on":
     # Every push to main, whatever the paths: main catches a path missing
@@ -15,10 +19,17 @@ name: Website
         branches: ["main"]
         paths:
             - ".castor/**"
+            - ".github/actions/castor/**"
             - ".github/workflows/website.yml"
             - "Cargo.toml"
             - "castor.php"
+            - "crates/nativella/Cargo.toml"
+            - "crates/nativella/examples/plain.rs"
+            - "crates/runtime/Cargo.toml"
+            - "crates/runtime/php.ini"
+            - "demos/*/composer.json"
             - "docs/**"
+            - "packages/*/composer.json"
             - "tools/zensical/**"
             - "website/**"
     workflow_dispatch:
@@ -41,15 +52,16 @@ jobs:
     build:
         name: Build the website
         runs-on: ubuntu-26.04
+        timeout-minutes: 15
         permissions:
             contents: read
         steps:
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                 persist-credentials: false
+
+            - name: "Set up Castor"
+              uses: ./.github/actions/castor
 
             # Gives the URL of the site, for its absolute URLs (Open Graph, canonical)
             - name: "Configure GitHub Pages"
@@ -63,7 +75,9 @@ jobs:
               uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
               with:
                   php-version: "8.5"
-                  tools: composer
+                  # The Composer of the builder: keep in sync with the
+                  # Dockerfile of infrastructure/docker/services/php/
+                  tools: composer:2.10.0@sha256:a346538851988ead111d11e3cbd7d372eeba44abd0af412e09890d3c21ea6c31
 
             # Fails on a broken link of the documentation
             - name: "Build the website"
@@ -83,6 +97,7 @@ jobs:
         if: github.event_name != 'pull_request'
         needs: build
         runs-on: ubuntu-26.04
+        timeout-minutes: 15
         permissions:
             id-token: write
             pages: write

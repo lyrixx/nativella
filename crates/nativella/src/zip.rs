@@ -12,6 +12,8 @@ use flate2::Compression;
 use flate2::read::DeflateDecoder;
 use flate2::write::DeflateEncoder;
 
+use crate::binary::{u16_at, u32_at};
+
 const LOCAL_HEADER: u32 = 0x0403_4b50;
 const CENTRAL_HEADER: u32 = 0x0201_4b50;
 const END_OF_CENTRAL_DIRECTORY: u32 = 0x0605_4b50;
@@ -25,13 +27,18 @@ const DEFLATED: u16 = 8;
 /// module writes have them in their header instead.
 const DATA_DESCRIPTOR_FLAG: u16 = 1 << 3;
 
+/// The name is in UTF-8, not in the code page of MS-DOS (CP437), as unzip
+/// and Finder read it otherwise.
+const UTF8_FLAG: u16 = 1 << 11;
+
 /// The extra field that pads a stored entry to its alignment, as apksigner
 /// writes it: the alignment, then zeros.
 const ALIGNMENT_FIELD: u16 = 0xd935;
 
-/// 1981-01-01 00:00, in MS-DOS format: the date Android's build tools give
-/// their entries, for reproducible archives.
-const DOS_DATE: u16 = (1 << 5) | 1;
+/// 1981-01-01 00:00, in MS-DOS format, the years from 1980, then the month
+/// and the day: the date Android's build tools give their entries, for
+/// reproducible archives.
+const DOS_DATE: u16 = (1 << 9) | (1 << 5) | 1;
 
 /// The version of the specification an entry is made by: 2.0, on Unix, whose
 /// file type and permissions are in the high half of its external attributes.
@@ -477,7 +484,7 @@ fn new_entry(name: &str, method: u16) -> Entry {
         name: name.to_owned(),
         version_made_by: 20,
         version_needed: if method == STORED { 10 } else { 20 },
-        flags: 0,
+        flags: if name.is_ascii() { 0 } else { UTF8_FLAG },
         method,
         time: 0,
         date: DOS_DATE,
@@ -532,18 +539,6 @@ fn invalid(message: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
-fn u16_at(bytes: &[u8], offset: usize) -> u16 {
-    u16::from_le_bytes([bytes[offset], bytes[offset + 1]])
-}
-
-fn u32_at(bytes: &[u8], offset: usize) -> u32 {
-    u32::from_le_bytes(
-        bytes[offset..offset + 4]
-            .try_into()
-            .expect("A 4-byte slice."),
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use std::fs::OpenOptions;
@@ -590,6 +585,10 @@ mod tests {
             ]
         );
         assert_eq!(read(&mut file, &entries[0]).unwrap(), [1; 1000]);
+        assert_eq!(
+            entries[0].date, 0x0221,
+            "As Android's build tools date them."
+        );
         assert_eq!(read(&mut file, &entries[1]).unwrap(), b"ELF");
 
         let mut data = data_of(&mut file, &entries[1]).unwrap();
@@ -640,6 +639,7 @@ mod tests {
             ]
         );
         assert!(entries[0].is_dir());
+        assert!(entries.iter().all(|entry| entry.flags & UTF8_FLAG == 0));
         assert_eq!(entries[0].unix_permissions(), Some(0o755));
         assert_eq!(entries[1].unix_permissions(), Some(0o755));
         assert_eq!(entries[2].unix_permissions(), Some(0o644));
@@ -650,6 +650,127 @@ mod tests {
         assert_eq!(extracted, executable);
         assert_eq!(read(&mut file, &entries[2]).unwrap(), b"<plist/>");
 
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn names_beyond_ascii_are_in_utf8() {
+        let path = Path::new(env!("OUT_DIR")).join(format!("zip-test-{}.utf8", std::process::id()));
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .unwrap();
+
+        let mut writer = Writer::new(&mut file);
+        writer.add_directory("Payload/Café.app").unwrap();
+        let unfinished = writer.finish().unwrap();
+        close(&mut file, &unfinished).unwrap();
+
+        let entries = entries(&mut file).unwrap();
+        assert_eq!(entries[0].name, "Payload/Café.app/");
+        assert_eq!(entries[0].flags & UTF8_FLAG, UTF8_FLAG);
+        let mut header = [0; LOCAL_HEADER_LENGTH as usize];
+        file.seek(SeekFrom::Start(0)).unwrap();
+        file.read_exact(&mut header).unwrap();
+        assert_eq!(u16_at(&header, 6) & UTF8_FLAG, UTF8_FLAG);
+
+        std::fs::remove_file(path).unwrap();
+    }
+
+    /// A template entry as some archivers write it, streamed: its CRC and
+    /// sizes in a data descriptor after its data, and its name in UTF-8.
+    #[test]
+    fn copies_entries_with_a_data_descriptor() {
+        let data = b"The data of the entry";
+        let mut compressed = DeflateEncoder::new(Vec::new(), Compression::default());
+        compressed.write_all(data).unwrap();
+        let compressed = compressed.finish().unwrap();
+        let mut crc = flate2::Crc::new();
+        crc.update(data);
+        let name = "assets/café.txt".as_bytes();
+        let flags = DATA_DESCRIPTOR_FLAG | UTF8_FLAG;
+
+        let mut archive = Vec::new();
+        archive.extend(LOCAL_HEADER.to_le_bytes());
+        archive.extend(20_u16.to_le_bytes());
+        archive.extend(flags.to_le_bytes());
+        archive.extend(DEFLATED.to_le_bytes());
+        // Time and date, then the CRC and the sizes, unknown yet.
+        archive.extend([0; 4 + 12]);
+        archive.extend((name.len() as u16).to_le_bytes());
+        archive.extend(0_u16.to_le_bytes());
+        archive.extend(name);
+        archive.extend(&compressed);
+        archive.extend(0x0807_4b50_u32.to_le_bytes());
+        archive.extend(crc.sum().to_le_bytes());
+        archive.extend((compressed.len() as u32).to_le_bytes());
+        archive.extend((data.len() as u32).to_le_bytes());
+        let central_directory = archive.len();
+        archive.extend(CENTRAL_HEADER.to_le_bytes());
+        archive.extend(20_u16.to_le_bytes());
+        archive.extend(20_u16.to_le_bytes());
+        archive.extend(flags.to_le_bytes());
+        archive.extend(DEFLATED.to_le_bytes());
+        archive.extend([0; 4]);
+        archive.extend(crc.sum().to_le_bytes());
+        archive.extend((compressed.len() as u32).to_le_bytes());
+        archive.extend((data.len() as u32).to_le_bytes());
+        archive.extend((name.len() as u16).to_le_bytes());
+        // No extra field, no comment, the first disk, no attributes, at 0.
+        archive.extend([0; 2 + 2 + 2 + 2 + 4 + 4]);
+        archive.extend(name);
+        let central_directory_length = archive.len() - central_directory;
+        archive.extend(END_OF_CENTRAL_DIRECTORY.to_le_bytes());
+        archive.extend([0; 4]);
+        archive.extend(1_u16.to_le_bytes());
+        archive.extend(1_u16.to_le_bytes());
+        archive.extend((central_directory_length as u32).to_le_bytes());
+        archive.extend((central_directory as u32).to_le_bytes());
+        archive.extend([0; 2]);
+        let dir = Path::new(env!("OUT_DIR"));
+        let template_path = dir.join(format!("zip-test-{}.streamed", std::process::id()));
+        std::fs::write(&template_path, archive).unwrap();
+        let mut template = File::open(&template_path).unwrap();
+        let path = dir.join(format!("zip-test-{}.copied", std::process::id()));
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .unwrap();
+
+        let template_entries = entries(&mut template).unwrap();
+        assert_eq!(read(&mut template, &template_entries[0]).unwrap(), data);
+        let mut writer = Writer::new(&mut file);
+        writer.copy(&template_entries[0], &mut template).unwrap();
+        let unfinished = writer.finish().unwrap();
+        close(&mut file, &unfinished).unwrap();
+
+        let entries = entries(&mut file).unwrap();
+        assert_eq!(entries[0].name, "assets/café.txt");
+        assert_eq!(
+            entries[0].flags, UTF8_FLAG,
+            "The sizes are in the header now."
+        );
+        assert_eq!(read(&mut file, &entries[0]).unwrap(), data);
+        // The local header has them, and the data descriptor is gone.
+        let mut header = [0; LOCAL_HEADER_LENGTH as usize];
+        file.seek(SeekFrom::Start(0)).unwrap();
+        file.read_exact(&mut header).unwrap();
+        assert_eq!(u16_at(&header, 6), UTF8_FLAG);
+        assert_eq!(u32_at(&header, 14), crc.sum());
+        assert_eq!(u32_at(&header, 18) as usize, compressed.len());
+        assert_eq!(u32_at(&header, 22) as usize, data.len());
+        assert_eq!(
+            unfinished.entries_length as usize,
+            LOCAL_HEADER_LENGTH as usize + name.len() + compressed.len()
+        );
+
+        std::fs::remove_file(template_path).unwrap();
         std::fs::remove_file(path).unwrap();
     }
 

@@ -4,7 +4,8 @@
 //! - A navigation gets a page that replaces itself with the target, so the
 //!   address and the history end up where a browser would put them.
 //! - A `fetch()` or XHR gets the target's response directly. The page then
-//!   sees `redirected: false` and the original URL: a known limitation.
+//!   sees `redirected: false` and the original URL: a known limitation. So
+//!   does a form sent to a 307 or a 308, which sends its body again.
 
 use http::header::{CONTENT_LENGTH, CONTENT_TYPE, COOKIE, LOCATION};
 use http::{Method, Request, Response, StatusCode, Uri};
@@ -26,7 +27,7 @@ pub fn is_navigation(request: &Request<Vec<u8>>) -> bool {
     request.headers().contains_key("upgrade-insecure-requests")
 }
 
-/// What to do with `response`, given a copy of the request it answers.
+/// What to do with `response`, given the request it answers.
 pub(crate) fn next(
     request: Request<Vec<u8>>,
     response: Response<Vec<u8>>,
@@ -49,7 +50,7 @@ pub(crate) fn next(
     let target = match base.join(location) {
         Ok(target) => as_php_url(target, request.uri()),
         Err(error) => {
-            eprintln!("[redirect] Ignored the invalid Location \"{location}\": {error}.");
+            log!("[redirect] Ignored the invalid Location \"{location}\": {error}.");
 
             return Next::Respond(response);
         }
@@ -59,32 +60,37 @@ pub(crate) fn next(
     // Browsers only follow redirects to web pages: a `javascript:` or `data:`
     // Location would run in the origin of the application.
     if !same_origin && !matches!(target.scheme(), "http" | "https") {
-        eprintln!(
+        log!(
             "[redirect] Refused to follow a redirect to a {} URL.",
             target.scheme()
         );
 
-        return Next::Respond(
-            Response::builder()
-                .status(StatusCode::BAD_GATEWAY)
-                .body(Vec::new())
-                .expect("A response with a status and no header is valid."),
-        );
+        return Next::Respond(crate::empty_response(StatusCode::BAD_GATEWAY));
     }
 
-    if navigation {
-        let href = if same_origin {
-            let mut href = path_and_query(&target);
-            if let Some(fragment) = target.fragment() {
-                href.push('#');
-                href.push_str(fragment);
-            }
+    if navigation && !same_origin {
+        log!(
+            "[redirect] {} to {target}, another website: replaced by a client-side navigation.",
+            response.status().as_u16()
+        );
 
-            href
-        } else {
-            target.to_string()
-        };
-        eprintln!(
+        return Next::Respond(leave_for(&target));
+    }
+
+    // A page that replaces itself would load the target with a GET: the
+    // runtime sends the method and body again itself, as for a fetch().
+    let sends_the_body_again = matches!(
+        response.status(),
+        StatusCode::TEMPORARY_REDIRECT | StatusCode::PERMANENT_REDIRECT
+    ) && !matches!(*request.method(), Method::GET | Method::HEAD);
+
+    if navigation && !sends_the_body_again {
+        let mut href = path_and_query(&target);
+        if let Some(fragment) = target.fragment() {
+            href.push('#');
+            href.push_str(fragment);
+        }
+        log!(
             "[redirect] {} to {href}, replaced by a client-side navigation.",
             response.status().as_u16()
         );
@@ -113,17 +119,6 @@ pub(crate) fn next(
     parts.uri = webview_uri(&parts.uri, &path_and_query(&target));
 
     Next::Follow(Request::from_parts(parts, body))
-}
-
-/// A copy of `request`, to build the request that follows a redirect.
-pub(crate) fn copy(request: &Request<Vec<u8>>) -> Request<Vec<u8>> {
-    let mut copy = Request::new(request.body().clone());
-    *copy.method_mut() = request.method().clone();
-    *copy.uri_mut() = request.uri().clone();
-    *copy.version_mut() = request.version();
-    *copy.headers_mut() = request.headers().clone();
-
-    copy
 }
 
 /// The URL PHP believes it serves: plain HTTP on port 80 of the request host,
@@ -174,19 +169,35 @@ fn path_and_query(url: &Url) -> String {
 }
 
 fn navigate_to(href: &str) -> Response<Vec<u8>> {
-    // A JSON string is a valid JavaScript string; escaping "<" keeps
-    // "</script>" out of the page.
-    let target = serde_json::to_string(href)
-        .expect("A string serializes to JSON.")
-        .replace('<', "\\u003c");
-    let body = format!(
-        "<!DOCTYPE html><meta charset=\"UTF-8\"><script>location.replace({target});</script>"
-    );
+    page(&format!(
+        "<script>location.replace({});</script>",
+        js_string(href)
+    ))
+}
 
+/// The window does not leave for another website: the shell opens it in the
+/// browser, and the window stays on this page, which says so (an OAuth
+/// login, for one).
+fn leave_for(target: &Url) -> Response<Vec<u8>> {
+    page(&format!(
+        "<script>location.replace({});</script><p>This page continues in your browser. <a href=\"/\" onclick=\"if (history.length > 1) {{ history.back(); return false; }}\">Back</a></p>",
+        js_string(target.as_str())
+    ))
+}
+
+fn page(content: &str) -> Response<Vec<u8>> {
     Response::builder()
         .header(CONTENT_TYPE, "text/html; charset=UTF-8")
-        .body(body.into_bytes())
+        .body(format!("<!DOCTYPE html><meta charset=\"UTF-8\">{content}").into_bytes())
         .expect("A content type is a valid header.")
+}
+
+fn js_string(value: &str) -> String {
+    // A JSON string is a valid JavaScript string; escaping "<" keeps
+    // "</script>" out of the page.
+    serde_json::to_string(value)
+        .expect("A string serializes to JSON.")
+        .replace('<', "\\u003c")
 }
 
 #[cfg(test)]
@@ -314,6 +325,41 @@ mod tests {
         assert!(
             matches!(response, Next::Respond(response) if response.status() == StatusCode::FOUND)
         );
+    }
+
+    #[test]
+    fn a_form_sent_to_a_307_is_sent_again_to_the_target() {
+        let Next::Follow(request) = next(
+            post("php://localhost/notes"),
+            redirect(307, "/notes/new"),
+            true,
+        ) else {
+            panic!("A 307 sends the form again.");
+        };
+
+        assert_eq!(request.method(), Method::POST);
+        assert_eq!(request.uri(), "php://localhost/notes/new");
+        assert_eq!(request.body(), b"title=Hello");
+    }
+
+    #[test]
+    fn a_navigation_to_another_website_leaves_a_way_back() {
+        let Next::Respond(response) = next(
+            post("php://localhost/connect/github"),
+            redirect(302, "https://github.com/login/oauth/authorize?state=<x>"),
+            true,
+        ) else {
+            panic!("A navigation is never followed by the runtime.");
+        };
+        let page = String::from_utf8(response.into_body()).unwrap();
+
+        assert!(
+            page.contains(
+                r#"location.replace("https://github.com/login/oauth/authorize?state=%3Cx%3E")"#
+            ),
+            "{page}"
+        );
+        assert!(page.contains("history.back()"), "{page}");
     }
 
     #[test]

@@ -9,9 +9,9 @@ name: PHP
 # out what Git ignores), and the Castor tasks and the Docker stack, which
 # every task goes through. Not on the crates: the frontend serves the demos
 # without the runtime. Not on the documentation alone, Markdown but the
-# fixtures of the tests, and what builds it: the Website workflow builds it,
-# and fails on a broken link. Weekly too, for the new advisories of the
-# security audit.
+# fixtures of the tests, and what builds it, nor on the files of the crates
+# it links to: the Website workflow builds it, and fails on a broken link.
+# Weekly too, for the new advisories of the security audit.
 
 "on":
     # Every push to main, whatever the paths: main catches a path missing
@@ -23,6 +23,8 @@ name: PHP
         branches: ["main"]
         paths:
             - ".castor/**"
+            - ".github/actions/castor/**"
+            - ".github/actions/stack/**"
             - ".github/workflows/php.yml"
             - ".gitignore"
             - ".php-cs-fixer.php"
@@ -63,44 +65,51 @@ jobs:
     php:
         name: PHP
         runs-on: ubuntu-26.04
+        timeout-minutes: 45
         steps:
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-            - name: Log in to registry
-              shell: bash
-              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                 persist-credentials: false
 
+            - name: "Set up the Docker stack"
+              uses: ./.github/actions/stack
+
             # Builds the images, installs every project, builds the website,
             # migrates the demos and starts the frontend
             - name: "Build and start the infrastructure"
+              id: start
               run: "castor start"
 
+            # Each check below runs once the stack is up, whatever the ones
+            # before it gave: a new advisory must not hide the rest
             - name: "Check Security issues"
+              if: ${{ !cancelled() && steps.start.outcome == 'success' }}
               run: "castor qa:security-audit"
 
             - name: "Check PHP coding standards"
+              if: ${{ !cancelled() && steps.start.outcome == 'success' }}
               run: "castor qa:cs --dry-run"
 
             - name: "Check Twig coding standards"
+              if: ${{ !cancelled() && steps.start.outcome == 'success' }}
               run: "castor qa:twig-cs --dry-run"
 
             - name: "Run PHPStan"
+              if: ${{ !cancelled() && steps.start.outcome == 'success' }}
               run: "castor qa:phpstan"
 
             - name: "Run PHPUnit"
+              if: ${{ !cancelled() && steps.start.outcome == 'success' }}
               run: "castor qa:phpunit"
+
+            # The packages allow older versions of their dependencies than
+            # the demos install
+            - name: "Run PHPUnit on the packages, with their lowest dependencies"
+              if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+              run: "castor qa:phpunit-lowest"
 
             # The website on the root domain and www, each demo on its own
             # subdomain: the demos run without the native features there
             - name: "Test the frontend"
+              if: ${{ !cancelled() && steps.start.outcome == 'success' }}
               run: "castor qa:frontend"

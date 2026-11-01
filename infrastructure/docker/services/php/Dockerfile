@@ -1,15 +1,27 @@
 # hadolint global ignore=DL3008
 
-FROM debian:13.7-slim AS php-base
+# The images are pinned by their digest, which Dependabot updates
+# (.github/dependabot.yml): the build cache of the CI, which cache.yml pushes
+# on each change of this file, then stays the one of the images it builds.
+
+# Composer, for the builder
+FROM composer/composer:2.10.0@sha256:dd1ba1cb7f89fbf718762ad0e7e26024ea0e1470606d21a075aab66644f1ff74 AS composer
+
+FROM debian:13.7-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS php-base
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+# The key of the PHP packages of Sury, 2025.11.18: when Sury renews it, its
+# SHA-256 is the one of debsuryorg-archive-keyring in the Packages of
+# https://packages.sury.org/php/dists/trixie/main/binary-amd64/
+ARG SURY_KEYRING_SHA256=7511384559c9ddf1d5ce5f60be429ae9d4e7d01d9480d6f1b7a30c0810cf8b60
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         curl \
         ca-certificates \
         gnupg \
-    && curl -sSLo /tmp/debsuryorg-archive-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb \
+    && curl -sSfLo /tmp/debsuryorg-archive-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb \
+    && echo "${SURY_KEYRING_SHA256}  /tmp/debsuryorg-archive-keyring.deb" | sha256sum -c - \
     && dpkg -i /tmp/debsuryorg-archive-keyring.deb \
     && echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ trixie main" > /etc/apt/sources.list.d/sury.list \
     && apt-get clean \
@@ -114,7 +126,9 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
 
-# Rust, for every user: the container runs as the host's raw UID
+# Rust, for every user: the container runs as the host's raw UID. The stable
+# of the day this layer is built, which the build cache keeps until a layer
+# above it changes: the workflows key their cargo caches on its version
 ARG RUST_VERSION=stable
 ENV RUSTUP_HOME=/usr/local/rustup
 ENV PATH="/usr/local/cargo/bin:$PATH"
@@ -135,10 +149,10 @@ RUN phpenmod app-default \
     && phpenmod -s cli app-builder
 
 # Composer
-COPY --from=composer/composer:2.10.0 /usr/bin/composer /usr/bin/composer
+COPY --from=composer /usr/bin/composer /usr/bin/composer
 
-# Autocompletion
-ADD https://raw.githubusercontent.com/symfony/symfony/refs/heads/7.4/src/Symfony/Component/Console/Resources/completion.bash /tmp/completion.bash
+# Autocompletion: the script of Symfony 7.4.22
+ADD --checksum=sha256:aef8296538b17cb94c0d6cb5b30e9f8ca22a8964cb9f8dc6708a34357ecd232a https://raw.githubusercontent.com/symfony/symfony/9da29ec8b7991e3b54255fdf7fa3c5ab2c32f024/src/Symfony/Component/Console/Resources/completion.bash /tmp/completion.bash
 
 # Composer symfony/console version is too old, and doest not support "API version feature", so we remove it
 # Hey, while we are at it, let's add some more completion
@@ -202,12 +216,15 @@ ENV JAVA_HOME=/usr/lib/jvm/default-java
 
 # The versions the Android project of Tauri asks for (crates/nativella/gen/android):
 # Gradle installs what is missing, so the SDK is writable by the user of the
-# container, the host's raw UID
+# container, the host's raw UID. The SHA-1 of the command line tools is in
+# https://dl.google.com/android/repository/repository2-3.xml
 ARG ANDROID_CMDLINE_TOOLS=16111833
+ARG ANDROID_CMDLINE_TOOLS_SHA256=0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8
 ARG ANDROID_NDK=29.0.14206865
 ENV ANDROID_HOME=/opt/android-sdk
 ENV NDK_HOME=/opt/android-sdk/ndk/${ANDROID_NDK}
 RUN curl -sSfL -o /tmp/cmdline-tools.zip "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS}_latest.zip" \
+    && echo "${ANDROID_CMDLINE_TOOLS_SHA256}  /tmp/cmdline-tools.zip" | sha256sum -c - \
     && mkdir -p "${ANDROID_HOME}/cmdline-tools" \
     && unzip -q /tmp/cmdline-tools.zip -d "${ANDROID_HOME}/cmdline-tools" \
     && mv "${ANDROID_HOME}/cmdline-tools/cmdline-tools" "${ANDROID_HOME}/cmdline-tools/latest" \
@@ -220,11 +237,15 @@ RUN curl -sSfL -o /tmp/cmdline-tools.zip "https://dl.google.com/android/reposito
     && rm -rf /tmp/*
 
 # The four Android targets of Rust: `cargo tauri android init` adds them all,
-# and rustup is not writable in the container
-ARG TAURI_CLI=2.12.2
+# and rustup is not writable in the container. The Tauri command of
+# TAURI_CLI_VERSION in .castor/mobile.php, which castor docker:build gives
+ARG TAURI_CLI_VERSION
+ARG TAURI_CLI_SHA256
 RUN rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android \
-    && curl -sSfL "https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v${TAURI_CLI}/cargo-tauri-x86_64-unknown-linux-gnu.tgz" \
-        | tar xz -C /usr/local/bin cargo-tauri \
+    && curl -sSfL -o /tmp/cargo-tauri.tgz "https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v${TAURI_CLI_VERSION}/cargo-tauri-x86_64-unknown-linux-gnu.tgz" \
+    && echo "${TAURI_CLI_SHA256}  /tmp/cargo-tauri.tgz" | sha256sum -c - \
+    && tar xzf /tmp/cargo-tauri.tgz -C /usr/local/bin cargo-tauri \
+    && rm /tmp/cargo-tauri.tgz \
     && cargo tauri --version
 
 # Builds what Nativella distributes for Linux: PHP as a static library (castor
@@ -233,7 +254,7 @@ RUN rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-a
 # executable runs on the glibc it was built with, or a newer one. Built on
 # Debian 13, it would need glibc 2.41, which not even Ubuntu 24.04 has. No
 # PHP here: the projects are staged in the builder.
-FROM ubuntu:22.04 AS static
+FROM ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11 AS static
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

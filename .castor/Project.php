@@ -37,6 +37,11 @@ final readonly class Project
         return str_starts_with($this->path, 'demos/');
     }
 
+    public function isPackage(): bool
+    {
+        return str_starts_with($this->path, 'packages/');
+    }
+
     public function isLaravel(): bool
     {
         return is_file($this->directory().'/artisan');

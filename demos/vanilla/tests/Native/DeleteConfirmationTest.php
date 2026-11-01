@@ -39,7 +39,7 @@ final class DeleteConfirmationTest extends TestCase
         $this->client->respond('biometrics.authenticate', ['authenticated' => true]);
 
         $this->assertTrue($this->confirmation->confirm('Delete “SSH”?'));
-        $this->assertSame(['reason' => 'Delete “SSH”?', 'title' => 'Delete the snippet'], $this->client->calls('biometrics.authenticate')[0]['payload']);
+        $this->assertSame(['reason' => 'Delete “SSH”?', 'title' => 'Delete the snippet'], $this->client->calls('biometrics.authenticate')[0]->payload);
     }
 
     public function testAPhoneWithoutBiometricsAsksWithADialog(): void

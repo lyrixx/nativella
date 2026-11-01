@@ -10,6 +10,7 @@ use Nativella\Event\WindowDownloaded;
 use Nativella\Event\WindowDragEntered;
 use Nativella\Event\WindowThemeChanged;
 use Nativella\System\Theme;
+use PHPUnit\Framework\Attributes\BackupGlobals;
 use PHPUnit\Framework\TestCase;
 
 final class EventFactoryTest extends TestCase
@@ -35,6 +36,7 @@ final class EventFactoryTest extends TestCase
         EventFactory::fromJson('{"name":"app.booted"}');
     }
 
+    #[BackupGlobals(true)]
     public function testFromGlobalsIgnoresRequestsFromPages(): void
     {
         $_SERVER['REQUEST_URI'] = '/_nativella/event';

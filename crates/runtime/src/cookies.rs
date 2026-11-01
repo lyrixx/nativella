@@ -33,7 +33,7 @@ impl CookieJar {
                 .filter_map(|line| match Cookie::parse(line.to_owned()) {
                     Ok(cookie) => Some(cookie),
                     Err(error) => {
-                        eprintln!(
+                        log!(
                             "[cookies] Ignored an invalid line of {}: {error}.",
                             file.display()
                         );
@@ -44,7 +44,7 @@ impl CookieJar {
                 .collect(),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
             Err(error) => {
-                eprintln!(
+                log!(
                     "[cookies] Could not read {}, starting without cookies: {error}.",
                     file.display()
                 );
@@ -88,7 +88,7 @@ impl CookieJar {
             Ok(value) => {
                 request.headers_mut().insert(COOKIE, value);
             }
-            Err(error) => eprintln!("[cookies] Could not build the Cookie header: {error}."),
+            Err(error) => log!("[cookies] Could not build the Cookie header: {error}."),
         }
     }
 
@@ -102,7 +102,7 @@ impl CookieJar {
                 .ok()
                 .and_then(|value| Cookie::parse(value.to_owned()).ok())
             else {
-                eprintln!("[cookies] Ignored an invalid Set-Cookie header: {value:?}.");
+                log!("[cookies] Ignored an invalid Set-Cookie header: {value:?}.");
                 continue;
             };
 
@@ -138,7 +138,7 @@ impl CookieJar {
                 .map(|cookie| format!("{cookie}\n"))
                 .collect();
             if let Err(error) = save(file, &content) {
-                eprintln!(
+                log!(
                     "[cookies] Could not save the cookies to {}: {error}.",
                     file.display()
                 );

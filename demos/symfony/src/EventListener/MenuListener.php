@@ -6,7 +6,10 @@ use App\Native\Desktop;
 use App\Note\NoteActions;
 use App\Repository\NoteRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Nativella\Dialog;
+use Nativella\Dialog\MessageKind;
 use Nativella\Event\MenuItemClicked;
+use Nativella\Exception\NativeCallException;
 use Nativella\Shell;
 use Nativella\Window;
 use Psr\Log\LoggerInterface;
@@ -22,6 +25,7 @@ final readonly class MenuListener
 {
     public function __construct(
         private Desktop $desktop,
+        private Dialog $dialog,
         private EntityManagerInterface $entityManager,
         private LoggerInterface $logger,
         private NoteActions $actions,
@@ -44,11 +48,22 @@ final readonly class MenuListener
             'help.website' => $this->shell->openUrl('https://github.com/lyrixx/nativella'),
             'tray.show' => $this->desktop->showMainWindow(),
             'view.alwaysOnTop' => $this->desktop->setAlwaysOnTop(true === $event->checked),
-            'view.devtools' => $this->window->openDevtools(),
+            'view.devtools' => $this->openDevtools(),
             'view.reload' => $this->window->reload(),
             // Links (file.new, tray.new…) and system roles.
             default => null,
         };
+    }
+
+    private function openDevtools(): void
+    {
+        try {
+            $this->window->openDevtools();
+        } catch (NativeCallException $e) {
+            // The nativella executable of the releases is not a debug build.
+            $this->logger->warning('The developer tools are not available.', ['exception' => $e]);
+            $this->dialog->message('The developer tools only exist in debug builds of Nativella, as "castor nativella:run" makes.', 'Developer tools', MessageKind::Warning);
+        }
     }
 
     private function import(): void

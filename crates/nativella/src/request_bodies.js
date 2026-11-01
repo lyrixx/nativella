@@ -17,10 +17,13 @@
 
         return btoa(binary);
     };
+    // Fails as a network error would, with a TypeError.
     const store = (key, contentType, buffer) => window.__TAURI_INTERNALS__.invoke('nativella_store_body', {
         key,
         contentType: contentType || '',
         body: base64(buffer),
+    }).catch((error) => {
+        throw new TypeError(`Nativella could not send the body of the request: ${error}`);
     });
     // Unique across page loads: a body is never given to another request.
     const newKey = () => crypto.randomUUID();
@@ -90,6 +93,13 @@
                 setRequestHeader.call(this, 'Content-Type', contentType);
             }
             send.call(this, buffer);
+        }).catch((error) => {
+            // The request never starts: the page learns it failed, as from a
+            // network error.
+            console.error(`[nativella] ${request.method} ${request.url} failed:`, error);
+            for (const type of ['error', 'loadend']) {
+                this.dispatchEvent(new ProgressEvent(type));
+            }
         });
     };
 
@@ -141,6 +151,10 @@
             for (const [name, value] of Object.entries(previous)) {
                 value === null ? form.removeAttribute(name) : form.setAttribute(name, value);
             }
+        }).catch((error) => {
+            // Without its body, the form would reach PHP empty: it stays on
+            // the page.
+            console.error(`[nativella] The form to ${action} was not submitted:`, error);
         });
     });
 })();

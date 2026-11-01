@@ -91,11 +91,12 @@ The frontend serves `https://nativella.test` (the website) and `https://<demo>.n
 ## QA — before considering a task done
 
 ```bash
-castor qa [--dry-run]            # everything below
+castor qa [--dry-run]            # everything below, but the frontend (castor start first)
 castor qa:cs [--dry-run]         # PHP CS Fixer (.php-cs-fixer.php), Symfony style
 castor qa:twig-cs [--dry-run]    # Twig CS Fixer (.twig-cs-fixer.php)
 castor qa:phpstan [--project=demos/symfony]   # PHPStan level 8, project by project
 castor qa:phpunit [--project=demos/symfony]   # PHPUnit, or `php artisan test` for Laravel
+castor qa:phpunit-lowest                       # PHPUnit on the packages, with their lowest dependencies
 castor qa:rust                   # cargo fmt --check, clippy -D warnings, cargo test
 castor qa:security-audit         # composer audit
 castor qa:frontend               # the website and the demos through the router (castor start first)

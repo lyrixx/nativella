@@ -35,7 +35,7 @@ The runtime marks it with `$_SERVER['NATIVELLA_INTERNAL'] = '1'`, which a page c
 |---|---|---|---|
 | `app.booted` | `AppBooted` | | PHP is ready. Handled before any page is served. |
 | `app.reopened` | `AppReopened` | `args`, `cwd` | The user started the application again while it was running. |
-| `app.urlsOpened` | `AppUrlsOpened` | `urls` | The system opened URLs of a [deep link scheme](configuration.md#deeplinks) of the application. |
+| `app.urlsOpened` | `AppUrlsOpened` | `urls` | The system opened URLs of a [deep link scheme](configuration.md#deeplinks) of the application. Any website or application can open one: they are user input, check them as such. |
 | `childProcess.output` | `ChildProcessOutput` | `alias`, `pid`, `stream`, `output` | A [child process](child-processes.md) wrote lines. |
 | `childProcess.exited` | `ChildProcessExited` | `alias`, `pid`, `code` | A child process ended. |
 | `notification.clicked` | `NotificationClicked` | `reference` | The user clicked a [notification](notifications.md#clicks) sent with a reference (Linux). |
@@ -52,8 +52,8 @@ The runtime marks it with `$_SERVER['NATIVELLA_INTERNAL'] = '1'`, which a page c
 | `window.filesDropped` | `WindowFilesDropped` | `window`, `paths` | Files from the system were dropped on a window. |
 | `menu.itemClicked` | `MenuItemClicked` | `id`, `checked` | An item of the application menu, a context menu or the tray menu was clicked. |
 | `tray.clicked` | `TrayClicked` | `button` | The tray icon was clicked. Not on Linux. |
-| `updater.installed` | `UpdateInstalled` | `version` | The next start runs this [update](updates.md). |
-| `updater.failed` | `UpdateFailed` | `version`, `message` | The update was not installed. |
+| `updater.installed` | `UpdaterInstalled` | `version` | The next start runs this [update](updates.md). |
+| `updater.failed` | `UpdaterFailed` | `version`, `message` | The update was not installed. |
 | `globalShortcut.pressed` | `GlobalShortcutPressed` | `accelerator` | A [global shortcut](global-shortcuts.md) was pressed. |
 
 All the classes live in `Nativella\Event`. `window` is a window label, `theme` a `Nativella\System\Theme`, `paths` a list of absolute paths, `path` an absolute path, `checked` the new state of a checkbox item (null for other items), `button` one of `left`, `right` and `middle`.
@@ -119,7 +119,7 @@ if ($event instanceof AppReopened && isset($event->args[1])) {
 
 ## Closing and quitting
 
-Closing a window sends `WindowClosed`. Closing the last one quits the application, unless it has a [tray](tray.md) icon: then it keeps running in the tray until something calls `App::quit()`.
+Closing a window sends `WindowClosed`. Closing the last one quits the application, unless it has a [tray](tray.md) icon: then it keeps running in the tray until something calls `App::quit()`. The application decides once the listeners of `WindowClosed` are done: one that sets a tray icon, or opens a window, keeps it running.
 
 Before a window closes, its page is asked, as a browser asks before closing a tab: a page with unsaved changes can [keep it open](javascript.md#unsaved-changes) until the user confirms.
 

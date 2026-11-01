@@ -63,7 +63,7 @@ document.addEventListener('submit', async (event) => {
     // Copies without leaving the page: PHP answers JSON when asked to.
     if (form.dataset.copy !== undefined) {
         event.preventDefault();
-        const response = await fetch(form.action, { method: 'POST', headers: { Accept: 'application/json' } });
+        const response = await fetch(form.action, { method: 'POST', headers: { Accept: 'application/json' }, body: new FormData(form) });
         showToast(response.ok ? (await response.json()).message : 'This snippet does not exist anymore.');
     }
 });

@@ -6,7 +6,6 @@ use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Facade;
 use Nativella\Client;
 use Nativella\Client\FakeClient;
-use Nativella\Runtime;
 
 /**
  * Nativella itself: whether the application runs in it, and a fake of it for
@@ -22,7 +21,7 @@ final class Nativella extends Facade
      */
     public static function isNative(): bool
     {
-        return Runtime::isNative() || self::application()->make(Client::class) instanceof FakeClient;
+        return self::application()->make(Client::class)->isNative();
     }
 
     /**

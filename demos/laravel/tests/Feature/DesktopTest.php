@@ -6,6 +6,7 @@ use App\Desktop\Shortcut;
 use App\Models\Task;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
+use Nativella\Client\Call;
 use Nativella\Event\AppBooted;
 use Nativella\Event\GlobalShortcutPressed;
 use Nativella\Event\MenuItemClicked;
@@ -72,7 +73,7 @@ final class DesktopTest extends TestCase
                 ['type' => 'role', 'role' => 'quit'],
             ],
             'enabled' => true,
-        ], $native->calls('menu.set')[0]['payload']['items']);
+        ], $native->calls('menu.set')[0]->payload['items']);
     }
 
     public function testTheTrayCountsTheOpenTasks(): void
@@ -84,7 +85,7 @@ final class DesktopTest extends TestCase
 
         event(new AppBooted());
 
-        $this->assertSame('2 open tasks', $native->calls('tray.set')[0]['payload']['tooltip']);
+        $this->assertSame('2 open tasks', $native->calls('tray.set')[0]->payload['tooltip']);
     }
 
     public function testTheShortcutIsRegistered(): void
@@ -93,7 +94,7 @@ final class DesktopTest extends TestCase
 
         event(new AppBooted());
 
-        $this->assertSame([['method' => 'globalShortcut.register', 'payload' => ['accelerator' => 'CmdOrCtrl+Alt+Shift+T']]], $native->calls('globalShortcut.register'));
+        $this->assertEquals([new Call('globalShortcut.register', ['accelerator' => 'CmdOrCtrl+Alt+Shift+T'])], $native->calls('globalShortcut.register'));
     }
 
     public function testAShortcutTakenByAnotherApplicationIsSkipped(): void
@@ -135,7 +136,7 @@ final class DesktopTest extends TestCase
         event(new GlobalShortcutPressed(Shortcut::ShowWindow->value));
 
         // The runtime opens it with the options of extra.nativella.window.
-        $this->assertSame([['method' => 'window.open', 'payload' => ['label' => 'main']]], $native->calls());
+        $this->assertEquals([new Call('window.open', ['window' => 'main'])], $native->calls());
     }
 
     public function testTheTrayBringsTheWindowBack(): void
@@ -155,7 +156,7 @@ final class DesktopTest extends TestCase
         event(new MenuItemClicked('tasks.export', null));
 
         $this->assertFileExists($this->file);
-        $this->assertSame(['title' => 'Tasks exported', 'body' => $this->file, 'reference' => null], $native->calls('notification.send')[0]['payload']);
+        $this->assertSame(['title' => 'Tasks exported', 'body' => $this->file, 'reference' => null], $native->calls('notification.send')[0]->payload);
     }
 
     public function testAFailedExportFromTheMenuIsShown(): void
@@ -165,7 +166,7 @@ final class DesktopTest extends TestCase
 
         event(new MenuItemClicked('tasks.export', null));
 
-        $this->assertSame('error', $native->calls('dialog.message')[0]['payload']['kind']);
+        $this->assertSame('error', $native->calls('dialog.message')[0]->payload['kind']);
     }
 
     public function testALinkNeedsNothingMore(): void

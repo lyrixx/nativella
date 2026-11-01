@@ -18,7 +18,12 @@ final readonly class ExtensionClient implements Client
             throw new RuntimeUnavailableException(\sprintf('Cannot call "%s": the application does not run in Nativella.', $method));
         }
 
-        $json = json_encode((object) $payload, \JSON_THROW_ON_ERROR | \JSON_PRESERVE_ZERO_FRACTION | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
+        try {
+            $json = json_encode((object) $payload, \JSON_THROW_ON_ERROR | \JSON_PRESERVE_ZERO_FRACTION | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
+        } catch (\JsonException $e) {
+            // A string that is not UTF-8: text read from a file in another encoding.
+            throw new NativeCallException($method, $e);
+        }
 
         try {
             $result = nativella_call($method, $json);
@@ -27,5 +32,10 @@ final readonly class ExtensionClient implements Client
         }
 
         return json_decode($result, true, flags: \JSON_THROW_ON_ERROR);
+    }
+
+    public function isNative(): bool
+    {
+        return Runtime::isNative();
     }
 }

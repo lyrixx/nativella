@@ -3,6 +3,7 @@
 namespace Nativella\Client;
 
 use Nativella\Client;
+use Nativella\Exception\NativeCallException;
 
 /**
  * A client for tests: it records the calls and answers what the native side
@@ -36,9 +37,9 @@ final class FakeClient implements Client
         'globalShortcut.isRegistered' => ['registered' => false],
         'nfc.isAvailable' => ['available' => false],
         'power.status' => ['onBattery' => false, 'battery' => null],
-        'screen.all' => ['screens' => []],
+        'screen.all' => ['displays' => []],
         'screen.cursorPosition' => ['x' => 0, 'y' => 0],
-        'screen.primary' => ['screen' => null],
+        'screen.primary' => ['display' => null],
         'secrets.get' => ['value' => null],
         'settings.all' => ['settings' => []],
         'settings.has' => ['has' => false],
@@ -49,7 +50,7 @@ final class FakeClient implements Client
         'window.all' => ['windows' => []],
     ];
 
-    /** @var list<array{method: string, payload: array<string, mixed>}> */
+    /** @var list<Call> */
     private array $calls = [];
 
     /** @var array<string, list<array<string, mixed>|\Throwable>> */
@@ -67,7 +68,7 @@ final class FakeClient implements Client
 
     public function call(string $method, array $payload = []): array
     {
-        $this->calls[] = ['method' => $method, 'payload' => $payload];
+        $this->calls[] = new Call($method, $payload);
 
         if ([] !== ($this->responses[$method] ?? [])) {
             $result = array_shift($this->responses[$method]);
@@ -79,17 +80,29 @@ final class FakeClient implements Client
         }
 
         if (\in_array($method, ['window.open', 'window.get'], true)) {
-            return ['window' => self::window($payload['label'] ?? $payload['window'] ?? 'main')];
+            return ['window' => self::window($payload['window'] ?? 'main')];
         }
         if ('app.path' === $method) {
             return ['path' => '/home/nativella/'.$payload['directory']];
+        }
+        if ('nfc.read' === $method) {
+            // What the runtime does when NFC is not available, as nfc.isAvailable answers.
+            throw new NativeCallException($method, new \RuntimeException('NFC is not available: the phone has none, or it is turned off in its settings.'));
         }
 
         return self::DEFAULTS[$method] ?? [];
     }
 
     /**
-     * @return list<array{method: string, payload: array<string, mixed>}>
+     * Always: the code under test takes its native branches.
+     */
+    public function isNative(): bool
+    {
+        return true;
+    }
+
+    /**
+     * @return list<Call>
      */
     public function calls(?string $method = null): array
     {
@@ -97,7 +110,7 @@ final class FakeClient implements Client
             return $this->calls;
         }
 
-        return array_values(array_filter($this->calls, static fn (array $call): bool => $call['method'] === $method));
+        return array_values(array_filter($this->calls, static fn (Call $call): bool => $call->method === $method));
     }
 
     public function reset(): void
@@ -109,10 +122,10 @@ final class FakeClient implements Client
     /**
      * @return array<string, mixed>
      */
-    private static function window(string $label): array
+    private static function window(string $window): array
     {
         return [
-            'label' => $label,
+            'window' => $window,
             'title' => 'Nativella',
             'url' => 'php://localhost/',
             'width' => 1024.0,

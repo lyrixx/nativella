@@ -10,7 +10,7 @@ step. The Laravel side of Nativella is the `nativella/laravel` package (`package
 | A notification when the last open task is done | `Nativella\Notification::send()`, from `TaskObserver` |
 | Copy the list as Markdown | `Nativella\Clipboard::writeText()` |
 | Export the list as Markdown (button, or File › Export…) | `Nativella\Dialog::saveFile()` |
-| Open at login, in Settings | `Nativella\App::enableAutostart()`, `disableAutostart()`, stored with `Nativella\Settings` |
+| Open at login, in Settings | `Nativella\App::enableAutostart()`, `disableAutostart()`, `isAutostartEnabled()` |
 | Application menu: File › New task (`CmdOrCtrl+N`), Export…, Settings…, Quit; Edit; Window | `Event\AppBooted`, `Nativella\Menu::set()`, `Event\MenuItemClicked` |
 | Tray icon whose tooltip counts the open tasks | `Nativella\Tray::set()`, refreshed by `TaskObserver` |
 | Global shortcut `CmdOrCtrl+Alt+Shift+T` brings the window back | `Nativella\GlobalShortcut::register()`, `Event\GlobalShortcutPressed` |

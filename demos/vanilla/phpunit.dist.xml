@@ -8,6 +8,12 @@
          failOnNotice="true"
          failOnWarning="true"
 >
+    <php>
+        <!-- The forms start a session for their CSRF token: without a cookie or a cache header to send, since PHPUnit wrote its output already. -->
+        <ini name="session.use_cookies" value="0"/>
+        <ini name="session.cache_limiter" value=""/>
+    </php>
+
     <testsuites>
         <testsuite name="Snippets">
             <directory>tests</directory>

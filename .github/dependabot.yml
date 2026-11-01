@@ -5,7 +5,9 @@ version: 2
 # '*' matches them all. Without a group, each dependency gets a pull request of
 # its own. The *-security groups do the same for the security updates.
 updates:
-    # The workspace: crates/nativella and crates/runtime
+    # The workspace: crates/nativella and crates/runtime. A new minor version
+    # of tauri needs the Tauri command of the same one: the builds of the
+    # templates stop until TAURI_CLI_VERSION follows, in .castor/mobile.php
     - package-ecosystem: 'cargo'
       directory: '/'
       schedule:
@@ -62,8 +64,10 @@ updates:
       cooldown:
           default-days: 7
 
-    # The images of the Dockerfiles. No security group: the GitHub Advisory
-    # Database has no Docker ecosystem.
+    # The images of the Dockerfiles, pinned by their digest: Dependabot
+    # updates the digest of a tag too. Merged into main, an update runs
+    # cache.yml, which pushes the build cache of the new images. No security
+    # group: the GitHub Advisory Database has no Docker ecosystem.
     - package-ecosystem: 'docker'
       directories:
           - '/infrastructure/docker/services/*'
@@ -82,8 +86,11 @@ updates:
       cooldown:
           default-days: 7
 
+    # The workflows, and the composite actions they share
     - package-ecosystem: 'github-actions'
-      directory: '/'
+      directories:
+          - '/'
+          - '/.github/actions/*'
       schedule:
           interval: 'monthly'
       groups:

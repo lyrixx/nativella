@@ -26,6 +26,7 @@ name: macOS
         branches: ["main"]
         paths:
             - ".castor/**"
+            - ".github/actions/castor/**"
             - ".github/workflows/macos.yml"
             - "Cargo.lock"
             - "Cargo.toml"
@@ -54,8 +55,12 @@ env:
 jobs:
     macos:
         name: macOS
-        runs-on: macos-latest
+        runs-on: macos-26
         timeout-minutes: 90
+        permissions:
+            # Deletes the caches of main that a new one replaces
+            actions: write
+            contents: read
         env:
             # No Docker on macOS runners: the tasks run on the runner itself
             CASTOR_CONTEXT: host
@@ -64,8 +69,8 @@ jobs:
               with:
                 persist-credentials: false
 
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
+            - name: "Set up Castor"
+              uses: ./.github/actions/castor
 
             # Composer and the PHP of the projects, for castor install: the
             # crates link the static PHP below
@@ -74,7 +79,9 @@ jobs:
               with:
                   php-version: "8.5"
                   extensions: intl, pdo_sqlite, sqlite3
-                  tools: composer
+                  # The Composer of the builder: keep in sync with the
+                  # Dockerfile of infrastructure/docker/services/php/
+                  tools: composer:2.10.0@sha256:a346538851988ead111d11e3cbd7d372eeba44abd0af412e09890d3c21ea6c31
 
             # Built once, then as long as the version of PHP, its extensions and
             # static-php-cli stay the same. release.yml restores it too: keep
@@ -119,11 +126,19 @@ jobs:
             # Main only, as soon as built, whatever fails next: the key stays
             # until .castor/static-php.php changes, with what it holds
             - name: "Save static PHP"
+              id: save-static-php
               if: github.ref == 'refs/heads/main' && steps.static-php.outputs.cache-hit != 'true'
               uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/buildroot
                   key: ${{ steps.static-php.outputs.cache-primary-key }}
+
+            - name: "Delete the static PHP it replaces"
+              if: steps.save-static-php.outcome == 'success'
+              uses: ./.github/actions/delete-replaced-caches
+              with:
+                  key: ${{ steps.static-php.outputs.cache-primary-key }}
+                  prefix: static-php-${{ runner.os }}-${{ runner.arch }}-
 
             # The smoke tests serve the demos, with their vendor/
             - name: "Install the projects"
@@ -141,6 +156,7 @@ jobs:
               run: "castor nativella:prune-target"
 
             - name: "Save the Rust build"
+              id: save-cargo
               if: github.ref == 'refs/heads/main' && steps.cargo.outputs.cache-hit != 'true'
               uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
@@ -149,3 +165,10 @@ jobs:
                       ~/.cargo/registry
                       target/static
                   key: ${{ steps.cargo.outputs.cache-primary-key }}
+
+            - name: "Delete the Rust builds it replaces"
+              if: steps.save-cargo.outcome == 'success'
+              uses: ./.github/actions/delete-replaced-caches
+              with:
+                  key: ${{ steps.cargo.outputs.cache-primary-key }}
+                  prefix: cargo-${{ runner.os }}-${{ runner.arch }}-

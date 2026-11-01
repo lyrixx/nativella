@@ -8,6 +8,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Nativella\Client\FakeClient;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 abstract class NotesTestCase extends WebTestCase
 {
@@ -43,6 +44,19 @@ abstract class NotesTestCase extends WebTestCase
         $this->entityManager()->flush();
 
         return $note;
+    }
+
+    /**
+     * Posts the way a form of the pages does: with its CSRF token, from the
+     * same origin.
+     *
+     * @param array<string, string> $parameters
+     */
+    protected function post(string $uri, array $parameters = []): void
+    {
+        $token = $this->service(CsrfTokenManagerInterface::class)->getToken('submit')->getValue();
+
+        $this->client->request('POST', $uri, ['_token' => $token] + $parameters, server: ['HTTP_SEC_FETCH_SITE' => 'same-origin']);
     }
 
     /**

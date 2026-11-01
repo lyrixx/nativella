@@ -40,6 +40,17 @@ impl PhpApp {
                 ),
             ));
         }
+        // PHP opens its script by a path of UTF-8 here (ext-php-rs): it would
+        // answer every request with an empty page.
+        if front_controller.to_str().is_none() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "The path of the front controller, {}, is not valid UTF-8: move the project.",
+                    front_controller.display()
+                ),
+            ));
+        }
 
         Ok(Self {
             document_root,
@@ -132,6 +143,11 @@ pub struct PhpRuntime {
 impl PhpRuntime {
     /// Starts PHP on its own thread. `native_handler` answers the
     /// `nativella_call()` function PHP code can call.
+    ///
+    /// PHP runs in the C locale, which it sets for the whole process, and
+    /// `setlocale()` in PHP changes the locale of the process too. A thread
+    /// that needs the locale of the user, the one of a GUI toolkit, takes its
+    /// own beforehand, with `uselocale()`.
     pub fn start(app: PhpApp, native_handler: Box<NativeHandler>) -> Self {
         bridge::install(native_handler);
 
@@ -164,13 +180,7 @@ impl PhpRuntime {
         origin: RequestOrigin,
         respond: impl FnOnce(Response<Vec<u8>>) + Send + 'static,
     ) {
-        if let Some(response) = static_files::serve(&self.app.document_root, request.uri().path()) {
-            eprintln!(
-                "[static] {} {} {}",
-                request.method(),
-                request.uri(),
-                response.status().as_u16()
-            );
+        if let Some(response) = serve_static(&self.app.document_root, &request) {
             respond(response);
 
             return;
@@ -188,17 +198,12 @@ impl PhpRuntime {
             let RequestJob {
                 request, respond, ..
             } = *job;
-            eprintln!(
+            log!(
                 "[php] The PHP thread is gone, {} {} is not served.",
                 request.method(),
                 request.uri()
             );
-            respond(
-                Response::builder()
-                    .status(StatusCode::SERVICE_UNAVAILABLE)
-                    .body(Vec::new())
-                    .expect("A response with a status and no header is valid."),
-            );
+            respond(crate::empty_response(StatusCode::SERVICE_UNAVAILABLE));
         }
     }
 
@@ -254,12 +259,9 @@ fn run(app: &PhpApp, queue: &mpsc::Receiver<Job>, pending: &AtomicUsize) {
                     serve(&engine, app, &mut cookies, request, origin)
                 }))
                 .unwrap_or_else(|_| {
-                    eprintln!("[php] The runtime failed on a request: answering 500.");
+                    log!("[php] The runtime failed on a request: answering 500.");
 
-                    Response::builder()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .body(Vec::new())
-                        .expect("A response with a status and no header is valid.")
+                    crate::empty_response(StatusCode::INTERNAL_SERVER_ERROR)
                 });
                 pending.fetch_sub(1, Ordering::SeqCst);
                 respond(response);
@@ -282,39 +284,93 @@ fn serve(
 
     for _ in 0..=redirects::MAX_REDIRECTS {
         cookies.add_to(&mut request);
-        let copy = redirects::copy(&request);
 
         let started = Instant::now();
-        let response =
-            bridge::with_window(origin.window(), || engine.handle(app, request, &origin));
-        eprintln!(
+        let response = bridge::with_window(origin.window(), || {
+            engine.handle(app, &mut request, &origin)
+        });
+        log!(
             "[php] {} {} {} {:.1} ms",
-            copy.method(),
-            copy.uri(),
+            request.method(),
+            request.uri(),
             response.status().as_u16(),
             started.elapsed().as_secs_f64() * 1000.0
         );
 
-        cookies.store(copy.uri().path(), &response);
-        let uri = copy.uri().clone();
+        cookies.store(request.uri().path(), &response);
+        let uri = request.uri().clone();
 
-        match redirects::next(copy, response, navigation) {
+        match redirects::next(request, response, navigation) {
             Next::Respond(mut response) => {
                 absolute_urls::rewrite(&uri, &mut response);
 
-                return response;
+                return deliverable(response);
             }
-            Next::Follow(target) => request = target,
+            Next::Follow(target) => {
+                // The target of a redirect may be a file of public/ too.
+                if let Some(response) = serve_static(&app.document_root, &target) {
+                    return response;
+                }
+
+                request = target;
+            }
         }
     }
 
-    eprintln!(
+    log!(
         "[redirect] Gave up after {} redirects.",
         redirects::MAX_REDIRECTS
     );
 
-    Response::builder()
-        .status(StatusCode::LOOP_DETECTED)
-        .body(Vec::new())
-        .expect("A response with a status and no header is valid.")
+    crate::empty_response(StatusCode::LOOP_DETECTED)
+}
+
+/// Android's webview takes no 3xx from the runtime: wry sends the request to
+/// the network instead, where nothing answers. A redirect the runtime does
+/// not follow (without a Location, to another website for a `fetch()`)
+/// becomes a 502 there.
+fn deliverable(response: Response<Vec<u8>>) -> Response<Vec<u8>> {
+    if !cfg!(target_os = "android") || !response.status().is_redirection() {
+        return response;
+    }
+    log!(
+        "[redirect] Android takes no {} response: answering 502 instead.",
+        response.status().as_u16()
+    );
+
+    crate::empty_response(StatusCode::BAD_GATEWAY)
+}
+
+/// The file of `public/` that `request` names, if any, as a web server serves
+/// it before PHP.
+fn serve_static(document_root: &Path, request: &Request<Vec<u8>>) -> Option<Response<Vec<u8>>> {
+    let response = static_files::serve(document_root, request.uri().path())?;
+    log!(
+        "[static] {} {} {}",
+        request.method(),
+        request.uri(),
+        response.status().as_u16()
+    );
+
+    Some(response)
+}
+
+// macOS and Windows refuse a file name that is not UTF-8.
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_project_path_that_is_not_utf8_is_refused() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+
+        let project = Path::new(env!("OUT_DIR")).join(OsStr::from_bytes(b"caf\xe9"));
+        std::fs::create_dir_all(project.join("public")).unwrap();
+        std::fs::write(project.join("public/index.php"), "<?php").unwrap();
+
+        let error = PhpApp::from_project_dir(&project).unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData, "{error}");
+    }
 }

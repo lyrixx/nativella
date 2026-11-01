@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Task;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Nativella\Client\Call;
 use Nativella\Laravel\Facades\Nativella;
 use Tests\TestCase;
 
@@ -63,7 +64,7 @@ final class TaskTest extends TestCase
 
         $this->post("/tasks/{$task->id}/complete");
 
-        $this->assertSame([['method' => 'notification.send', 'payload' => ['title' => 'All done!', 'body' => 'Every task is completed. Time for a break.', 'reference' => 'all-done']]], $native->calls('notification.send'));
+        $this->assertEquals([new Call('notification.send', ['title' => 'All done!', 'body' => 'Every task is completed. Time for a break.', 'reference' => 'all-done'])], $native->calls('notification.send'));
         $this->assertSame([], $native->calls('haptics.feedback'), 'Computers do not vibrate.');
     }
 
@@ -76,7 +77,7 @@ final class TaskTest extends TestCase
 
         $this->post("/tasks/{$task->id}/complete");
 
-        $this->assertSame([['method' => 'haptics.feedback', 'payload' => ['feedback' => 'success']]], $native->calls('haptics.feedback'));
+        $this->assertEquals([new Call('haptics.feedback', ['feedback' => 'success'])], $native->calls('haptics.feedback'));
     }
 
     public function testCompletingATaskWhileOthersAreOpenIsNotCelebrated(): void
@@ -98,7 +99,7 @@ final class TaskTest extends TestCase
 
         $this->post('/tasks', ['title' => 'Water the plants']);
 
-        $this->assertSame('2 open tasks', last($native->calls('tray.set'))['payload']['tooltip']);
+        $this->assertSame('2 open tasks', last($native->calls('tray.set'))->payload['tooltip']);
     }
 
     public function testDeletingAsksForConfirmation(): void
@@ -110,8 +111,8 @@ final class TaskTest extends TestCase
         $this->delete("/tasks/{$task->id}")->assertRedirect('/')->assertSessionHas('status', '"Water the plants" deleted.');
 
         $this->assertModelMissing($task);
-        $this->assertSame('Delete "Water the plants"?', $native->calls('dialog.confirm')[0]['payload']['message']);
-        $this->assertSame('Nothing to do', last($native->calls('tray.set'))['payload']['tooltip']);
+        $this->assertSame('Delete "Water the plants"?', $native->calls('dialog.confirm')[0]->payload['message']);
+        $this->assertSame('Nothing to do', last($native->calls('tray.set'))->payload['tooltip']);
     }
 
     public function testDeletingCanBeCancelled(): void

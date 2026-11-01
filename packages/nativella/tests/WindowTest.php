@@ -2,6 +2,7 @@
 
 namespace Nativella\Tests;
 
+use Nativella\Client\Call;
 use Nativella\Client\FakeClient;
 use Nativella\Window;
 use Nativella\Window\WindowOptions;
@@ -9,17 +10,16 @@ use PHPUnit\Framework\TestCase;
 
 final class WindowTest extends TestCase
 {
-    public function testOpenSendsTheLabelAndTheOptionsThatAreSet(): void
+    public function testOpenSendsTheWindowAndTheOptionsThatAreSet(): void
     {
         $client = new FakeClient();
 
         $info = new Window($client)->open('settings', new WindowOptions(url: '/settings', title: 'Settings', width: 600, resizable: false));
 
-        $this->assertSame([[
-            'method' => 'window.open',
-            'payload' => ['label' => 'settings', 'url' => '/settings', 'title' => 'Settings', 'width' => 600.0, 'resizable' => false],
-        ]], $client->calls());
-        $this->assertSame('settings', $info->label);
+        $this->assertSame(['window.open'], array_column($client->calls(), 'method'));
+        // A float, as the runtime reads it.
+        $this->assertSame(['window' => 'settings', 'url' => '/settings', 'title' => 'Settings', 'width' => 600.0, 'resizable' => false], $client->calls()[0]->payload);
+        $this->assertSame('settings', $info->window);
     }
 
     public function testMethodsTargetTheCurrentWindowByDefault(): void
@@ -30,9 +30,9 @@ final class WindowTest extends TestCase
         $window->setTitle('Hello');
         $window->maximize('main');
 
-        $this->assertSame([
-            ['method' => 'window.setTitle', 'payload' => ['title' => 'Hello', 'window' => null]],
-            ['method' => 'window.maximize', 'payload' => ['window' => 'main']],
+        $this->assertEquals([
+            new Call('window.setTitle', ['title' => 'Hello', 'window' => null]),
+            new Call('window.maximize', ['window' => 'main']),
         ], $client->calls());
     }
 
@@ -40,7 +40,7 @@ final class WindowTest extends TestCase
     {
         $client = new FakeClient();
         $client->respond('window.all', ['windows' => [[
-            'label' => 'main', 'title' => 'Notes', 'url' => 'php://localhost/', 'width' => 800, 'height' => 600,
+            'window' => 'main', 'title' => 'Notes', 'url' => 'php://localhost/', 'width' => 800, 'height' => 600,
             'x' => 10, 'y' => 20, 'focused' => true, 'maximized' => false, 'minimized' => false, 'fullscreen' => false, 'visible' => true,
         ]]]);
 
@@ -57,6 +57,6 @@ final class WindowTest extends TestCase
 
         new Window($client)->printToPdf('/home/me/invoice.pdf', 'invoice');
 
-        $this->assertSame([['method' => 'window.printToPdf', 'payload' => ['window' => 'invoice', 'path' => '/home/me/invoice.pdf']]], $client->calls());
+        $this->assertEquals([new Call('window.printToPdf', ['window' => 'invoice', 'path' => '/home/me/invoice.pdf'])], $client->calls());
     }
 }

@@ -21,14 +21,16 @@ use std::fs::{self, File};
 #[cfg(test)]
 use std::io::Cursor;
 use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::path::{Component, Path, PathBuf};
+use std::time::Duration;
 
 use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
+use crate::output::Output;
 use crate::project::{Manifest, Project};
 
 const MAGIC: &[u8; 8] = b"NTVLLA01";
@@ -42,26 +44,61 @@ pub const PACKAGED_BUNDLE: &str = "nativella.bundle";
 /// builds (`dist`, where `nativella build` writes by default: an earlier
 /// build would ship in the next one), tests. Relative to the project, with
 /// `/`. Local overrides (`.env.local`, every path ending with `.local`),
-/// which may hold secrets, never ship either: `append_dir` leaves them out on
-/// their own, to list them.
+/// which may hold secrets, credentials and SQLite databases never ship
+/// either: `append_dir` leaves them out on their own, to list them.
 const EXCLUDED: &[&str] = &[".git", ".idea", "dist", "node_modules", "tests"];
 
-/// Directories that ship empty: caches, logs and sessions of the computer
-/// that built the application, which the framework expects to exist.
+/// Directories that ship empty: what the application wrote on the computer
+/// that built it (caches, logs, sessions, files, databases), whose
+/// directories the framework expects to exist. Symfony makes the ones of
+/// `var` itself.
 const EMPTIED: &[&str] = &[
+    "storage/app",
     "storage/framework/cache",
     "storage/framework/sessions",
     "storage/framework/views",
     "storage/logs",
-    "var/cache",
-    "var/log",
+    "var",
 ];
+
+/// The ends of the names of the files that hold credentials, in lower case:
+/// keystores and PKCS #12 files, with their private keys, and provisioning
+/// profiles.
+const CREDENTIALS: &[&str] = &[".jks", ".keystore", ".mobileprovision", ".p12", ".pfx"];
+
+/// The ends of the names of the files that may hold a private key, in PEM:
+/// credentials when they do. Not the others: `composer/ca-bundle` ships the
+/// certificates of the authorities in a `.pem` file, which HTTPS needs.
+const PEM_FILES: &[&str] = &[".key", ".p8", ".pem"];
+
+/// The credentials of Composer, at the root of the project.
+const COMPOSER_AUTH: &str = "auth.json";
+
+/// The ends of the names of SQLite databases, in lower case, and of the
+/// files SQLite keeps next to them.
+const DATABASES: &[&str] = &[".db", ".sqlite", ".sqlite3"];
+const DATABASE_COMPANIONS: &[&str] = &["-journal", "-shm", "-wal"];
+
+/// What a bundle leaves out of the project, for the packaging to list:
+/// paths relative to the project, with `/`.
+#[derive(Debug, Default, PartialEq)]
+pub struct LeftOut {
+    /// `.env.local`, every path ending with `.local`.
+    pub local_overrides: Vec<String>,
+    /// Private keys, keystores, provisioning profiles, the `auth.json` of
+    /// Composer: anyone who has the application could read them.
+    pub credentials: Vec<String>,
+    /// SQLite databases: the ones of the computer that built the
+    /// application.
+    pub databases: Vec<String>,
+}
 
 /// What the trailer says about the bundled project.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Description {
-    /// Changes with every build: a new build extracts its project again.
+    /// The digest of the project: a build of other files, or for another
+    /// version of Nativella, extracts its project again.
     build: String,
     manifest: Manifest,
 }
@@ -79,7 +116,12 @@ pub fn find() -> io::Result<Option<Project>> {
     let file = File::open(env::current_exe()?)?;
 
     match Bundle::read(file)? {
-        Some(bundle) => bundle.extract(&cache_dir()?).map(Some),
+        Some(bundle) => {
+            let cache_dir = dirs::cache_dir().ok_or_else(|| {
+                io::Error::new(io::ErrorKind::NotFound, "The user has no home directory.")
+            })?;
+            bundle.extract(&cache_dir).map(Some)
+        }
         None => Ok(None),
     }
 }
@@ -120,9 +162,37 @@ pub fn packaged() -> io::Result<Option<Packaged>> {
     }
 }
 
-/// Writes a standalone executable for `project` to `output`. Returns the
-/// local overrides it left out, relative to the project.
-pub fn build(project: &Project, output: &Path) -> io::Result<Vec<String>> {
+/// Writes a standalone executable for `project` to `output`. Returns what it
+/// left out of the project.
+pub fn build(project: &Project, output: &Path) -> io::Result<LeftOut> {
+    let mut target = Output::create(output)?;
+    // What the packaging writes, should it be inside the project: the
+    // executable, and the previous one.
+    let staging = target.staging().to_owned();
+    let mut excluded = vec![staging.as_path()];
+    if output.exists() {
+        excluded.push(output);
+    }
+    let left_out = write_executable(project, target.file(), &excluded)?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&staging, fs::Permissions::from_mode(0o755))?;
+    }
+    target.finish()?;
+
+    Ok(left_out)
+}
+
+/// Writes a standalone executable for `project` to `target`: this
+/// executable, then the bundle, which leaves out the `excluded` files.
+/// Returns what else it left out of the project.
+pub(crate) fn write_executable(
+    project: &Project,
+    target: &mut dyn Write,
+    excluded: &[&Path],
+) -> io::Result<LeftOut> {
     let mut base = File::open(env::current_exe()?)?;
     if Bundle::read(&mut base)?.is_some() {
         return Err(io::Error::other(
@@ -130,22 +200,13 @@ pub fn build(project: &Project, output: &Path) -> io::Result<Vec<String>> {
         ));
     }
     base.seek(SeekFrom::Start(0))?;
+    io::copy(&mut base, target)?;
 
-    let mut target = create(output)?;
-    io::copy(&mut base, &mut target)?;
-    let local_overrides = write_bundle(project, &mut target, &[output])?;
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(output, fs::Permissions::from_mode(0o755))?;
-    }
-
-    Ok(local_overrides)
+    write_bundle(project, target, excluded)
 }
 
 impl<R: Read + Seek> Bundle<R> {
-    fn read(mut reader: R) -> io::Result<Option<Self>> {
+    pub(crate) fn read(mut reader: R) -> io::Result<Option<Self>> {
         let length = reader.seek(SeekFrom::End(0))?;
         if length < TRAILER_LENGTH {
             return Ok(None);
@@ -279,50 +340,65 @@ pub fn remove_other_builds(current: &Path) {
 /// extracting takes seconds.
 const ABANDONED: Duration = Duration::from_secs(3600);
 
-fn create(output: &Path) -> io::Result<File> {
-    if let Some(parent) = output.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    File::create(output)
-}
-
 /// Writes the bundle of `project` to `target`, as it goes. The `excluded`
 /// files, which must exist, are left out, should they be inside the project:
-/// what the packaging writes, or reads. Returns the local overrides left out.
+/// what the packaging writes, or reads. Returns what else it left out.
 pub(crate) fn write_bundle(
     project: &Project,
     target: &mut dyn Write,
     excluded: &[&Path],
-) -> io::Result<Vec<String>> {
-    let excluded = excluded
-        .iter()
-        .map(|path| path.canonicalize())
-        .collect::<io::Result<Vec<_>>>()?;
+) -> io::Result<LeftOut> {
+    let mut walk = Walk {
+        excluded: excluded
+            .iter()
+            .map(|path| path.canonicalize())
+            .collect::<io::Result<Vec<_>>>()?,
+        icon: project
+            .manifest
+            .icon
+            .as_deref()
+            .map(icon_path)
+            .transpose()?,
+        icon_ships: false,
+        left_out: LeftOut::default(),
+    };
 
-    let mut archive = Counted {
+    let mut archive = Digested {
         inner: &mut *target,
         length: 0,
+        digest: Sha256::new(),
     };
     let mut builder = tar::Builder::new(GzEncoder::new(&mut archive, Compression::default()));
     // Composer path repositories symlink packages: ship what they point to.
     builder.follow_symlinks(true);
-    let mut local_overrides = Vec::new();
-    append_dir(
-        &mut builder,
-        &project.dir,
-        Path::new(""),
-        &excluded,
-        &mut local_overrides,
-    )?;
+    // Neither the dates nor the owners of the files of this computer: the
+    // same files make the same archive. The extraction dates them anew.
+    builder.mode(tar::HeaderMode::Deterministic);
+    append_dir(&mut builder, &project.dir, Path::new(""), &mut walk)?;
     builder.into_inner()?.finish()?;
+    // The windows of a standalone executable take it from the extracted
+    // project.
+    if let Some(icon) = &walk.icon
+        && !walk.icon_ships
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "The icon {icon} does not ship: make it a file of the project, outside of the paths that never ship (dist, tests…)."
+            ),
+        ));
+    }
     let archive_length = archive.length;
 
-    let build = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_nanos());
+    // Of the archive, of the manifest, and of the Nativella that runs them.
+    let mut digest = archive.digest;
+    digest.update(serde_json::to_vec(&project.manifest).expect("A manifest serializes to JSON."));
+    digest.update(env!("CARGO_PKG_VERSION"));
     let description = Description {
-        build: format!("{build:x}"),
+        build: digest.finalize()[..8]
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect(),
         manifest: project.manifest.clone(),
     };
     let manifest = serde_json::to_vec(&description).expect("A manifest serializes to JSON.");
@@ -333,19 +409,21 @@ pub(crate) fn write_bundle(
     target.write_all(MAGIC)?;
     target.flush()?;
 
-    Ok(local_overrides)
+    Ok(walk.left_out)
 }
 
-/// A writer that counts what it writes.
-struct Counted<W> {
+/// A writer that counts and digests what it writes.
+struct Digested<W> {
     inner: W,
     length: u64,
+    digest: Sha256,
 }
 
-impl<W: Write> Write for Counted<W> {
+impl<W: Write> Write for Digested<W> {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
         let written = self.inner.write(buffer)?;
         self.length += written as u64;
+        self.digest.update(&buffer[..written]);
 
         Ok(written)
     }
@@ -355,12 +433,44 @@ impl<W: Write> Write for Counted<W> {
     }
 }
 
+/// What `append_dir` goes through the project with.
+struct Walk {
+    /// What the packaging writes or reads, canonical.
+    excluded: Vec<PathBuf>,
+    /// The icon of the manifest, relative to the project, with `/`, and
+    /// whether it is among the files that ship.
+    icon: Option<String>,
+    icon_ships: bool,
+    left_out: LeftOut,
+}
+
+/// The icon `icon` of a manifest, relative to the project, with `/`.
+fn icon_path(icon: &Path) -> io::Result<String> {
+    let mut parts = Vec::new();
+    for component in icon.components() {
+        match component {
+            Component::Normal(part) => parts.push(part.to_string_lossy()),
+            Component::CurDir => {}
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!(
+                        "The icon {} is not a path in the project, which the application carries: give a path relative to the project, without \"..\".",
+                        icon.display()
+                    ),
+                ));
+            }
+        }
+    }
+
+    Ok(parts.join("/"))
+}
+
 fn append_dir<W: Write>(
     archive: &mut tar::Builder<W>,
     root: &Path,
     relative: &Path,
-    excluded: &[PathBuf],
-    local_overrides: &mut Vec<String>,
+    walk: &mut Walk,
 ) -> io::Result<()> {
     let mut entries = fs::read_dir(root.join(relative))?.collect::<Result<Vec<_>, _>>()?;
     // Reproducible order.
@@ -370,14 +480,14 @@ fn append_dir<W: Write>(
         let path = relative.join(entry.file_name());
         let normalized = path.to_string_lossy().replace('\\', "/");
         if normalized.ends_with(".local") {
-            local_overrides.push(normalized);
+            walk.left_out.local_overrides.push(normalized);
             continue;
         }
         if EXCLUDED.contains(&normalized.as_str())
             || entry
                 .path()
                 .canonicalize()
-                .is_ok_and(|path| excluded.contains(&path))
+                .is_ok_and(|path| walk.excluded.contains(&path))
         {
             continue;
         }
@@ -389,13 +499,47 @@ fn append_dir<W: Write>(
                 archive.append_dir(&path, entry.path())?;
             }
         } else if metadata.is_dir() {
-            append_dir(archive, root, &path, excluded, local_overrides)?;
+            append_dir(archive, root, &path, walk)?;
+        } else if is_credential(&normalized, &entry.path())? {
+            walk.left_out.credentials.push(normalized);
+        } else if is_database(&normalized) {
+            walk.left_out.databases.push(normalized);
         } else {
+            walk.icon_ships |= walk.icon.as_ref() == Some(&normalized);
             archive.append_path_with_name(entry.path(), &path)?;
         }
     }
 
     Ok(())
+}
+
+/// Whether the file `path`, `normalized` in the project, holds credentials.
+fn is_credential(normalized: &str, path: &Path) -> io::Result<bool> {
+    let name = normalized.to_lowercase();
+    if name == COMPOSER_AUTH || CREDENTIALS.iter().any(|end| name.ends_with(end)) {
+        return Ok(true);
+    }
+    if !PEM_FILES.iter().any(|end| name.ends_with(end)) {
+        return Ok(false);
+    }
+
+    // "-----BEGIN PRIVATE KEY-----", or ENCRYPTED, EC, RSA, OPENSSH.
+    let marker = b"PRIVATE KEY-----";
+    Ok(fs::read(path)?
+        .windows(marker.len())
+        .any(|window| window == marker))
+}
+
+/// Whether the file `normalized` in the project is a SQLite database, or a
+/// file SQLite keeps next to one.
+fn is_database(normalized: &str) -> bool {
+    let name = normalized.to_lowercase();
+    let database = DATABASE_COMPANIONS
+        .iter()
+        .find_map(|companion| name.strip_suffix(companion))
+        .unwrap_or(&name);
+
+    DATABASES.iter().any(|end| database.ends_with(end))
 }
 
 /// The assets of an APK, read in place through the asset manager of the
@@ -471,30 +615,10 @@ pub(crate) mod asset {
     }
 }
 
-/// The per-user cache directory of the desktop platform.
-fn cache_dir() -> io::Result<PathBuf> {
-    let from_env = |name: &str| {
-        env::var_os(name)
-            .filter(|value| !value.is_empty())
-            .map(PathBuf::from)
-    };
-    let missing = || io::Error::new(io::ErrorKind::NotFound, "The user has no home directory.");
-
-    if cfg!(windows) {
-        from_env("LOCALAPPDATA").ok_or_else(missing)
-    } else if cfg!(target_os = "macos") {
-        from_env("HOME")
-            .map(|home| home.join("Library/Caches"))
-            .ok_or_else(missing)
-    } else {
-        from_env("XDG_CACHE_HOME")
-            .or_else(|| from_env("HOME").map(|home| home.join(".cache")))
-            .ok_or_else(missing)
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use std::time::SystemTime;
+
     use super::*;
 
     #[test]
@@ -510,12 +634,46 @@ mod tests {
         fs::write(project_dir.join("var/cache/big"), "never shipped").unwrap();
         fs::write(project_dir.join("dist/notes"), "an earlier build").unwrap();
         fs::write(project_dir.join(".env.local"), "SECRET=1").unwrap();
+        // What the application wrote on this computer.
+        fs::create_dir_all(project_dir.join("var/share")).unwrap();
+        fs::write(project_dir.join("var/notes.db"), "SQLite format 3").unwrap();
+        fs::write(project_dir.join("var/share/pool"), "cached").unwrap();
+        fs::create_dir_all(project_dir.join("storage/app/private")).unwrap();
+        fs::write(project_dir.join("storage/app/private/upload"), "a file").unwrap();
+        fs::create_dir_all(project_dir.join("database")).unwrap();
+        fs::write(project_dir.join("database/app.sqlite"), "SQLite format 3").unwrap();
+        fs::write(project_dir.join("database/app.sqlite-wal"), "WAL").unwrap();
+        // Credentials, and a certificate that is none.
+        fs::write(project_dir.join("auth.json"), r#"{"github-oauth": {}}"#).unwrap();
+        fs::write(project_dir.join("release.p12"), "PKCS #12").unwrap();
+        fs::write(
+            project_dir.join("storage/oauth-private.key"),
+            "-----BEGIN RSA PRIVATE KEY-----\n",
+        )
+        .unwrap();
+        fs::create_dir_all(project_dir.join("vendor/composer/ca-bundle/res")).unwrap();
+        fs::write(
+            project_dir.join("vendor/composer/ca-bundle/res/cacert.pem"),
+            "-----BEGIN CERTIFICATE-----\n",
+        )
+        .unwrap();
         let project = Project::load(&project_dir).unwrap();
 
         let mut bytes = Vec::new();
         assert_eq!(
             write_bundle(&project, &mut bytes, &[]).unwrap(),
-            [".env.local"]
+            LeftOut {
+                local_overrides: vec![".env.local".to_owned()],
+                credentials: vec![
+                    "auth.json".to_owned(),
+                    "release.p12".to_owned(),
+                    "storage/oauth-private.key".to_owned(),
+                ],
+                databases: vec![
+                    "database/app.sqlite".to_owned(),
+                    "database/app.sqlite-wal".to_owned(),
+                ],
+            }
         );
         let found = Bundle::read(Cursor::new(bytes)).unwrap().unwrap();
         assert_eq!(found.manifest().identifier, "dev.nativella.project");
@@ -534,12 +692,120 @@ mod tests {
             extracted.dir.join("public/dist/app.js").is_file(),
             "Only the dist of the project root is left out."
         );
-        assert!(
-            extracted.dir.join("var/cache").is_dir(),
-            "Caches ship empty."
-        );
+        assert!(extracted.dir.join("var").is_dir(), "var ships empty.");
+        assert_eq!(fs::read_dir(extracted.dir.join("var")).unwrap().count(), 0);
+        assert!(extracted.dir.join("storage/app").is_dir());
+        assert!(!extracted.dir.join("storage/app/private").exists());
         assert!(!extracted.dir.join(".env.local").exists());
+        assert!(
+            extracted
+                .dir
+                .join("vendor/composer/ca-bundle/res/cacert.pem")
+                .is_file(),
+            "Certificates ship."
+        );
 
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn the_same_project_makes_the_same_bundle() {
+        let root =
+            Path::new(env!("OUT_DIR")).join(format!("reproducible-test-{}", std::process::id()));
+        fs::create_dir_all(root.join("public")).unwrap();
+        fs::write(root.join("public/index.php"), "<?php echo 'hi';").unwrap();
+        let project = Project::load(&root).unwrap();
+        let bundle = || {
+            let mut bytes = Vec::new();
+            write_bundle(&project, &mut bytes, &[]).unwrap();
+            bytes
+        };
+
+        let first = bundle();
+        // Another date, other permissions: the same files.
+        fs::write(root.join("public/index.php"), "<?php echo 'hi';").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(root.join("public"), fs::Permissions::from_mode(0o775)).unwrap();
+        }
+        assert_eq!(bundle(), first);
+
+        fs::write(root.join("public/index.php"), "<?php echo 'hello';").unwrap();
+        let other = Bundle::read(Cursor::new(bundle())).unwrap().unwrap();
+        let first = Bundle::read(Cursor::new(first)).unwrap().unwrap();
+        assert_ne!(
+            other.description.build, first.description.build,
+            "Other files are another build."
+        );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn the_icon_must_ship() {
+        let root = Path::new(env!("OUT_DIR")).join(format!("icon-test-{}", std::process::id()));
+        fs::create_dir_all(root.join("public")).unwrap();
+        fs::create_dir_all(root.join("tests")).unwrap();
+        fs::write(root.join("public/index.php"), "<?php").unwrap();
+        fs::write(root.join("public/icon.png"), "PNG").unwrap();
+        fs::write(root.join("tests/icon.png"), "PNG").unwrap();
+        let mut project = Project::load(&root).unwrap();
+
+        project.manifest.icon = Some(PathBuf::from("./public/icon.png"));
+        write_bundle(&project, &mut Vec::new(), &[]).unwrap();
+
+        for icon in [
+            root.join("public/icon.png"),
+            PathBuf::from("public/../public/icon.png"),
+        ] {
+            project.manifest.icon = Some(icon);
+            let error = write_bundle(&project, &mut Vec::new(), &[]).unwrap_err();
+            assert!(
+                error.to_string().contains("relative to the project"),
+                "{error}"
+            );
+        }
+        for icon in ["tests/icon.png", "public/missing.png"] {
+            project.manifest.icon = Some(PathBuf::from(icon));
+            let error = write_bundle(&project, &mut Vec::new(), &[]).unwrap_err();
+            assert!(error.to_string().contains("does not ship"), "{error}");
+        }
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn only_the_builds_an_update_replaced_are_removed() {
+        let builds = Path::new(env!("OUT_DIR"))
+            .join(format!("builds-test-{}", std::process::id()))
+            .join("dev.nativella.notes");
+        let build = |name: &str, complete: bool| {
+            let dir = builds.join(name);
+            fs::create_dir_all(&dir).unwrap();
+            if complete {
+                File::create(dir.join(".nativella-complete")).unwrap();
+            }
+            dir
+        };
+        let current = build("1300", true);
+        let replaced = build("1200", true);
+        let unknown = build("notes", false);
+        let extracting = build("1400.tmp-123", false);
+        let abandoned = build("1100.tmp-456", false);
+        File::open(&abandoned)
+            .unwrap()
+            .set_modified(SystemTime::now() - ABANDONED - Duration::from_secs(60))
+            .unwrap();
+
+        remove_other_builds(&current);
+
+        assert!(current.exists());
+        assert!(!replaced.exists());
+        assert!(unknown.exists());
+        assert!(extracting.exists());
+        assert!(!abandoned.exists());
+
+        fs::remove_dir_all(builds.parent().unwrap()).unwrap();
     }
 }

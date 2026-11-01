@@ -9,30 +9,40 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface as HttpExceptionInterface;
 
 use function Castor\context;
+use function Castor\finder;
 use function Castor\http_request;
 use function Castor\io;
 use function Castor\variable;
 use function docker\builder_path;
 use function docker\docker_exit_code;
+use function nativella\mirror;
 use function project\demo_names;
+use function project\install_if_missing as install_project_if_missing;
 use function project\select;
 use function worktree\get_worktree_name;
 use function worktree\get_worktree_ports;
 
 const TOOLS = ['php-cs-fixer', 'phpstan', 'twig-cs-fixer'];
 
-#[AsTask(description: 'Runs all QA tasks', aliases: ['qa'])]
+/**
+ * Every check of the CI but the frontend, which needs the stack up (castor
+ * start, then castor qa:frontend), and the smoke tests of the demos (castor
+ * nativella:smoke).
+ */
+#[AsTask(description: 'Runs all QA tasks, but the frontend', aliases: ['qa'])]
 function all(
     #[AsOption(description: 'Only report coding standard violations, do not fix them')]
     bool $dryRun = false,
 ): int {
+    $securityAudit = securityAudit();
     $cs = cs($dryRun);
     $twigCs = twigCs($dryRun);
     $phpstan = phpstan();
     $phpunit = phpunit();
+    $phpunitLowest = phpunit_lowest();
     $rust = rust();
 
-    return max($cs, $twigCs, $phpstan, $phpunit, $rust);
+    return max($securityAudit, $cs, $twigCs, $phpstan, $phpunit, $phpunitLowest, $rust);
 }
 
 #[AsTask(description: 'Installs tooling')]
@@ -93,7 +103,7 @@ function phpunit(
 ): int {
     $exitCode = 0;
 
-    foreach (installed_projects(select($project)) as $p) {
+    foreach (array_map(install_project_if_missing(...), select($project)) as $p) {
         if (!$p->hasTests()) {
             continue;
         }
@@ -103,6 +113,60 @@ function phpunit(
         $command = $p->isLaravel() ? ['php', 'artisan', 'test'] : ['vendor/bin/phpunit'];
 
         $exitCode = max($exitCode, docker_exit_code($command, workDir: $p->builderDirectory()));
+    }
+
+    return $exitCode;
+}
+
+/**
+ * Dependencies of dependencies whose lowest versions predate the PHP of the
+ * packages: loading them raises deprecations that fail the tests run in a
+ * process of their own, and say nothing of the packages. Ignored by the
+ * packages that do not depend on them.
+ */
+const LOWEST_INDIRECT_DEPENDENCIES = [
+    '--with', 'guzzlehttp/promises:^2.0.3',
+    '--with', 'symfony/translation:^7.2',
+];
+
+/**
+ * The test suites of the packages, with the lowest versions of their
+ * dependencies that their constraints allow, which the demos never install:
+ * in a copy of packages/, target/lowest/packages/, so that their vendor/
+ * stays as it is. With the PHP of the builder: not the lowest one they allow.
+ */
+#[AsTask(name: 'phpunit-lowest', description: 'Runs the test suites of the packages with the lowest versions of their dependencies')]
+function phpunit_lowest(): int
+{
+    $root = variable('root_dir');
+
+    // With their path repositories (../nativella)
+    mirror(
+        finder()->in("{$root}/packages")->ignoreDotFiles(false)->exclude(['var', 'vendor'])->notName('composer.lock'),
+        "{$root}/packages",
+        "{$root}/target/lowest/packages",
+    );
+
+    $exitCode = 0;
+    foreach (\project\all() as $package) {
+        if (!$package->isPackage() || !$package->hasTests()) {
+            continue;
+        }
+
+        $copy = new Project("target/lowest/{$package->path}");
+        io()->section("Running the tests of {$package->path} with the lowest dependencies...");
+
+        $update = docker_exit_code(['composer', 'update', '--prefer-lowest', '--prefer-stable', '-n', '--no-progress', ...LOWEST_INDIRECT_DEPENDENCIES], workDir: $copy->builderDirectory());
+        if (0 !== $update) {
+            $exitCode = max($exitCode, $update);
+
+            continue;
+        }
+
+        // The lowest versions predate the PHP of the builder: their own
+        // deprecations say nothing of the packages, which the run with the
+        // highest versions checks
+        $exitCode = max($exitCode, docker_exit_code(['vendor/bin/phpunit', '--do-not-fail-on-deprecation'], workDir: $copy->builderDirectory()));
     }
 
     return $exitCode;
@@ -132,7 +196,7 @@ function phpstan(
         $exitCode = docker_exit_code($command, workDir: builder_path());
     }
 
-    foreach (installed_projects(select($project)) as $p) {
+    foreach (array_map(install_project_if_missing(...), select($project)) as $p) {
         io()->section("Running PHPStan on {$p->path}...");
 
         $projectCommand = $command;
@@ -163,7 +227,7 @@ function securityAudit(): int
 {
     $exitCode = 0;
 
-    foreach (installed_projects(select([])) as $p) {
+    foreach (array_map(install_project_if_missing(...), select([])) as $p) {
         io()->section("Auditing the dependencies of {$p->path}...");
 
         $exitCode = max($exitCode, docker_exit_code(['composer', 'audit'], workDir: $p->builderDirectory()));
@@ -210,6 +274,10 @@ function rust(
     #[AsOption(description: 'Link the static PHP of "castor static-php:build"')]
     bool $static = false,
 ): int {
+    if ($static) {
+        \static_php\build();
+    }
+
     $c = context()->withData(['docker_compose_run_environment' => $static ? \static_php\environment() : \static_php\system_php_environment()], recursive: false);
     $service = $static ? \static_php\SERVICE : null;
 
@@ -217,10 +285,10 @@ function rust(
     $fmt = docker_exit_code(['cargo', 'fmt', '--all', '--check'], $c, $service, workDir: builder_path());
 
     io()->section('Running Clippy...');
-    $clippy = docker_exit_code(['cargo', 'clippy', '--workspace', '--all-targets', '--', '-D', 'warnings'], $c, $service, workDir: builder_path());
+    $clippy = docker_exit_code(['cargo', 'clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings'], $c, $service, workDir: builder_path());
 
     io()->section('Running the Rust tests...');
-    $test = docker_exit_code(['cargo', 'test', '--workspace'], $c, $service, workDir: builder_path());
+    $test = docker_exit_code(['cargo', 'test', '--workspace', '--locked'], $c, $service, workDir: builder_path());
 
     return max($fmt, $clippy, $test);
 }
@@ -278,25 +346,4 @@ function install_if_missing(string $tool): void
     if (!is_dir(variable('root_dir')."/tools/{$tool}/vendor")) {
         install();
     }
-}
-
-/**
- * @param list<Project> $projects
- *
- * @return list<Project>
- */
-function installed_projects(array $projects): array
-{
-    $installed = [];
-    foreach ($projects as $project) {
-        if (!$project->isInstalled()) {
-            io()->warning(\sprintf('%s is not installed, run "castor install" first.', $project->path));
-
-            continue;
-        }
-
-        $installed[] = $project;
-    }
-
-    return $installed;
 }

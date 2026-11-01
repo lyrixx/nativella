@@ -4,6 +4,7 @@ namespace App\Tests\EventListener;
 
 use App\Native\Desktop;
 use App\Tests\NotesTestCase;
+use Nativella\Exception\NativeCallException;
 
 final class NativeEventsTest extends NotesTestCase
 {
@@ -12,8 +13,17 @@ final class NativeEventsTest extends NotesTestCase
         $this->sendNativeEvent('app.booted');
 
         $this->assertSame(['settings.get', 'menu.set', 'tray.set', 'globalShortcut.register', 'settings.get', 'window.open'], $this->nativeMethods());
-        $this->assertSame(['accelerator' => Desktop::QUICK_NOTE_SHORTCUT], $this->fakeClient()->calls('globalShortcut.register')[0]['payload']);
-        $this->assertSame('Nativella Notes: 0 notes', $this->fakeClient()->calls('tray.set')[0]['payload']['tooltip']);
+        $this->assertSame(['accelerator' => Desktop::QUICK_NOTE_SHORTCUT], $this->fakeClient()->calls('globalShortcut.register')[0]->payload);
+        $this->assertSame('Nativella Notes: 0 notes', $this->fakeClient()->calls('tray.set')[0]->payload['tooltip']);
+    }
+
+    public function testATakenShortcutStillOpensTheWindow(): void
+    {
+        $this->fakeClient()->respond('globalShortcut.register', new NativeCallException('globalShortcut.register', new \RuntimeException('Already taken.')));
+
+        $this->sendNativeEvent('app.booted');
+
+        $this->assertCount(1, $this->fakeClient()->calls('window.open'));
     }
 
     public function testDeleteFromTheContextMenuAsksFirst(): void
@@ -29,7 +39,7 @@ final class NativeEventsTest extends NotesTestCase
 
         $this->entityManager()->clear();
         $this->assertNull($this->notes()->find($id));
-        $this->assertEquals(['event' => 'notes.changed', 'detail' => (object) ['deleted' => $id], 'window' => null], $this->fakeClient()->calls('page.dispatch')[0]['payload']);
+        $this->assertEquals(['event' => 'notes.changed', 'detail' => (object) ['deleted' => $id], 'window' => null], $this->fakeClient()->calls('page.dispatch')[0]->payload);
     }
 
     public function testAContextMenuOfADeletedNoteDoesNothing(): void
@@ -51,16 +61,25 @@ final class NativeEventsTest extends NotesTestCase
         $this->assertSame(['Pancakes'], array_map(static fn ($note) => $note->getTitle(), $this->notes()->findAll()));
         $this->assertSame(
             ['title' => 'Nativella Notes', 'body' => 'Imported "Pancakes". Skipped photo.png: only Markdown and text files up to 1 MB are supported.', 'reference' => null],
-            $this->fakeClient()->calls('notification.send')[0]['payload'],
+            $this->fakeClient()->calls('notification.send')[0]->payload,
         );
+    }
+
+    public function testDeveloperToolsThatDoNotExistAreExplained(): void
+    {
+        $this->fakeClient()->respond('window.openDevtools', new NativeCallException('window.openDevtools', new \RuntimeException('Developer tools only exist in debug builds.')));
+
+        $this->sendNativeEvent('menu.itemClicked', ['id' => 'view.devtools', 'checked' => null]);
+
+        $this->assertCount(1, $this->fakeClient()->calls('dialog.message'));
     }
 
     public function testTheAlwaysOnTopCheckboxIsRemembered(): void
     {
         $this->sendNativeEvent('menu.itemClicked', ['id' => 'view.alwaysOnTop', 'checked' => true]);
 
-        $this->assertSame(['key' => Desktop::SETTING_ALWAYS_ON_TOP, 'value' => true], $this->fakeClient()->calls('settings.set')[0]['payload']);
-        $this->assertSame(['enabled' => true, 'window' => 'main'], $this->fakeClient()->calls('window.setAlwaysOnTop')[0]['payload']);
+        $this->assertSame(['key' => Desktop::SETTING_ALWAYS_ON_TOP, 'value' => true], $this->fakeClient()->calls('settings.set')[0]->payload);
+        $this->assertSame(['enabled' => true, 'window' => 'main'], $this->fakeClient()->calls('window.setAlwaysOnTop')[0]->payload);
     }
 
     public function testADeepLinkOpensItsNote(): void
@@ -69,7 +88,7 @@ final class NativeEventsTest extends NotesTestCase
 
         $this->sendNativeEvent('app.urlsOpened', ['urls' => ["nativella-notes://notes/{$note->getId()}"]]);
 
-        $this->assertSame(['url' => "/notes/{$note->getId()}", 'window' => 'main'], $this->fakeClient()->calls('window.navigate')[0]['payload']);
+        $this->assertSame(['url' => "/notes/{$note->getId()}", 'window' => 'main'], $this->fakeClient()->calls('window.navigate')[0]->payload);
     }
 
     public function testADeepLinkToNothingIsIgnored(): void

@@ -49,6 +49,13 @@ Every [native event](lifecycle.md#native-events) reaches the pages too, before P
 | DOM event | `event.detail` |
 |---|---|
 | `nativella:app.reopened` | `{args, cwd}` |
+| `nativella:app.urlsOpened` | `{urls}` |
+| `nativella:childProcess.output` | `{alias, pid, stream, output}` |
+| `nativella:childProcess.exited` | `{alias, pid, code}` |
+| `nativella:notification.clicked` | `{reference}` |
+| `nativella:power.resumed` | `{}` |
+| `nativella:power.sourceChanged` | `{onBattery}` |
+| `nativella:timer.fired` | `{name}` |
 | `nativella:window.focused`, `nativella:window.blurred`, `nativella:window.closed` | `{window}` |
 | `nativella:window.themeChanged` | `{window, theme}` |
 | `nativella:window.downloaded` | `{window, path}` |
@@ -61,7 +68,9 @@ Every [native event](lifecycle.md#native-events) reaches the pages too, before P
 | `nativella:updater.failed` | `{version, message}` |
 | `nativella:globalShortcut.pressed` | `{accelerator}` |
 
-Every window gets every event: compare `detail.window` with the label of the window when it matters. A page knows its own label if PHP prints it, from `Nativella\Runtime::window()`:
+`stream` is `stdout` or `stderr`, `theme` is `light` or `dark`: the values PHP gets, before it makes objects of them. See [Lifecycle and events](lifecycle.md#native-events) for when each event comes.
+
+Every window gets every event, the output of the child processes and the URLs of deep links included, which may carry a token: any script that runs in a page sees them. Compare `detail.window` with the label of the window when it matters. A page knows its own label if PHP prints it, from `Nativella\Runtime::window()`:
 
 ```php
 <body data-window="<?= htmlspecialchars(Nativella\Runtime::window() ?? '') ?>">
@@ -113,8 +122,12 @@ PHP believes it is served from `http://localhost/`, so the absolute URLs it gene
 
 Navigations that leave the application are handled too:
 
-- a link to another website (`http:`, `https:`, `mailto:`, `tel:`) opens in the browser, or the mail client, of the system, instead of inside the window;
-- a navigation to `http://localhost/…` that slipped through, a URL built in JavaScript for instance, is brought back to the application, with a GET.
+- a link to another website (`http:`, `https:`, `mailto:`, `tel:`) opens in the browser, or the mail client, of the system, instead of inside the window. Another server of the machine is another website: `http://localhost:8025/`, a server a [child process](child-processes.md) runs, or `https://localhost/`;
+- a navigation to `http://localhost/…`, without a port, that slipped through, a URL built in JavaScript for instance, is brought back to the application, with a GET;
+- a link with `target="_blank"`, or `window.open()` in answer to a click, opens a website in the browser and a page of the application in the window itself: pages open no window, PHP does, with [`Window::open()`](windows.md). `window.open()` returns `null`, and does nothing when a script calls it on its own, as a browser blocks popups;
+- `file:` URLs and the schemes of other applications open nothing, and print a line on the standard error output. `about:blank`, and the `data:` and `blob:` URLs a page makes, load in the window.
+
+Frames follow the same rules, see [Limitations](limitations.md#the-web-layer): an `<iframe>` of another website opens it in the browser and stays empty.
 
 ## Developer tools
 

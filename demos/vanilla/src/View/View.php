@@ -2,17 +2,20 @@
 
 namespace App\View;
 
+use App\Http\CsrfToken;
 use App\Http\Response;
 use Nativella\Runtime;
 
 /**
  * Renders the PHP templates of templates/. They run in the scope of this
- * class: they escape with $this->e(), and see their parameters as variables,
- * with $isNative and $isMobile on top.
+ * class: they escape with $this->e(), put $this->csrfToken() in the forms that
+ * post, and see their parameters as variables, with $isNative and $isMobile on
+ * top.
  */
 final readonly class View
 {
     public function __construct(
+        private CsrfToken $csrfToken,
         /** Of the request, for the navigation. */
         private string $currentPath,
         private Flash $flash,
@@ -61,6 +64,14 @@ final readonly class View
     public function e(string|int $value): string
     {
         return htmlspecialchars((string) $value, \ENT_QUOTES | \ENT_SUBSTITUTE | \ENT_HTML5, 'UTF-8');
+    }
+
+    /**
+     * The value of the CsrfToken::FIELD field of a form that posts.
+     */
+    public function csrfToken(): string
+    {
+        return $this->csrfToken->value();
     }
 
     /**

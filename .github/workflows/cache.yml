@@ -1,14 +1,20 @@
 name: Push docker image to registry
 
 # The builder image is heavy (PHP, WebKitGTK, Rust): every workflow builds it
-# from the cache that this one pushes from main.
+# from the cache that this one pushes from main, on each change of the
+# images: the Docker stack, with the base images Dependabot updates, and the
+# Castor tasks that give their build arguments (php_version of castor.php,
+# the Tauri command of .castor/mobile.php).
 
 "on":
     push:
         # Only run this job when pushing to the main branch
         branches: ["main"]
         paths:
+            - ".castor/docker.php"
+            - ".castor/mobile.php"
             - ".github/workflows/cache.yml"
+            - "castor.php"
             - "infrastructure/docker/**"
     workflow_dispatch:
 
@@ -23,22 +29,15 @@ jobs:
     push-images:
         name: Push image to registry
         runs-on: ubuntu-26.04
+        # Every image, the android one with its SDK, when nothing is cached
+        timeout-minutes: 60
         steps:
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-            - name: Log in to registry
-              shell: bash
-              run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: setup-castor
-              uses: castor-php/setup-castor@2a495b8c91f00be6768ad8a040ba8634c797d386 # v1.1.0
-
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                 persist-credentials: false
+
+            - name: "Set up the Docker stack"
+              uses: ./.github/actions/stack
 
             - name: "Push the build cache of the images"
               run: "castor docker:push"

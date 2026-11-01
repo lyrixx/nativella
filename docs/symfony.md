@@ -39,8 +39,10 @@ use Nativella\Dialog;
 use Nativella\Dialog\MessageKind;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
 
 #[Route('/notes/{id}/delete', methods: ['POST'])]
+#[IsCsrfTokenValid('delete-note')]
 public function delete(Note $note, Dialog $dialog): RedirectResponse
 {
     if ($dialog->confirm(\sprintf('Delete "%s"?', $note->getTitle()), kind: MessageKind::Warning, okLabel: 'Delete')) {
@@ -51,6 +53,8 @@ public function delete(Note $note, Dialog $dialog): RedirectResponse
     return $this->redirectToRoute('note_index', status: 303);
 }
 ```
+
+The application runs in a browser too, through a web server or `php -S`: protect the forms that change data from other sites as on the web. Here, `#[IsCsrfTokenValid]` (from `symfony/security-bundle`) checks the `_token` field the form sends, `{{ csrf_token('delete-note') }}`.
 
 ## Native events are Symfony events
 
@@ -64,9 +68,11 @@ The bundle answers `POST /_nativella/event` before the router and the firewall r
 namespace App\EventListener;
 
 use Nativella\Event\AppBooted;
+use Nativella\Exception\NativeCallException;
 use Nativella\GlobalShortcut;
 use Nativella\Menu;
 use Nativella\Menu\MenuItem;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener]
@@ -74,6 +80,7 @@ final readonly class BootListener
 {
     public function __construct(
         private GlobalShortcut $globalShortcut,
+        private LoggerInterface $logger,
         private Menu $menu,
     ) {
     }
@@ -90,7 +97,13 @@ final readonly class BootListener
             ),
             MenuItem::editMenu(),
         );
-        $this->globalShortcut->register('CmdOrCtrl+Shift+N');
+
+        try {
+            $this->globalShortcut->register('CmdOrCtrl+Shift+N');
+        } catch (NativeCallException $e) {
+            // Another application holds it: the application works without.
+            $this->logger->warning('The global shortcut is not available.', ['exception' => $e]);
+        }
     }
 }
 ```
@@ -168,7 +181,7 @@ when@test:
 
 | Function | |
 |---|---|
-| `nativella_is_native()` | Whether Nativella shows the page. Offer native features only then. |
+| `nativella_is_native()` | Whether native calls work: Nativella shows the page, or the tests use the [fake client](#testing). Offer native features only then. |
 | `nativella_is_mobile()` | Whether it runs on a phone or a tablet. |
 | `nativella_platform()` | `linux`, `macos`, `windows`, `android`, `ios`, or null outside Nativella. |
 
@@ -190,7 +203,7 @@ Profiles are written to disk: the values of `secrets.*` calls show as `******`.
 
 ## Testing
 
-With `fake_client: true` in the `test` environment, the container holds a `Nativella\Client\FakeClient` instead of the real client. Tests fetch it to queue answers and check the calls:
+With `fake_client: true` in the `test` environment, the container holds a `Nativella\Client\FakeClient` instead of the real client, and the application behaves as in Nativella: `isNative()` of the `Nativella\Nativella` service and `nativella_is_native()` are true. Tests fetch the fake to queue answers and check the calls:
 
 ```php title="tests/Controller/NoteControllerTest.php"
 use Nativella\Client\FakeClient;
@@ -204,7 +217,9 @@ final class NoteControllerTest extends WebTestCase
         $native = static::getContainer()->get(FakeClient::class);
         $native->respond('dialog.confirm', ['confirmed' => true]);
 
-        $client->request('POST', '/notes/1/delete');
+        // From the page, as the user does: the form carries its CSRF token.
+        $client->request('GET', '/notes/1');
+        $client->submitForm('Delete');
 
         $this->assertResponseRedirects('/notes', 303);
         $this->assertCount(1, $native->calls('dialog.confirm'));
@@ -216,4 +231,4 @@ final class NoteControllerTest extends WebTestCase
 
 ## Running in a browser
 
-The application still runs with `symfony serve` or any web server, which is handy for working on templates. The native APIs throw a `RuntimeUnavailableException` there: guard what must keep working with `Nativella\Runtime::isNative()` in PHP, and `nativella_is_native()` in Twig.
+The application still runs with `symfony serve` or any web server, which is handy for working on templates. The native APIs throw a `RuntimeUnavailableException` there: guard what must keep working with `isNative()` of the `Nativella\Nativella` service in PHP, and `nativella_is_native()` in Twig. Both are true under the fake client, unlike `Nativella\Runtime::isNative()`: the tests then go through the native code.

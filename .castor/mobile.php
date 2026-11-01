@@ -17,6 +17,7 @@ use function Castor\io;
 use function Castor\run;
 use function Castor\variable;
 use function docker\builder_path;
+use function docker\builder_platform;
 use function docker\docker_compose_run;
 use function docker\run_in_builder;
 use function nativella\stage;
@@ -41,6 +42,25 @@ const PHP_ANSWERED = '/\[php\] GET \S+ 200 /';
  * crates/nativella/Cargo.toml.
  */
 const PHONE_APIS = ['barcode-scanner', 'biometrics', 'geolocation', 'haptics', 'nfc', 'share'];
+
+/**
+ * The Tauri command, which generates and builds the Android and iOS projects
+ * of the templates: in the minor version of the tauri crate of Cargo.lock,
+ * which Dependabot updates, and which check_tauri_cli_version() compares it
+ * with. The android image installs it (docker\build()), and so does
+ * mobile:tauri-cli on the host.
+ */
+const TAURI_CLI_VERSION = '2.12.2';
+
+/**
+ * The archive of the Tauri command for each platform, and its SHA-256, as its
+ * release gives them: `gh release view tauri-cli-v<TAURI_CLI_VERSION> --repo
+ * tauri-apps/tauri --json assets --jq '.assets[] | .name + " " + .digest'`.
+ */
+const TAURI_CLI_ARCHIVES = [
+    'linux-x86_64' => ['cargo-tauri-x86_64-unknown-linux-gnu.tgz', '35c7b50266256cb6d5f757608d7097a59a5faeb0c75879ee1f504652a9b6087e'],
+    'macos-aarch64' => ['cargo-tauri-aarch64-apple-darwin.zip', '4a27a61b06e688308a5c17333008b6df52fd5780fa7a313a9ce8fb4a80dfb9ac'],
+];
 
 /**
  * The template APK first (mobile:android-template), then `nativella
@@ -86,6 +106,7 @@ function android_template(
     #[AsOption(description: 'The ABI: arm64-v8a, for phones, or x86_64, for the emulators of x86_64 computers')]
     string $abi = 'arm64-v8a',
 ): string {
+    check_tauri_cli_version();
     $onHost = context()['run_on_host'];
 
     if ($onHost && $missing = missing_android_prerequisites()) {
@@ -308,6 +329,7 @@ function ios_template(
     if (!context()['macos']) {
         throw new \RuntimeException('An iOS build needs macOS, with Xcode: on another machine, take a template of a release, or of the Mobile workflow, with --template.');
     }
+    check_tauri_cli_version();
 
     // PHP for the target first, on this Mac
     $target = $device ? PhpTarget::iphoneos() : PhpTarget::iphonesimulator();
@@ -609,6 +631,53 @@ function link_system_libraries(string $project): void
 }
 
 /**
+ * The Tauri command of TAURI_CLI_VERSION, for the platform of the builder, in
+ * tools/tauri-cli/bin/, which goes in PATH: for the host context, as on the
+ * macOS runners of the CI. The android image has its own.
+ */
+#[AsTask(name: 'tauri-cli', description: 'Installs the Tauri command of the templates into tools/tauri-cli/bin/, for the host context')]
+function tauri_cli(): void
+{
+    check_tauri_cli_version();
+
+    $platform = builder_platform();
+    [$archive, $sha256] = TAURI_CLI_ARCHIVES[$platform] ?? throw new \RuntimeException(\sprintf('The Tauri command has no archive for %s in TAURI_CLI_ARCHIVES: cargo install tauri-cli --version =%s --locked.', $platform, TAURI_CLI_VERSION));
+    $dir = variable('root_dir').'/tools/tauri-cli/bin';
+
+    if (is_file("{$dir}/.version") && TAURI_CLI_VERSION === file_get_contents("{$dir}/.version")) {
+        io()->comment(\sprintf('The Tauri command %s is in tools/tauri-cli/bin/.', TAURI_CLI_VERSION));
+
+        return;
+    }
+
+    fs()->remove($dir);
+    fs()->mkdir($dir);
+    \download\verified(\sprintf('https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v%s/%s', TAURI_CLI_VERSION, $archive), "{$dir}/{$archive}", $sha256);
+    run(str_ends_with($archive, '.zip') ? ['unzip', '-q', '-o', '-d', $dir, "{$dir}/{$archive}", 'cargo-tauri'] : ['tar', 'xzf', "{$dir}/{$archive}", '-C', $dir, 'cargo-tauri'], context: context()->withQuiet());
+    fs()->remove("{$dir}/{$archive}");
+    fs()->dumpFile("{$dir}/.version", TAURI_CLI_VERSION);
+
+    io()->success(\sprintf('The Tauri command %s is in tools/tauri-cli/bin/: add it to PATH.', TAURI_CLI_VERSION));
+}
+
+/**
+ * The projects the Tauri command generates go with the tauri crate of the
+ * same minor version: when Dependabot updates it to a new one, the builds of
+ * the templates stop here, until TAURI_CLI_VERSION follows.
+ */
+function check_tauri_cli_version(): void
+{
+    $lock = (string) file_get_contents(variable('root_dir').'/Cargo.lock');
+    if (!preg_match('{^name = "tauri"\nversion = "(\d+\.\d+)\.}m', $lock, $matches)) {
+        throw new \RuntimeException('Cargo.lock has no tauri crate.');
+    }
+
+    if (!str_starts_with(TAURI_CLI_VERSION, "{$matches[1]}.")) {
+        throw new \RuntimeException(\sprintf('The Tauri command %s is not of the minor version of the tauri crate of Cargo.lock, %s: raise TAURI_CLI_VERSION, and TAURI_CLI_ARCHIVES, in %s.', TAURI_CLI_VERSION, $matches[1], __FILE__));
+    }
+}
+
+/**
  * @return list<string> what is missing on the host, and how to get it
  */
 function missing_android_prerequisites(): array
@@ -640,7 +709,7 @@ function missing_android_prerequisites(): array
     }
 
     if (null === $finder->find('cargo-tauri')) {
-        $missing[] = "The Tauri command: cargo install tauri-cli --version '^2' --locked.";
+        $missing[] = 'The Tauri command: "castor --context=host mobile:tauri-cli" installs it into tools/tauri-cli/bin/, to add to PATH.';
     }
 
     return $missing;

@@ -16,14 +16,9 @@ pub(crate) fn serve(document_root: &Path, path: &str) -> Option<Response<Vec<u8>
     let body = match fs::read(&file) {
         Ok(body) => body,
         Err(error) => {
-            eprintln!("[static] Could not read {}: {error}.", file.display());
+            log!("[static] Could not read {}: {error}.", file.display());
 
-            return Some(
-                Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body(Vec::new())
-                    .expect("A response with a status and no header is valid."),
-            );
+            return Some(crate::empty_response(StatusCode::INTERNAL_SERVER_ERROR));
         }
     };
 
@@ -82,12 +77,14 @@ mod tests {
         fs::write(root.join("public/index.php"), "<?php").unwrap();
         fs::write(root.join("storage/app/public/avatar.png"), "png").unwrap();
         fs::write(root.join("secret.txt"), "secret").unwrap();
+        fs::write(root.join("config.php"), "<?php").unwrap();
         #[cfg(unix)]
         {
-            let _ = std::os::unix::fs::symlink(
-                root.join("storage/app/public"),
-                root.join("public/storage"),
-            );
+            use std::os::unix::fs::symlink;
+
+            let _ = symlink(root.join("storage/app/public"), root.join("public/storage"));
+            let _ = symlink(root.join("config.php"), root.join("public/config.txt"));
+            let _ = symlink(root.join("secret.txt"), root.join("public/secret.php"));
         }
 
         root
@@ -107,11 +104,32 @@ mod tests {
         assert!(serve(&public, "/missing.css").is_none());
     }
 
+    #[test]
+    fn decoded_paths_stay_in_public() {
+        let public = root().join("public");
+
+        // An encoded slash goes down too, as with nginx.
+        assert!(serve(&public, "/css%2fapp.css").is_some());
+        assert!(serve(&public, "/css%2f..%2f..%2fsecret.txt").is_none());
+        assert!(serve(&public, "/..%5csecret.txt").is_none());
+        assert!(serve(&public, "/css/..%5c..%5csecret.txt").is_none());
+        assert!(serve(&public, "/css/app.css%00.png").is_none());
+    }
+
     #[cfg(unix)]
     #[test]
     fn follows_the_symlinks_of_the_developer() {
         let root = root();
 
         assert!(serve(&root.join("public"), "/storage/avatar.png").is_some());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn never_serves_php_through_a_symlink() {
+        let public = root().join("public");
+
+        assert!(serve(&public, "/config.txt").is_none());
+        assert!(serve(&public, "/secret.php").is_none());
     }
 }

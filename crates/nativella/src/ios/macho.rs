@@ -12,6 +12,8 @@ use std::path::Path;
 
 use rsa::sha2::{Digest, Sha256};
 
+use crate::binary::{u32_at, u64_at};
+
 const MH_MAGIC_64: u32 = 0xfeed_facf;
 /// The magic numbers of universal binaries, as read in little-endian order.
 const FAT_MAGICS: [u32; 2] = [0xbeba_feca, 0xbfba_feca];
@@ -259,22 +261,6 @@ impl Executable {
         self.file.write_all(&vec![0; padding])?;
         self.file.sync_all()
     }
-}
-
-fn u32_at(bytes: &[u8], offset: usize) -> u32 {
-    u32::from_le_bytes(
-        bytes[offset..offset + 4]
-            .try_into()
-            .expect("A 4-byte slice."),
-    )
-}
-
-fn u64_at(bytes: &[u8], offset: usize) -> u64 {
-    u64::from_le_bytes(
-        bytes[offset..offset + 8]
-            .try_into()
-            .expect("An 8-byte slice."),
-    )
 }
 
 fn put_u32(bytes: &mut [u8], offset: usize, value: u32) {

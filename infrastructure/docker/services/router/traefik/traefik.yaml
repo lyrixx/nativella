@@ -16,9 +16,10 @@ providers:
 # # Uncomment to view all access logs
 #accessLog: {}
 
+# The dashboard and the API, on the traefik entry point, through the api
+# router of dynamic_conf.yaml: castor about reads the routers there
 api:
   dashboard: true
-  insecure: true # No authentication are required
 
 entryPoints:
   http:

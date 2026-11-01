@@ -29,7 +29,7 @@
             <footer class="sidebar-actions">
                 <a class="button primary" href="{{ path('note_new') }}">New note</a>
                 {% if nativella_is_native() %}
-                    <form action="{{ path('note_import') }}" method="post"><button>Import…</button></form>
+                    <form action="{{ path('note_import') }}" method="post"><input type="hidden" name="_token" value="{{ csrf_token('submit') }}"><button>Import…</button></form>
                 {% endif %}
                 <a class="button ghost" href="{{ path('settings') }}" title="Settings" aria-label="Settings">⚙</a>
             </footer>

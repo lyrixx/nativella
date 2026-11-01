@@ -22,7 +22,7 @@ $native->clipboard->writeText($snippet);
 $native->notification->send('Copied', 'The snippet is in the clipboard.');
 ```
 
-Its properties are `app`, `barcodeScanner`, `biometrics`, `childProcess`, `clipboard`, `dialog`, `geolocation`, `globalShortcut`, `haptics`, `menu`, `notification`, `page`, `power`, `screen`, `secrets`, `settings`, `shell`, `system`, `timer`, `tray` and `window`, one per API of the [documentation](README.md#native-apis). Creating it calls nothing: it is safe outside Nativella, until you use it.
+Its properties are `app`, `barcodeScanner`, `biometrics`, `childProcess`, `clipboard`, `dialog`, `geolocation`, `globalShortcut`, `haptics`, `menu`, `nfc`, `notification`, `page`, `power`, `screen`, `secrets`, `settings`, `share`, `shell`, `system`, `timer`, `tray`, `updater` and `window`, one per API of the [documentation](README.md#native-apis). Creating it calls nothing: it is safe outside Nativella, until you use it.
 
 To build the API objects one by one, give each the same client:
 
@@ -149,3 +149,5 @@ if (Runtime::isNative()) {
 ```
 
 `php -S` sends no `app.booted` event either: create the schema on the first request if it is missing.
+
+In a browser, a page of another site can post the forms of the application for the user: give the forms that change data a CSRF token, kept in the session, and refuse a request without it. The [demo](../demos/vanilla) does it in `src/Http/CsrfToken.php`.
