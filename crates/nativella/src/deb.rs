@@ -196,7 +196,7 @@ fn control(manifest: &Manifest, composer: &Value) -> io::Result<Control> {
         architecture: architecture()?,
         maintainer,
         homepage: text(&composer["homepage"]),
-        description: text(&composer["description"]).unwrap_or_else(|| manifest.name.clone()),
+        description: text(&composer["description"]).unwrap_or_else(|| one_line(&manifest.name)),
     })
 }
 
@@ -403,10 +403,10 @@ mod tests {
 
     #[test]
     fn without_a_description_the_name_describes_it() {
-        let control = control(&manifest("Notes"), &json!({})).unwrap();
+        let control = control(&manifest("Notes\nPro"), &json!({})).unwrap();
 
-        assert_eq!(control.description, "Notes");
-        assert_eq!(control.maintainer, "Notes");
+        assert_eq!(control.description, "Notes Pro");
+        assert_eq!(control.maintainer, "Notes Pro");
     }
 
     #[test]
