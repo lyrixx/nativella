@@ -4,7 +4,7 @@
 //! Everything here runs on the PHP thread.
 
 use std::env;
-use std::ffi::{CString, c_char};
+use std::ffi::{CString, c_char, c_int};
 use std::mem;
 use std::ptr;
 
@@ -24,7 +24,7 @@ use crate::bridge;
 use crate::runtime::{PhpApp, RequestOrigin};
 
 /// `SG(request_info).proto_num` for HTTP/1.1, encoded the way PHP's own SAPIs do.
-const HTTP_1_1: u16 = 1001;
+const HTTP_1_1: c_int = 1001;
 
 /// The php.ini of Nativella, which PHP reads before the settings of the
 /// application.
@@ -45,6 +45,7 @@ impl Engine {
         // ext-php-rs answers with a new C string for every request and PHP
         // never frees it: hand PHP the one the request context owns instead.
         module.read_cookies = Some(read_cookies);
+        module.activate = Some(activate);
 
         // The static PHP looks for /usr/local/etc/php/php.ini and its conf.d/,
         // where static-php-cli built it to, and for PHPRC and PHP_INI_SCAN_DIR:
@@ -358,9 +359,8 @@ impl RequestContext {
             content_type,
             content_length: i64::try_from(body.len())
                 .expect("A request body fits in memory, so in an i64."),
-            proto_num: HTTP_1_1,
-            auth_user: None,
-            auth_password: None,
+            // PHP resets the protocol of every request: see activate().
+            ..RequestInfo::default()
         };
 
         Self {
@@ -469,7 +469,6 @@ impl RequestInfoStrings {
         target.path_translated = as_ptr(&self.path_translated).cast_mut();
         target.content_type = as_ptr(&self.content_type);
         target.content_length = info.content_length;
-        target.proto_num = i32::from(info.proto_num);
     }
 
     fn clear(target: &mut sapi_request_info) {
@@ -480,6 +479,16 @@ impl RequestInfoStrings {
         target.content_type = ptr::null();
         target.content_length = 0;
     }
+}
+
+/// Called by `sapi_activate()`, at the start of every request, once it has
+/// set `SG(request_info).proto_num` to HTTP/1.0. HTTP/1.1 makes
+/// `header('Location: …')` answer a POST, a PUT or a DELETE with a 303, as
+/// under PHP-FPM: the redirect is followed with a GET, not the same method.
+extern "C" fn activate() -> c_int {
+    unsafe { (*ext_php_rs_sapi_globals()).request_info.proto_num = HTTP_1_1 };
+
+    ZEND_RESULT_CODE_SUCCESS
 }
 
 /// `SG(request_info).cookie_data`: PHP reads it during the request and never

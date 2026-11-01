@@ -33,6 +33,9 @@ switch ($_GET['case'] ?? '') {
     case 'status':
         http_response_code((int) $_GET['code']);
         break;
+    case 'deleted':
+        header('Location: /?case=input');
+        break;
     default:
         echo 'Hello';
 }
@@ -114,6 +117,17 @@ fn a_status_beyond_http_answers_a_500() {
     assert_eq!(get("/?case=status&code=599").status(), 599);
     assert_eq!(get("/?case=status&code=600").status(), 500);
     assert_eq!(get("/?case=status&code=999").status(), 500);
+}
+
+#[test]
+fn a_location_after_a_delete_is_followed_with_a_get() {
+    let response = send(
+        Request::delete("php://localhost/?case=deleted")
+            .body(b"id=42".to_vec())
+            .unwrap(),
+    );
+
+    assert_eq!(text(&response), "GET ");
 }
 
 #[test]

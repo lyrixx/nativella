@@ -58,11 +58,11 @@ Serving a web application through a custom scheme, rather than over HTTP, works 
 ext-php-rs (0.16) has an embed SAPI layer good enough for this, with a few rough edges the runtime works around:
 
 - its `read_cookies` callback leaks a C string per request, since PHP never frees `cookie_data`: the runtime installs its own;
-- nothing applies `ServerContext::init_request_info()`: the SAPI fills `SG(request_info)` itself;
-- `RequestInfo::proto_num` documents HTTP/1.1 as 1100, where PHP uses 1001.
+- nothing applies `ServerContext::init_request_info()`: the SAPI fills `SG(request_info)` itself.
 
 And on the PHP side:
 
+- `sapi_activate()` sets the protocol of every request to HTTP/1.0, whatever the SAPI said: the runtime sets HTTP/1.1 back in the `activate` hook of its SAPI, which PHP calls next. With HTTP/1.0, `header('Location: …')` answers a `DELETE` with a `302`, which the runtime follows with a `DELETE` again; with HTTP/1.1, it answers a `303`, followed with a `GET`, as under PHP-FPM.
 - `exit()` makes `php_execute_script()` report a failure, and `symfony/runtime` always calls it: the runtime does not treat it as an error.
 - Frameworks build absolute URLs as `http://localhost/…`, since that is what the SAPI tells them, and nothing listens there. The runtime maps them back when it follows a redirect, and rewrites them to `php://localhost/…` in the URL attributes of HTML and the `url()` of CSS that PHP answers (not in text, scripts or JSON, which are the user's data). A script the shell injects in every page brings back the requests that `fetch()`, XHR and `EventSource` send to `http://localhost/…`. It never follows a redirect to a `javascript:` or `data:` URL, as browsers don't. A navigation to one that slipped through is brought back to the application. On Windows, where pages are served from `http://php.localhost/` over HTTP already, there is nothing to rewrite (untested).
 - The other way around, the `Origin` and `Referer` headers of the webview say `php://localhost`: the SAPI hands them to PHP as `http://localhost`, or the same-origin checks of CSRF protections would fail.
