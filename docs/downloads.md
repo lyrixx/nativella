@@ -15,7 +15,7 @@ Symfony's `$this->file()`, `BinaryFileResponse` or `HeaderUtils::makeDisposition
 
 - **An attachment**: a response with `Content-Disposition: attachment` to a link or a form.
 - **A link with a `download` attribute**, to a page or a file of the application: `<a href="/notes/export" download>`. Its response downloads, attachment or not.
-- **A file the page makes itself**: a `blob:` or a `data:` URL in a link with a `download` attribute, as the JavaScript libraries that export a table or a chart do.
+- **A file the page makes itself**: a `blob:` or a `data:` URL in a link with a `download` attribute, as the JavaScript libraries that export a table or a chart do. On Linux, not once the first window is closed: see [Limitations](limitations.md#linux).
 
 A `fetch()` or an XHR gets the response as it is, attachment or not, as in a browser: the script decides what to do with it. A response that is not a success, a `404` or a `500`, is shown as any other, not saved.
 
