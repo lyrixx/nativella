@@ -367,7 +367,129 @@ fn certificate(signing_key: &SigningKey) -> io::Result<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::OpenOptions;
+
+    use p256::ecdsa::VerifyingKey;
+    use p256::ecdsa::signature::Verifier;
+    use p256::pkcs8::DecodePublicKey;
+
     use super::*;
+    use crate::binary::{u32_at, u64_at};
+
+    /// The values of `data`, a sequence of values after their length on 4
+    /// bytes.
+    fn values(mut data: &[u8]) -> Vec<&[u8]> {
+        let mut values = Vec::new();
+        while !data.is_empty() {
+            let length = u32_at(data, 0) as usize;
+            values.push(&data[4..4 + length]);
+            data = &data[4 + length..];
+        }
+
+        values
+    }
+
+    /// The digest of `sections`, as the v2 scheme defines it: of each chunk
+    /// of 1 MiB of each section, then of those digests.
+    fn content_digest(sections: &[&[u8]]) -> Vec<u8> {
+        let chunks: Vec<&[u8]> = sections
+            .iter()
+            .flat_map(|section| section.chunks(CHUNK_LENGTH))
+            .collect();
+        let mut top = vec![0x5a];
+        top.extend((chunks.len() as u32).to_le_bytes());
+        for chunk in chunks {
+            let mut prefix = vec![0xa5];
+            prefix.extend((chunk.len() as u32).to_le_bytes());
+            top.extend(Sha256::digest([prefix, chunk.to_vec()].concat()));
+        }
+
+        Sha256::digest(top).to_vec()
+    }
+
+    /// Reads the APK Signing Block back, as Android does: the block before
+    /// the central directory, its v2 signer, whose signature, digest and
+    /// certificate must hold.
+    #[test]
+    fn android_verifies_the_signature() {
+        let path =
+            Path::new(env!("OUT_DIR")).join(format!("signing-test-{}.apk", std::process::id()));
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .unwrap();
+        let mut writer = zip::Writer::new(&mut file);
+        writer
+            .add_deflated("AndroidManifest.xml", &[1; 3000])
+            .unwrap();
+        // Over a chunk of 1 MiB.
+        writer
+            .add_stored_with("assets/big", |out| {
+                out.write_all(&vec![2; CHUNK_LENGTH + 10])
+            })
+            .unwrap();
+        let unfinished = writer.finish().unwrap();
+        let signing_key = SigningKey::from_slice(&[7; 32]).unwrap();
+        let key = Key {
+            certificate: certificate(&signing_key).unwrap(),
+            signing_key,
+            path: PathBuf::new(),
+        };
+
+        sign(&mut file, &unfinished, &key).unwrap();
+
+        let apk = fs::read(&path).unwrap();
+        // The end of central directory, without a comment.
+        let end = apk.len() - 22;
+        assert_eq!(u32_at(&apk, end), 0x0605_4b50);
+        let central_directory = u32_at(&apk, end + 16) as usize;
+        // The block: its size, its pairs, its size again and its magic.
+        assert_eq!(&apk[central_directory - 16..central_directory], BLOCK_MAGIC);
+        let size = u64_at(&apk, central_directory - 24) as usize;
+        let block = central_directory - size - 8;
+        assert_eq!(u64_at(&apk, block), size as u64);
+        let pairs = &apk[block + 8..central_directory - 24];
+        assert_eq!(u64_at(pairs, 0) as usize, pairs.len() - 8, "One pair.");
+        assert_eq!(u32_at(pairs, 8), V2_BLOCK_ID);
+
+        let signers = values(&pairs[12..]);
+        let signers = values(signers[0]);
+        assert_eq!(signers.len(), 1);
+        let [signed_data, signatures, public_key] = values(signers[0])[..] else {
+            panic!("A signer is its signed data, its signatures and its public key.");
+        };
+        let [digests, certificates, attributes] = values(signed_data)[..] else {
+            panic!("The signed data are digests, certificates and attributes.");
+        };
+        assert_eq!(values(certificates), [key.certificate.as_slice()]);
+        assert!(attributes.is_empty());
+
+        // The signature of the signed data, by the key of the certificate.
+        let signatures = values(signatures);
+        assert_eq!(signatures.len(), 1);
+        assert_eq!(u32_at(signatures[0], 0), ECDSA_WITH_SHA256);
+        let signature = DerSignature::from_bytes(values(&signatures[0][4..])[0]).unwrap();
+        VerifyingKey::from_public_key_der(public_key)
+            .unwrap()
+            .verify(signed_data, &signature)
+            .unwrap();
+
+        // The digest of the entries, of the central directory, and of its
+        // end as if the block were not there.
+        let digests = values(digests);
+        assert_eq!(u32_at(digests[0], 0), ECDSA_WITH_SHA256);
+        let mut unsigned_end = apk[end..].to_vec();
+        unsigned_end[16..20].copy_from_slice(&(block as u32).to_le_bytes());
+        assert_eq!(
+            values(&digests[0][4..])[0],
+            content_digest(&[&apk[..block], &apk[central_directory..end], &unsigned_end])
+        );
+
+        fs::remove_file(path).unwrap();
+    }
 
     /// Android updates an application only if the new APK has the same
     /// certificate, byte for byte: any change to the certificate (its dates,

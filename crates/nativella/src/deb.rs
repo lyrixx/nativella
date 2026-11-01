@@ -72,20 +72,32 @@ pub fn build(project: &Project, output: &Path) -> io::Result<LeftOut> {
     let composer: Value = serde_json::from_slice(&fs::read(project.dir.join("composer.json"))?)
         .map_err(|error| io::Error::other(format!("composer.json is invalid: {error}.")))?;
     let control = control(&project.manifest, &composer)?;
-    let package = &control.package;
 
     // The executable, in memory, as the rest of the package. The previous
     // package does not ship in it, should it be inside the project.
     let mut executable = Vec::new();
     let previous: &[&Path] = if output.exists() { &[output] } else { &[] };
     let left_out = embedded::write_executable(project, &mut executable, previous)?;
+    write(project, &control, executable, output)?;
 
+    Ok(left_out)
+}
+
+/// Writes the package of `project`, described by `control`, of the
+/// standalone executable `executable`, to `output`.
+fn write(
+    project: &Project,
+    control: &Control,
+    executable: Vec<u8>,
+    output: &Path,
+) -> io::Result<()> {
+    let package = &control.package;
     let icon = Icon::of(project)?;
     let mut files = vec![
         DataFile::new(format!("usr/bin/{package}"), executable, 0o755),
         DataFile::new(
             format!("usr/share/applications/{package}.desktop"),
-            desktop_entry(&project.manifest, &control).into_bytes(),
+            desktop_entry(&project.manifest, control).into_bytes(),
             0o644,
         ),
     ];
@@ -128,9 +140,8 @@ pub fn build(project: &Project, output: &Path) -> io::Result<LeftOut> {
     ar_member(archive, "debian-binary", b"2.0\n", mtime)?;
     ar_member(archive, "control.tar.gz", &control_archive, mtime)?;
     ar_member(archive, "data.tar.gz", &data, mtime)?;
-    target.finish()?;
 
-    Ok(left_out)
+    target.finish()
 }
 
 /// The control of the package, from the manifest and the composer.json of
@@ -421,6 +432,121 @@ mod tests {
             md5sums(&files),
             "b61b2d6c6fa62903b882aaa53452c111  usr/bin/notes\nd41d8cd98f00b204e9800998ecf8427e  usr/share/doc/notes/empty\n"
         );
+    }
+
+    /// The members of the `ar` archive `archive`: their names and contents.
+    fn ar_members(archive: &[u8]) -> Vec<(String, &[u8])> {
+        assert!(archive.starts_with(b"!<arch>\n"));
+        let mut members = Vec::new();
+        let mut offset = 8;
+        while offset < archive.len() {
+            let header = &archive[offset..offset + 60];
+            assert_eq!(&header[58..], b"`\n");
+            let name = String::from_utf8(header[..16].to_vec()).unwrap();
+            let size: usize = std::str::from_utf8(&header[48..58])
+                .unwrap()
+                .trim()
+                .parse()
+                .unwrap();
+            members.push((
+                name.trim().to_owned(),
+                &archive[offset + 60..offset + 60 + size],
+            ));
+            offset += 60 + size + size % 2;
+        }
+
+        members
+    }
+
+    /// A file of a `.tar.gz`, as dpkg reads it.
+    struct TarFile {
+        path: String,
+        mode: u32,
+        owner: (u64, u64),
+        mtime: u64,
+        content: Vec<u8>,
+    }
+
+    fn tar_files(archive: &[u8]) -> Vec<TarFile> {
+        let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(archive));
+        archive
+            .entries()
+            .unwrap()
+            .map(|entry| {
+                let mut entry = entry.unwrap();
+                let header = entry.header();
+                let mut file = TarFile {
+                    path: header.path().unwrap().to_string_lossy().into_owned(),
+                    mode: header.mode().unwrap(),
+                    owner: (header.uid().unwrap(), header.gid().unwrap()),
+                    mtime: header.mtime().unwrap(),
+                    content: Vec::new(),
+                };
+                std::io::Read::read_to_end(&mut entry, &mut file.content).unwrap();
+
+                file
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_package_dpkg_reads() {
+        let root = Path::new(env!("OUT_DIR")).join(format!("deb-test-{}", std::process::id()));
+        fs::create_dir_all(root.join("project/public")).unwrap();
+        fs::write(root.join("project/public/index.php"), "<?php").unwrap();
+        let project = Project::load(&root.join("project")).unwrap();
+        let control = control(&manifest("Notes"), &json!({"description": "Notes."})).unwrap();
+        let output = root.join("notes.deb");
+
+        write(&project, &control, b"ELF".to_vec(), &output).unwrap();
+
+        let package = fs::read(&output).unwrap();
+        let members = ar_members(&package);
+        let names: Vec<&str> = members.iter().map(|(name, _)| name.as_str()).collect();
+        assert_eq!(names, ["debian-binary", "control.tar.gz", "data.tar.gz"]);
+        assert_eq!(members[0].1, b"2.0\n");
+
+        let control_files = tar_files(members[1].1);
+        let paths: Vec<&str> = control_files
+            .iter()
+            .map(|file| file.path.as_str())
+            .collect();
+        assert_eq!(paths, ["./", "control", "md5sums"]);
+        let control_text = String::from_utf8(control_files[1].content.clone()).unwrap();
+        assert!(
+            control_text.starts_with("Package: notes\nVersion: 1.2.0\n"),
+            "{control_text}"
+        );
+        let md5sums = String::from_utf8(control_files[2].content.clone()).unwrap();
+        assert!(
+            md5sums.starts_with("b61b2d6c6fa62903b882aaa53452c111  usr/bin/notes\n"),
+            "{md5sums}"
+        );
+
+        let data = tar_files(members[2].1);
+        // Directories first, each before what it holds, owned by root, all
+        // of one date.
+        assert_eq!(data[0].path, "./");
+        assert!(data.iter().all(|file| file.owner == (0, 0)));
+        assert!(data.iter().all(|file| file.mtime == data[0].mtime));
+        let position = |path: &str| data.iter().position(|file| file.path == path).unwrap();
+        let executable = &data[position("usr/bin/notes")];
+        assert_eq!(executable.mode, 0o755);
+        assert_eq!(executable.content, b"ELF");
+        assert_eq!(
+            data[position("usr/share/applications/notes.desktop")].mode,
+            0o644
+        );
+        for size in ICON_SIZES {
+            let icon = format!("usr/share/icons/hicolor/{size}x{size}/apps/notes.png");
+            assert!(position(&icon[..icon.rfind('/').unwrap() + 1]) < position(&icon));
+        }
+        assert_eq!(
+            md5sums.lines().count(),
+            data.iter().filter(|file| !file.path.ends_with('/')).count()
+        );
+
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

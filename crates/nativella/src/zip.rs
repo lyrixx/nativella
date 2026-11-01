@@ -680,6 +680,100 @@ mod tests {
         std::fs::remove_file(path).unwrap();
     }
 
+    /// A template entry as some archivers write it, streamed: its CRC and
+    /// sizes in a data descriptor after its data, and its name in UTF-8.
+    #[test]
+    fn copies_entries_with_a_data_descriptor() {
+        let data = b"The data of the entry";
+        let mut compressed = DeflateEncoder::new(Vec::new(), Compression::default());
+        compressed.write_all(data).unwrap();
+        let compressed = compressed.finish().unwrap();
+        let mut crc = flate2::Crc::new();
+        crc.update(data);
+        let name = "assets/café.txt".as_bytes();
+        let flags = DATA_DESCRIPTOR_FLAG | UTF8_FLAG;
+
+        let mut archive = Vec::new();
+        archive.extend(LOCAL_HEADER.to_le_bytes());
+        archive.extend(20_u16.to_le_bytes());
+        archive.extend(flags.to_le_bytes());
+        archive.extend(DEFLATED.to_le_bytes());
+        // Time and date, then the CRC and the sizes, unknown yet.
+        archive.extend([0; 4 + 12]);
+        archive.extend((name.len() as u16).to_le_bytes());
+        archive.extend(0_u16.to_le_bytes());
+        archive.extend(name);
+        archive.extend(&compressed);
+        archive.extend(0x0807_4b50_u32.to_le_bytes());
+        archive.extend(crc.sum().to_le_bytes());
+        archive.extend((compressed.len() as u32).to_le_bytes());
+        archive.extend((data.len() as u32).to_le_bytes());
+        let central_directory = archive.len();
+        archive.extend(CENTRAL_HEADER.to_le_bytes());
+        archive.extend(20_u16.to_le_bytes());
+        archive.extend(20_u16.to_le_bytes());
+        archive.extend(flags.to_le_bytes());
+        archive.extend(DEFLATED.to_le_bytes());
+        archive.extend([0; 4]);
+        archive.extend(crc.sum().to_le_bytes());
+        archive.extend((compressed.len() as u32).to_le_bytes());
+        archive.extend((data.len() as u32).to_le_bytes());
+        archive.extend((name.len() as u16).to_le_bytes());
+        // No extra field, no comment, the first disk, no attributes, at 0.
+        archive.extend([0; 2 + 2 + 2 + 2 + 4 + 4]);
+        archive.extend(name);
+        let central_directory_length = archive.len() - central_directory;
+        archive.extend(END_OF_CENTRAL_DIRECTORY.to_le_bytes());
+        archive.extend([0; 4]);
+        archive.extend(1_u16.to_le_bytes());
+        archive.extend(1_u16.to_le_bytes());
+        archive.extend((central_directory_length as u32).to_le_bytes());
+        archive.extend((central_directory as u32).to_le_bytes());
+        archive.extend([0; 2]);
+        let dir = Path::new(env!("OUT_DIR"));
+        let template_path = dir.join(format!("zip-test-{}.streamed", std::process::id()));
+        std::fs::write(&template_path, archive).unwrap();
+        let mut template = File::open(&template_path).unwrap();
+        let path = dir.join(format!("zip-test-{}.copied", std::process::id()));
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .unwrap();
+
+        let template_entries = entries(&mut template).unwrap();
+        assert_eq!(read(&mut template, &template_entries[0]).unwrap(), data);
+        let mut writer = Writer::new(&mut file);
+        writer.copy(&template_entries[0], &mut template).unwrap();
+        let unfinished = writer.finish().unwrap();
+        close(&mut file, &unfinished).unwrap();
+
+        let entries = entries(&mut file).unwrap();
+        assert_eq!(entries[0].name, "assets/café.txt");
+        assert_eq!(
+            entries[0].flags, UTF8_FLAG,
+            "The sizes are in the header now."
+        );
+        assert_eq!(read(&mut file, &entries[0]).unwrap(), data);
+        // The local header has them, and the data descriptor is gone.
+        let mut header = [0; LOCAL_HEADER_LENGTH as usize];
+        file.seek(SeekFrom::Start(0)).unwrap();
+        file.read_exact(&mut header).unwrap();
+        assert_eq!(u16_at(&header, 6), UTF8_FLAG);
+        assert_eq!(u32_at(&header, 14), crc.sum());
+        assert_eq!(u32_at(&header, 18) as usize, compressed.len());
+        assert_eq!(u32_at(&header, 22) as usize, data.len());
+        assert_eq!(
+            unfinished.entries_length as usize,
+            LOCAL_HEADER_LENGTH as usize + name.len() + compressed.len()
+        );
+
+        std::fs::remove_file(template_path).unwrap();
+        std::fs::remove_file(path).unwrap();
+    }
+
     #[test]
     fn what_is_too_short_is_not_an_archive() {
         let path =
