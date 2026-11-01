@@ -4,9 +4,9 @@
  * @var Nativella\App\AppInfo|null   $app
  * @var string                       $databasePath
  * @var string|null                  $dataDir
+ * @var list<Nativella\Screen\Display> $displays
  * @var bool                         $isNative
  * @var string|null                  $runtimeVersion
- * @var list<Nativella\Screen\Display> $screens
  * @var string                       $sqliteVersion
  * @var Nativella\System\SystemInfo|null $system
  * @var string|null                  $window
@@ -42,7 +42,7 @@ $unknown = '<span class="muted">Unknown</span>';
 
     <section class="card">
         <h2>Displays</h2>
-        <?php if ([] === $screens): ?>
+        <?php if ([] === $displays): ?>
             <p class="muted">The system reports no display.</p>
         <?php else: ?>
             <table>
@@ -50,15 +50,15 @@ $unknown = '<span class="muted">Unknown</span>';
                     <tr><th>Name</th><th>Size and position</th><th>Work area</th><th>Scale</th></tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($screens as $screen): ?>
+                    <?php foreach ($displays as $display): ?>
                         <tr>
                             <td>
-                                <?= null === $screen->name ? $unknown : $this->e($screen->name) ?>
-                                <?php if ($screen->primary): ?><span class="badge">Primary</span><?php endif ?>
+                                <?= null === $display->name ? $unknown : $this->e($display->name) ?>
+                                <?php if ($display->primary): ?><span class="badge">Primary</span><?php endif ?>
                             </td>
-                            <td><?= $size($screen->bounds) ?></td>
-                            <td><?= $size($screen->workArea) ?></td>
-                            <td><?= $screen->scaleFactor ?>×</td>
+                            <td><?= $size($display->bounds) ?></td>
+                            <td><?= $size($display->workArea) ?></td>
+                            <td><?= $display->scaleFactor ?>×</td>
                         </tr>
                     <?php endforeach ?>
                 </tbody>

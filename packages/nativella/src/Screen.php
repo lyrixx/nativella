@@ -21,7 +21,7 @@ final readonly class Screen
     public function all(): array
     {
         // @phpstan-ignore return.type (a JSON array, so a list: crates/nativella/src/native/screen.rs)
-        return array_map(Display::fromArray(...), $this->client->call('screen.all')['screens']);
+        return array_map(Display::fromArray(...), $this->client->call('screen.all')['displays']);
     }
 
     /**
@@ -30,9 +30,9 @@ final readonly class Screen
      */
     public function primary(): ?Display
     {
-        $screen = $this->client->call('screen.primary')['screen'];
+        $display = $this->client->call('screen.primary')['display'];
 
-        return null === $screen ? null : Display::fromArray($screen);
+        return null === $display ? null : Display::fromArray($display);
     }
 
     public function cursorPosition(): Point

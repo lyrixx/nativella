@@ -45,10 +45,10 @@
                 <div><dt>Host</dt><dd>{{ system.hostname ?? '—' }}</dd></div>
                 <div><dt>Locale</dt><dd>{{ system.locale ?? '—' }}</dd></div>
                 <div><dt>Theme</dt><dd>{{ theme.value }}</dd></div>
-                {% for screen in screens %}
+                {% for display in displays %}
                     <div>
-                        <dt>Screen {{ loop.index }}</dt>
-                        <dd>{{ screen.name ?? 'Unnamed' }}: {{ screen.bounds.width|round }} × {{ screen.bounds.height|round }}, scale {{ screen.scaleFactor }}{% if screen.primary %}, primary{% endif %}</dd>
+                        <dt>Display {{ loop.index }}</dt>
+                        <dd>{{ display.name ?? 'Unnamed' }}: {{ display.bounds.width|round }} × {{ display.bounds.height|round }}, scale {{ display.scaleFactor }}{% if display.primary %}, primary{% endif %}</dd>
                     </div>
                 {% endfor %}
             </dl>
