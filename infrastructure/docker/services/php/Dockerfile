@@ -237,11 +237,12 @@ RUN curl -sSfL -o /tmp/cmdline-tools.zip "https://dl.google.com/android/reposito
     && rm -rf /tmp/*
 
 # The four Android targets of Rust: `cargo tauri android init` adds them all,
-# and rustup is not writable in the container
-ARG TAURI_CLI=2.12.2
-ARG TAURI_CLI_SHA256=35c7b50266256cb6d5f757608d7097a59a5faeb0c75879ee1f504652a9b6087e
+# and rustup is not writable in the container. The Tauri command of
+# TAURI_CLI_VERSION in .castor/mobile.php, which castor docker:build gives
+ARG TAURI_CLI_VERSION
+ARG TAURI_CLI_SHA256
 RUN rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android \
-    && curl -sSfL -o /tmp/cargo-tauri.tgz "https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v${TAURI_CLI}/cargo-tauri-x86_64-unknown-linux-gnu.tgz" \
+    && curl -sSfL -o /tmp/cargo-tauri.tgz "https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v${TAURI_CLI_VERSION}/cargo-tauri-x86_64-unknown-linux-gnu.tgz" \
     && echo "${TAURI_CLI_SHA256}  /tmp/cargo-tauri.tgz" | sha256sum -c - \
     && tar xzf /tmp/cargo-tauri.tgz -C /usr/local/bin cargo-tauri \
     && rm /tmp/cargo-tauri.tgz \

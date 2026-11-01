@@ -107,12 +107,11 @@ function build(
         $command = ['--profile', 'default', '--profile', 'builder'];
     }
 
-    $command = [
-        ...$command,
-        'build',
-        '--build-arg', 'PHP_VERSION='.variable('php_version'),
-        '--build-arg', 'PROJECT_NAME='.variable('project_name'),
-    ];
+    $command[] = 'build';
+    foreach (build_arguments() as $argument) {
+        $command[] = '--build-arg';
+        $command[] = $argument;
+    }
 
     if ($service) {
         $command[] = $service;
@@ -330,6 +329,23 @@ function generate_certificates(
     if ($force) {
         io()->note('Please restart the infrastructure to use the new certificates with "castor up" or "castor start".');
     }
+}
+
+/**
+ * The arguments of the builds of the images, NAME=value: the Tauri command of
+ * the android image is the one of .castor/mobile.php, for Linux x86_64, the
+ * platform of that image.
+ *
+ * @return list<string>
+ */
+function build_arguments(): array
+{
+    return [
+        'PHP_VERSION='.variable('php_version'),
+        'PROJECT_NAME='.variable('project_name'),
+        'TAURI_CLI_SHA256='.\mobile\TAURI_CLI_ARCHIVES['linux-x86_64'][1],
+        'TAURI_CLI_VERSION='.\mobile\TAURI_CLI_VERSION,
+    ];
 }
 
 /**
@@ -573,8 +589,10 @@ function push(bool $dryRun = false): void
         $command[] = $file;
     }
 
-    $command[] = '--set';
-    $command[] = '*.args.PHP_VERSION='.$c['php_version'];
+    foreach (build_arguments() as $argument) {
+        $command[] = '--set';
+        $command[] = "*.args.{$argument}";
+    }
 
     foreach ($cacheFroms as $service => $cacheFrom) {
         $command[] = '--set';

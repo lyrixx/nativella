@@ -105,7 +105,7 @@ castor mobile:android-emulator symfony
 
 installs the APK afresh, without the data of a previous install, on the emulator, or the phone, that `adb` sees (from `ANDROID_HOME`, or `PATH`), opens it, and waits for PHP to answer a page: it fails if PHP answers none within 2 minutes, or if the app stops. The screenshot and what the app wrote to logcat land in `target/nativella/`.
 
-Without Docker, `castor --context=host mobile:android symfony` runs the same build on your machine, with its tools: what the desktop build needs, from [Developing Nativella](development.md#on-your-machine); PHP and Composer; the Android SDK with an NDK (`ANDROID_HOME`, the most recent NDK unless `NDK_HOME` says otherwise); a JDK 17 or later (`JAVA_HOME`); `rustup target add aarch64-linux-android` (`x86_64-linux-android` for `--abi=x86_64`) and `cargo install tauri-cli --version '^2' --locked`; for PHP, a C and C++ compiler for your machine, which builds the tools of ICU, CMake, make, Perl and pkg-config. The task says what is missing before it starts.
+Without Docker, `castor --context=host mobile:android symfony` runs the same build on your machine, with its tools: what the desktop build needs, from [Developing Nativella](development.md#on-your-machine); PHP and Composer; the Android SDK with an NDK (`ANDROID_HOME`, the most recent NDK unless `NDK_HOME` says otherwise); a JDK 17 or later (`JAVA_HOME`); `rustup target add aarch64-linux-android` (`x86_64-linux-android` for `--abi=x86_64`) and the Tauri command of the templates, which `castor --context=host mobile:tauri-cli` installs into `tools/tauri-cli/bin/`, to add to your `PATH`; for PHP, a C and C++ compiler for your machine, which builds the tools of ICU, CMake, make, Perl and pkg-config. The task says what is missing before it starts.
 
 ## Building an iOS app
 
@@ -183,7 +183,7 @@ As an APK, an iOS app contains the software of others, under their licenses: the
 
 ### From the repository, on a Mac
 
-`castor mobile:ios symfony` does the same for a demo, for the simulator, with a template built from the repository, on a Mac with Xcode, [XcodeGen](https://github.com/yonaskolb/XcodeGen), `rustup target add aarch64-apple-ios-sim` and the Tauri command (`cargo install tauri-cli --version '^2' --locked`). It:
+`castor mobile:ios symfony` does the same for a demo, for the simulator, with a template built from the repository, on a Mac with Xcode, [XcodeGen](https://github.com/yonaskolb/XcodeGen), `rustup target add aarch64-apple-ios-sim` and the Tauri command of the templates, which `castor --context=host mobile:tauri-cli` installs into `tools/tauri-cli/bin/`, to add to your `PATH`. It:
 
 1. builds the template, as `castor mobile:ios-template` does: it builds [PHP for the simulator](#php-for-the-phone) first, gathers the third-party notices, generates the Xcode project of `crates/nativella/tauri.conf.json` in `crates/nativella/gen/apple`, runs `cargo tauri ios build --no-sign` with every phone API, and zips the app in `target/nativella/ios-template-iphonesimulator-debug.zip`. `mobile:ios-template --device` builds the template of devices instead, with `rustup target add aarch64-apple-ios`, and `--release` one without debug symbols, as a release does;
 2. stages the demo, as `castor mobile:android` does;

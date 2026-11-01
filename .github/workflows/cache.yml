@@ -3,7 +3,8 @@ name: Push docker image to registry
 # The builder image is heavy (PHP, WebKitGTK, Rust): every workflow builds it
 # from the cache that this one pushes from main, on each change of the
 # images: the Docker stack, with the base images Dependabot updates, and the
-# Castor tasks that give their build arguments (php_version of castor.php).
+# Castor tasks that give their build arguments (php_version of castor.php,
+# the Tauri command of .castor/mobile.php).
 
 "on":
     push:
@@ -11,6 +12,7 @@ name: Push docker image to registry
         branches: ["main"]
         paths:
             - ".castor/docker.php"
+            - ".castor/mobile.php"
             - ".github/workflows/cache.yml"
             - "castor.php"
             - "infrastructure/docker/**"

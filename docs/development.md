@@ -22,7 +22,7 @@ castor completion | sudo tee /etc/bash_completion.d/castor
 | Service | What |
 |---|---|
 | `builder` | PHP 8.5 and Composer, the Rust toolchain (stable, with Clippy and rustfmt), `libphp8.5-embed` and its headers, clang, WebKitGTK 4.1 and the other libraries of Tauri. Every command runs there. |
-| `android` | The builder, plus a JDK, the Android SDK with an NDK, the Android target of Rust and the Tauri command, for the template APK of `castor mobile:android`. A few gigabytes, x86_64 only: `castor docker:build` leaves it out, the Android build builds it. |
+| `android` | The builder, plus a JDK, the Android SDK with an NDK, the Android target of Rust and the Tauri command of `TAURI_CLI_VERSION` (`.castor/mobile.php`), for the template APK of `castor mobile:android`. A few gigabytes, x86_64 only: `castor docker:build` leaves it out, the Android build builds it. |
 | `static` | Ubuntu 22.04, with Rust and the libraries of Tauri, but no PHP: the [static PHP](#static-php) and the executables linked against it, for an old glibc. `castor docker:build` leaves it out, `castor static-php:build` builds it. |
 | `frontend` | nginx and PHP-FPM: the website, and each demo in a browser. |
 | `router` | Traefik, for the domains and HTTPS. |
@@ -234,6 +234,8 @@ castor mobile:ios-simulator symfony              # on a Mac, after mobile:ios
 
 `mobile:android-template` builds the `android` image, then [PHP for Android](#php-for-the-phones) and the template APK in it, which `nativella android` makes applications of: it lands in `target/nativella/`. `mobile:android` builds it, then makes the APK of the demo of it in the builder, in `target/nativella/android/`. With `--abi=x86_64`, both build for x86_64 instead of arm64, for the emulators of x86_64 computers, which then run them without their ARM translation: their files end with `-x86_64`. `mobile:android-emulator` installs it on the emulator, or the phone, that `adb` sees, on your machine. `mobile:ios-template` builds PHP for iOS, then a template app, for the simulator or for devices (`--device`), debug or release (`--release`), which `nativella ios` makes apps of, on the Mac itself, which needs Xcode and XcodeGen: it lands in `target/nativella/`. `mobile:ios` builds the one of the simulator, then makes the app of the demo of it in the builder, in `target/nativella/ios/`; with `--template`, it takes a template built beforehand, and runs anywhere. `mobile:ios-simulator` checks the signature of the app, then opens it in a simulator, which it boots first if needed. Both open the app and wait for PHP to answer a page, and fail if it does not: the screenshot and the output of the app land in `target/nativella/`. See [Mobile](mobile.md#what-is-tested).
 
+The templates build with the Tauri command of `TAURI_CLI_VERSION`, in `.castor/mobile.php`, which also holds the SHA-256 of its archives: the `android` image installs it, and `castor mobile:tauri-cli` on your machine, into `tools/tauri-cli/bin/`. It goes with the `tauri` crate of the same minor version: when Dependabot moves the crate to a new one, `mobile:android-template` and `mobile:ios-template` stop, and say so, until `TAURI_CLI_VERSION` follows.
+
 ## Contexts
 
 The tasks run in the `default` context. The workflows use `--context=ci` (through `CASTOR_CONTEXT=ci`): the same stack, without colors in the Compose output.
@@ -293,7 +295,7 @@ A pull request does not build the executables of the release, 3 minutes of `stat
 
 The jobs name their runner, `ubuntu-26.04` and `macos-26` (arm64), not `ubuntu-latest` or `macos-latest`: a runner changes when a pull request of its own moves it, with its CI. Most jobs run in the images of the stack, whatever the runner; two depend on it: Website, with the Python of the runner, and the Android emulator, with its KVM and its Android SDK.
 
-The jobs that build the iOS template apps, in `mobile.yml` and `release.yml`, install XcodeGen from its release, pinned, rather than with Homebrew, as `cargo tauri ios init` would. That command also looks for libimobiledevice (`idevicesyslog`), for the logs of a phone, and CocoaPods (`pod`), for the pods of an application that has some: the templates use neither, so the jobs put stand-ins, which fail if run, in the place of those the runner lacks.
+The jobs that build the iOS template apps, in `mobile.yml` and `release.yml`, install XcodeGen from its release, pinned, rather than with Homebrew, as `cargo tauri ios init` would, and the Tauri command with `castor mobile:tauri-cli`. That command also looks for libimobiledevice (`idevicesyslog`), for the logs of a phone, and CocoaPods (`pod`), for the pods of an application that has some: the templates use neither, so the jobs put stand-ins, which fail if run, in the place of those the runner lacks.
 
 ### Caches
 

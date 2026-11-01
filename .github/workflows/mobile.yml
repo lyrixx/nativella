@@ -314,16 +314,12 @@ jobs:
             - name: "Add the iOS simulator target of Rust"
               run: "rustup target add aarch64-apple-ios-sim"
 
+            # The one of .castor/mobile.php, in tools/tauri-cli/bin/
             - name: "Install the Tauri command"
               shell: bash
               run: |
-                  set -e
-
-                  mkdir -p "${HOME}/.local/bin"
-                  curl -sSfL -o "${RUNNER_TEMP}/cargo-tauri.zip" https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v2.12.2/cargo-tauri-aarch64-apple-darwin.zip
-                  echo "4a27a61b06e688308a5c17333008b6df52fd5780fa7a313a9ce8fb4a80dfb9ac  ${RUNNER_TEMP}/cargo-tauri.zip" | shasum -a 256 -c -
-                  unzip -o -d "${HOME}/.local/bin" "${RUNNER_TEMP}/cargo-tauri.zip" cargo-tauri
-                  echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+                  castor mobile:tauri-cli
+                  echo "${GITHUB_WORKSPACE}/tools/tauri-cli/bin" >> "${GITHUB_PATH}"
 
             # The Rust of the runner, which its image updates
             - name: "Read the version of Rust"
