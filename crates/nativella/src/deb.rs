@@ -100,13 +100,11 @@ pub fn build(project: &Project, output: &Path) -> io::Result<LeftOut> {
     let control = control(&project.manifest, &composer)?;
     let package = &control.package;
 
-    // The executable, next to the package: `nativella build` leaves what it
-    // writes out of the project.
-    let executable = output.with_file_name(format!(".{package}.executable"));
-    let built = embedded::build(project, &executable)
-        .and_then(|left_out| Ok((left_out, fs::read(&executable)?)));
-    let _ = fs::remove_file(&executable);
-    let (left_out, executable) = built?;
+    // The executable, in memory, as the rest of the package. The previous
+    // package does not ship in it, should it be inside the project.
+    let mut executable = Vec::new();
+    let previous: &[&Path] = if output.exists() { &[output] } else { &[] };
+    let left_out = embedded::write_executable(project, &mut executable, previous)?;
 
     let icon = Icon::of(project)?;
     let mut files = vec![
