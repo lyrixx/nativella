@@ -33,9 +33,10 @@ const UTF8_FLAG: u16 = 1 << 11;
 /// writes it: the alignment, then zeros.
 const ALIGNMENT_FIELD: u16 = 0xd935;
 
-/// 1981-01-01 00:00, in MS-DOS format: the date Android's build tools give
-/// their entries, for reproducible archives.
-const DOS_DATE: u16 = (1 << 5) | 1;
+/// 1981-01-01 00:00, in MS-DOS format, the years from 1980, then the month
+/// and the day: the date Android's build tools give their entries, for
+/// reproducible archives.
+const DOS_DATE: u16 = (1 << 9) | (1 << 5) | 1;
 
 /// The version of the specification an entry is made by: 2.0, on Unix, whose
 /// file type and permissions are in the high half of its external attributes.
@@ -594,6 +595,10 @@ mod tests {
             ]
         );
         assert_eq!(read(&mut file, &entries[0]).unwrap(), [1; 1000]);
+        assert_eq!(
+            entries[0].date, 0x0221,
+            "As Android's build tools date them."
+        );
         assert_eq!(read(&mut file, &entries[1]).unwrap(), b"ELF");
 
         let mut data = data_of(&mut file, &entries[1]).unwrap();
