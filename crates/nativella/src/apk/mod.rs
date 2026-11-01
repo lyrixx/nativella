@@ -584,6 +584,11 @@ mod tests {
             assert_eq!(zip::read(&mut file, entry).unwrap(), icon.launcher(density));
         }
 
+        // The same project makes the same APK.
+        let again = root.join("reproduced.apk");
+        package(&project, &project_dir.join("template.apk"), &again, &key).unwrap();
+        assert_eq!(fs::read(&again).unwrap(), fs::read(&output).unwrap());
+
         // An application is no template.
         let error = package(&project, &output, &root.join("again.apk"), &key).unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::InvalidInput);

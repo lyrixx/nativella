@@ -10,7 +10,7 @@
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 
 use flate2::Compression;
 use flate2::write::GzEncoder;
@@ -20,7 +20,7 @@ use serde_json::Value;
 use crate::apk::icon::Icon;
 use crate::embedded::{self, LeftOut};
 use crate::notices;
-use crate::output::{Output, package_name};
+use crate::output::{Output, build_time, package_name};
 use crate::project::{Manifest, Project};
 
 /// The sizes of the icon desktops pick from, in pixels.
@@ -110,18 +110,24 @@ pub fn build(project: &Project, output: &Path) -> io::Result<LeftOut> {
         .sum::<u64>()
         .div_ceil(1024);
     let control_text = control.text(installed_kib);
-    let data = tar_gz(&files)?;
-    let control_archive = tar_gz(&[
-        DataFile::new("control".to_owned(), control_text.into_bytes(), 0o644),
-        DataFile::new("md5sums".to_owned(), md5sums(&files).into_bytes(), 0o644),
-    ])?;
+    let mtime = build_time()?
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_secs());
+    let data = tar_gz(&files, mtime)?;
+    let control_archive = tar_gz(
+        &[
+            DataFile::new("control".to_owned(), control_text.into_bytes(), 0o644),
+            DataFile::new("md5sums".to_owned(), md5sums(&files).into_bytes(), 0o644),
+        ],
+        mtime,
+    )?;
 
     let mut target = Output::create(output)?;
     let archive = target.file();
     archive.write_all(b"!<arch>\n")?;
-    ar_member(archive, "debian-binary", b"2.0\n")?;
-    ar_member(archive, "control.tar.gz", &control_archive)?;
-    ar_member(archive, "data.tar.gz", &data)?;
+    ar_member(archive, "debian-binary", b"2.0\n", mtime)?;
+    ar_member(archive, "control.tar.gz", &control_archive, mtime)?;
+    ar_member(archive, "data.tar.gz", &data, mtime)?;
     target.finish()?;
 
     Ok(left_out)
@@ -254,11 +260,8 @@ impl DataFile {
 }
 
 /// `files`, and the directories that hold them, as dpkg reads them:
-/// relative to `./`, owned by root.
-fn tar_gz(files: &[DataFile]) -> io::Result<Vec<u8>> {
-    let mtime = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_secs());
+/// relative to `./`, owned by root, dated `mtime`.
+fn tar_gz(files: &[DataFile], mtime: u64) -> io::Result<Vec<u8>> {
     let mut archive = tar::Builder::new(GzEncoder::new(Vec::new(), Compression::best()));
 
     let mut directories: Vec<String> = Vec::new();
@@ -317,10 +320,7 @@ fn header(kind: tar::EntryType, mode: u32, size: u64, mtime: u64) -> tar::Header
 
 /// A member of an `ar` archive: a header of 60 bytes, then the contents,
 /// padded to an even length.
-fn ar_member(archive: &mut impl Write, name: &str, contents: &[u8]) -> io::Result<()> {
-    let mtime = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_secs());
+fn ar_member(archive: &mut impl Write, name: &str, contents: &[u8], mtime: u64) -> io::Result<()> {
     writeln!(
         archive,
         "{name:<16}{mtime:<12}{:<6}{:<6}{:<8o}{:<10}`",
@@ -427,10 +427,10 @@ mod tests {
     fn an_ar_member_is_padded_to_an_even_length() {
         let mut archive = Vec::new();
 
-        ar_member(&mut archive, "debian-binary", b"2.0").unwrap();
+        ar_member(&mut archive, "debian-binary", b"2.0", 1_700_000_000).unwrap();
 
         assert_eq!(archive.len(), 60 + 4);
-        assert!(archive.starts_with(b"debian-binary   "));
+        assert!(archive.starts_with(b"debian-binary   1700000000  "));
         assert_eq!(&archive[48..60], b"3         `\n");
         assert!(archive.ends_with(b"2.0\n"));
     }

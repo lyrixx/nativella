@@ -1,10 +1,13 @@
-//! What the packaging writes: a file written next to its path, which takes
-//! its place once complete. A packaging that fails leaves no file cut short,
-//! and the previous one in place.
+//! What the packaging writes: files named after the application, dated for
+//! reproducible builds, each written next to its path, which it takes once
+//! complete. A packaging that fails leaves no file cut short, and the
+//! previous one in place.
 
 use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::path::{Path, PathBuf};
+#[cfg(desktop)]
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::project::Manifest;
 
@@ -117,6 +120,30 @@ impl Drop for Staging {
             eprintln!("Warning: cannot remove {}: {error}.", self.0.display());
         }
     }
+}
+
+/// The date of what the packaging makes: `SOURCE_DATE_EPOCH`, in seconds,
+/// for reproducible builds, as https://reproducible-builds.org/specs/source-date-epoch/
+/// defines it, or now.
+#[cfg(desktop)]
+pub(crate) fn build_time() -> io::Result<SystemTime> {
+    let Some(epoch) = std::env::var_os("SOURCE_DATE_EPOCH") else {
+        return Ok(SystemTime::now());
+    };
+
+    epoch
+        .to_str()
+        .and_then(|epoch| epoch.parse().ok())
+        .map(|seconds| UNIX_EPOCH + Duration::from_secs(seconds))
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "SOURCE_DATE_EPOCH is {}, not a number of seconds since 1970.",
+                    epoch.to_string_lossy()
+                ),
+            )
+        })
 }
 
 /// Refuses an `output` that is the `input` of the packaging: writing it would

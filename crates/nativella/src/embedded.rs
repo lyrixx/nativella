@@ -22,12 +22,13 @@ use std::fs::{self, File};
 use std::io::Cursor;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Component, Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::output::Output;
 use crate::project::{Manifest, Project};
@@ -96,7 +97,8 @@ pub struct LeftOut {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Description {
-    /// Changes with every build: a new build extracts its project again.
+    /// The digest of the project: a build of other files, or for another
+    /// version of Nativella, extracts its project again.
     build: String,
     manifest: Manifest,
 }
@@ -356,13 +358,17 @@ pub(crate) fn write_bundle(
         left_out: LeftOut::default(),
     };
 
-    let mut archive = Counted {
+    let mut archive = Digested {
         inner: &mut *target,
         length: 0,
+        digest: Sha256::new(),
     };
     let mut builder = tar::Builder::new(GzEncoder::new(&mut archive, Compression::default()));
     // Composer path repositories symlink packages: ship what they point to.
     builder.follow_symlinks(true);
+    // Neither the dates nor the owners of the files of this computer: the
+    // same files make the same archive. The extraction dates them anew.
+    builder.mode(tar::HeaderMode::Deterministic);
     append_dir(&mut builder, &project.dir, Path::new(""), &mut walk)?;
     builder.into_inner()?.finish()?;
     // The windows of a standalone executable take it from the extracted
@@ -379,11 +385,15 @@ pub(crate) fn write_bundle(
     }
     let archive_length = archive.length;
 
-    let build = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_nanos());
+    // Of the archive, of the manifest, and of the Nativella that runs them.
+    let mut digest = archive.digest;
+    digest.update(serde_json::to_vec(&project.manifest).expect("A manifest serializes to JSON."));
+    digest.update(env!("CARGO_PKG_VERSION"));
     let description = Description {
-        build: format!("{build:x}"),
+        build: digest.finalize()[..8]
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect(),
         manifest: project.manifest.clone(),
     };
     let manifest = serde_json::to_vec(&description).expect("A manifest serializes to JSON.");
@@ -397,16 +407,18 @@ pub(crate) fn write_bundle(
     Ok(walk.left_out)
 }
 
-/// A writer that counts what it writes.
-struct Counted<W> {
+/// A writer that counts and digests what it writes.
+struct Digested<W> {
     inner: W,
     length: u64,
+    digest: Sha256,
 }
 
-impl<W: Write> Write for Counted<W> {
+impl<W: Write> Write for Digested<W> {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
         let written = self.inner.write(buffer)?;
         self.length += written as u64;
+        self.digest.update(&buffer[..written]);
 
         Ok(written)
     }
@@ -706,6 +718,40 @@ mod tests {
                 .join("vendor/composer/ca-bundle/res/cacert.pem")
                 .is_file(),
             "Certificates ship."
+        );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn the_same_project_makes_the_same_bundle() {
+        let root =
+            Path::new(env!("OUT_DIR")).join(format!("reproducible-test-{}", std::process::id()));
+        fs::create_dir_all(root.join("public")).unwrap();
+        fs::write(root.join("public/index.php"), "<?php echo 'hi';").unwrap();
+        let project = Project::load(&root).unwrap();
+        let bundle = || {
+            let mut bytes = Vec::new();
+            write_bundle(&project, &mut bytes, &[]).unwrap();
+            bytes
+        };
+
+        let first = bundle();
+        // Another date, other permissions: the same files.
+        fs::write(root.join("public/index.php"), "<?php echo 'hi';").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(root.join("public"), fs::Permissions::from_mode(0o775)).unwrap();
+        }
+        assert_eq!(bundle(), first);
+
+        fs::write(root.join("public/index.php"), "<?php echo 'hello';").unwrap();
+        let other = Bundle::read(Cursor::new(bundle())).unwrap().unwrap();
+        let first = Bundle::read(Cursor::new(first)).unwrap().unwrap();
+        assert_ne!(
+            other.description.build, first.description.build,
+            "Other files are another build."
         );
 
         fs::remove_dir_all(root).unwrap();

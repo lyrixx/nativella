@@ -16,13 +16,15 @@ use std::time::SystemTime;
 
 use cbc::cipher::block_padding::Pkcs7;
 use cbc::cipher::{BlockDecryptMut, KeyIvInit};
-use cms::builder::{SignedDataBuilder, SignerInfoBuilder, create_signing_time_attribute};
+use cms::builder::{SignedDataBuilder, SignerInfoBuilder};
 use cms::cert::{CertificateChoices, IssuerAndSerialNumber};
 use cms::content_info::ContentInfo;
 use cms::encrypted_data::EncryptedData;
 use cms::signed_data::{EncapsulatedContentInfo, SignerIdentifier};
-use der::asn1::{ContextSpecific, ObjectIdentifier, OctetString, SetOfVec};
-use der::{Any, Decode, Encode, Tag, Tagged};
+use der::asn1::{
+    ContextSpecific, GeneralizedTime, ObjectIdentifier, OctetString, SetOfVec, UtcTime,
+};
+use der::{Any, DateTime, Decode, Encode, Tag, Tagged};
 use hmac::{Hmac, Mac};
 use pkcs12::kdf::{self, Pkcs12KeyType};
 use pkcs12::pbe_params::{EncryptedPrivateKeyInfo, Pkcs12PbeParams};
@@ -39,6 +41,8 @@ use x509_cert::attr::Attribute;
 use x509_cert::name::Name;
 use x509_cert::spki::AlgorithmIdentifierOwned;
 
+use crate::output::build_time;
+
 const ID_DATA: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.7.1");
 const ID_ENCRYPTED_DATA: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.7.6");
 const ID_SHA1: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.14.3.2.26");
@@ -48,6 +52,7 @@ const ID_X509_CERTIFICATE: ObjectIdentifier =
 const ID_COMMON_NAME: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.5.4.3");
 const ID_ORGANIZATIONAL_UNIT: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.5.4.11");
 const ID_PBES2: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.5.13");
+const ID_SIGNING_TIME: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.5");
 /// The certificates of developers: "iPhone Developer", which Apple
 /// Development certificates have, and "iPhone Distribution", which Apple
 /// Distribution ones have.
@@ -242,7 +247,7 @@ impl Certificate {
         )
         .map_err(cms_error)?;
         signer_info
-            .add_signed_attribute(create_signing_time_attribute().map_err(cms_error)?)
+            .add_signed_attribute(signing_time(build_time()?)?)
             .map_err(cms_error)?;
         signer_info
             .add_signed_attribute(cdhashes(&cdhash)?)
@@ -540,6 +545,21 @@ fn attribute(name: &Name, oid: ObjectIdentifier) -> Option<String> {
         })
 }
 
+/// The attribute of the time of the signature: a UTCTime until 2049, a
+/// GeneralizedTime after, as RFC 5652 asks.
+fn signing_time(time: SystemTime) -> io::Result<Attribute> {
+    let time = DateTime::from_system_time(time).map_err(io::Error::other)?;
+    let time = if time.year() < 2050 {
+        UtcTime::from_date_time(time)
+            .map_err(io::Error::other)?
+            .to_der()
+    } else {
+        GeneralizedTime::from_date_time(time).to_der()
+    };
+
+    attribute_of(ID_SIGNING_TIME, time)
+}
+
 /// Apple's attribute that lists the hashes of the code directories, each
 /// truncated: a property list, in an octet string.
 fn cdhashes(cdhash: &[u8]) -> io::Result<Attribute> {
@@ -601,6 +621,18 @@ pub(crate) mod tests {
 
     /// The password of the PKCS #12 files of testdata/.
     pub const PASSWORD: &str = "nativella";
+
+    #[test]
+    fn the_signing_time() {
+        let time = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+
+        let attribute = signing_time(time).unwrap();
+
+        assert_eq!(attribute.oid, ID_SIGNING_TIME);
+        let value = attribute.values.get(0).unwrap();
+        assert_eq!(value.tag(), Tag::UtcTime);
+        assert_eq!(value.value(), b"231114221320Z");
+    }
 
     /// A file of testdata/, made with OpenSSL 3 for a hundred years: a root
     /// and an intermediate certificate, standing for Apple's, the second with

@@ -83,11 +83,19 @@ The executable finds the project it carries and extracts it, once per build, int
 | macOS | `~/Library/Caches/<identifier>/<build>` |
 | Windows | `%LOCALAPPDATA%\<identifier>\<build>` |
 
-The next launches of the same build start right away. A new build extracts again, next to the previous one, and removes it once it runs: when no other instance of the application can be running from there. The data directory stays. Extraction is safe when two instances start at once: each one extracts aside, and the first to finish wins.
+The next launches of the same build start right away. A build of other files, or by another version of Nativella, extracts again, next to the previous one, and removes it once it runs: when no other instance of the application can be running from there. The data directory stays. Extraction is safe when two instances start at once: each one extracts aside, and the first to finish wins.
 
 Then the application runs exactly as with `nativella run`. Its command line belongs to the application: a second launch forwards it to the running instance as [`AppReopened`](lifecycle.md#a-second-launch).
 
 The [data directory](configuration.md#the-data-directory) is separate from the extracted project: the database and the settings survive updates, as long as the identifier does not change.
+
+## Reproducible builds
+
+The same project, built by the same `nativella`, makes the same executable, byte for byte: the archive of the project keeps neither the dates nor the owners of its files, and `<build>`, at startup, is a digest of it. So do APKs, whose entries are all dated 1981-01-01, as Android's build tools do. A Debian package dates its files, and an iOS app for devices its signature: with `SOURCE_DATE_EPOCH`, in seconds since 1970, when it is set, as [reproducible builds](https://reproducible-builds.org/docs/source-date-epoch/) ask, with the time of the build otherwise.
+
+```bash
+SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) nativella deb notes
+```
 
 ## What the machine needs
 
