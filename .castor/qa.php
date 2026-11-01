@@ -278,10 +278,10 @@ function rust(
     $fmt = docker_exit_code(['cargo', 'fmt', '--all', '--check'], $c, $service, workDir: builder_path());
 
     io()->section('Running Clippy...');
-    $clippy = docker_exit_code(['cargo', 'clippy', '--workspace', '--all-targets', '--', '-D', 'warnings'], $c, $service, workDir: builder_path());
+    $clippy = docker_exit_code(['cargo', 'clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings'], $c, $service, workDir: builder_path());
 
     io()->section('Running the Rust tests...');
-    $test = docker_exit_code(['cargo', 'test', '--workspace'], $c, $service, workDir: builder_path());
+    $test = docker_exit_code(['cargo', 'test', '--workspace', '--locked'], $c, $service, workDir: builder_path());
 
     return max($fmt, $clippy, $test);
 }
