@@ -21,6 +21,9 @@ switch ($_GET['case'] ?? '') {
     case 'upload':
         printf('%d %d', $_FILES['photo']['error'], $_FILES['photo']['size']);
         break;
+    case 'avatar':
+        header('Location: /avatar.png');
+        break;
     default:
         echo 'Hello';
 }
@@ -35,6 +38,7 @@ fn runtime() -> &'static PhpRuntime {
         fs::create_dir_all(project.join("public")).unwrap();
         fs::create_dir_all(&uploads).unwrap();
         fs::write(project.join("public/index.php"), SCRIPT).unwrap();
+        fs::write(project.join("public/avatar.png"), "PNG").unwrap();
 
         PhpRuntime::start(
             PhpApp::from_project_dir(&project)
@@ -93,4 +97,13 @@ fn a_photo_of_a_phone_can_be_uploaded() {
     );
 
     assert_eq!(text(&response), format!("0 {}", photo.len()));
+}
+
+#[test]
+fn a_fetch_redirected_to_a_public_file_gets_the_file() {
+    let response = get("/?case=avatar");
+
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.headers()[CONTENT_TYPE], "image/png");
+    assert_eq!(text(&response), "PNG");
 }

@@ -164,13 +164,7 @@ impl PhpRuntime {
         origin: RequestOrigin,
         respond: impl FnOnce(Response<Vec<u8>>) + Send + 'static,
     ) {
-        if let Some(response) = static_files::serve(&self.app.document_root, request.uri().path()) {
-            log!(
-                "[static] {} {} {}",
-                request.method(),
-                request.uri(),
-                response.status().as_u16()
-            );
+        if let Some(response) = serve_static(&self.app.document_root, &request) {
             respond(response);
 
             return;
@@ -304,7 +298,14 @@ fn serve(
 
                 return response;
             }
-            Next::Follow(target) => request = target,
+            Next::Follow(target) => {
+                // The target of a redirect may be a file of public/ too.
+                if let Some(response) = serve_static(&app.document_root, &target) {
+                    return response;
+                }
+
+                request = target;
+            }
         }
     }
 
@@ -317,4 +318,18 @@ fn serve(
         .status(StatusCode::LOOP_DETECTED)
         .body(Vec::new())
         .expect("A response with a status and no header is valid.")
+}
+
+/// The file of `public/` that `request` names, if any, as a web server serves
+/// it before PHP.
+fn serve_static(document_root: &Path, request: &Request<Vec<u8>>) -> Option<Response<Vec<u8>>> {
+    let response = static_files::serve(document_root, request.uri().path())?;
+    log!(
+        "[static] {} {} {}",
+        request.method(),
+        request.uri(),
+        response.status().as_u16()
+    );
+
+    Some(response)
 }
