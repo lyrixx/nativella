@@ -6,8 +6,8 @@ name: Static PHP
 #
 # A pull request runs it on the changes of the Rust workflow: a demo can need
 # an extension that the static PHP lacks. And on mobile/php/php, which
-# describes the static PHP to ext-php-rs. Weekly too: the static image
-# installs Rust stable.
+# describes the static PHP to ext-php-rs. Weekly too. The static image has
+# the Rust stable of the day it was built, as in rust.yml.
 #
 # A pull request does not build the executables (3 minutes): main builds
 # them once merged, as the release does, and the smoke test links the
@@ -75,6 +75,11 @@ jobs:
         name: Linux, static PHP
         runs-on: ubuntu-26.04
         timeout-minutes: 90
+        permissions:
+            # Deletes the caches of main that a new one replaces
+            actions: write
+            contents: read
+            packages: read
         steps:
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -107,6 +112,21 @@ jobs:
                   # versions or the extensions changed, not the rest of the file
                   restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
 
+            # The builder installs and stages the projects
+            - name: "Build the builder"
+              run: "castor docker:build --service=builder"
+
+            - name: "Build the static image"
+              run: "castor docker:build --service=static"
+
+            # The Rust of the static image, as in rust.yml
+            - name: "Read the version of Rust"
+              id: rust
+              shell: bash
+              run: |
+                  version="$(castor builder --service=static -- rustc --version | cut -d ' ' -f 2)"
+                  echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
             # The cargo registry and the target directory of the static image
             # (see its CARGO_HOME and CARGO_TARGET_DIR), keyed as in rust.yml.
             # release.yml restores it too: keep the paths and the key in sync
@@ -118,18 +138,13 @@ jobs:
                       .home/.cargo/git
                       .home/.cargo/registry
                       target/docker-static
-                  key: cargo-static-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock') }}
+                  key: cargo-static-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock') }}
                   restore-keys: |
-                      cargo-static-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      cargo-static-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
                       ${{ github.ref != 'refs/heads/main' && 'cargo-static-' || '' }}
 
-            # The builder installs and stages the projects
-            - name: "Build the builder"
-              run: "castor docker:build --service=builder"
-
-            # Builds the static image first. static-php-cli asks the GitHub API
-            # for its downloads: without a token, the runners share its rate
-            # limit
+            # static-php-cli asks the GitHub API for its downloads: without a
+            # token, the runners share its rate limit
             - name: "Build PHP as a static library"
               run: "castor static-php:build"
               env:
@@ -138,11 +153,19 @@ jobs:
             # Main only, as soon as built, whatever fails next: the key stays
             # until .castor/static-php.php changes, with what it holds
             - name: "Save static PHP"
+              id: save-static-php
               if: github.ref == 'refs/heads/main' && steps.static-php.outputs.cache-hit != 'true'
               uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/buildroot
                   key: ${{ steps.static-php.outputs.cache-primary-key }}
+
+            - name: "Delete the static PHP it replaces"
+              if: steps.save-static-php.outcome == 'success'
+              uses: ./.github/actions/delete-replaced-caches
+              with:
+                  key: ${{ steps.static-php.outputs.cache-primary-key }}
+                  prefix: static-php-${{ runner.os }}-${{ runner.arch }}-
 
             # The smoke tests serve the demos, with their vendor/
             - name: "Install the projects"
@@ -162,6 +185,7 @@ jobs:
               run: "castor nativella:prune-target"
 
             - name: "Save the Rust build"
+              id: save-cargo
               if: github.ref == 'refs/heads/main' && steps.cargo.outputs.cache-hit != 'true'
               uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
@@ -170,6 +194,13 @@ jobs:
                       .home/.cargo/registry
                       target/docker-static
                   key: ${{ steps.cargo.outputs.cache-primary-key }}
+
+            - name: "Delete the Rust builds it replaces"
+              if: steps.save-cargo.outcome == 'success'
+              uses: ./.github/actions/delete-replaced-caches
+              with:
+                  key: ${{ steps.cargo.outputs.cache-primary-key }}
+                  prefix: cargo-static-
 
             # Fails if an executable needs a glibc, or a libstdc++, newer than
             # the one of Ubuntu 22.04. Not on a pull request, which builds none

@@ -185,11 +185,15 @@ function stop(
  * @param list<string> $params
  */
 #[AsTask(description: 'Opens a shell (bash) or proxy any command to the builder container', aliases: ['builder'])]
-function builder(#[AsArgsAfterOptionEnd] array $params = []): int
-{
+function builder(
+    #[AsOption(description: 'Run it in another service built from the builder image, e.g. static (the CI reads the version of its Rust)', autocomplete: 'docker\complete_service_names')]
+    ?string $service = null,
+    #[AsArgsAfterOptionEnd]
+    array $params = [],
+): int {
     $context = context()->withEnvironment($_ENV + $_SERVER);
 
-    return (int) docker_compose_run($params, $context)->getExitCode();
+    return (int) docker_compose_run($params, $context, $service)->getExitCode();
 }
 
 /**

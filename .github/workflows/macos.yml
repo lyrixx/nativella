@@ -56,6 +56,10 @@ jobs:
         name: macOS
         runs-on: macos-latest
         timeout-minutes: 90
+        permissions:
+            # Deletes the caches of main that a new one replaces
+            actions: write
+            contents: read
         env:
             # No Docker on macOS runners: the tasks run on the runner itself
             CASTOR_CONTEXT: host
@@ -123,11 +127,19 @@ jobs:
             # Main only, as soon as built, whatever fails next: the key stays
             # until .castor/static-php.php changes, with what it holds
             - name: "Save static PHP"
+              id: save-static-php
               if: github.ref == 'refs/heads/main' && steps.static-php.outputs.cache-hit != 'true'
               uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/buildroot
                   key: ${{ steps.static-php.outputs.cache-primary-key }}
+
+            - name: "Delete the static PHP it replaces"
+              if: steps.save-static-php.outcome == 'success'
+              uses: ./.github/actions/delete-replaced-caches
+              with:
+                  key: ${{ steps.static-php.outputs.cache-primary-key }}
+                  prefix: static-php-${{ runner.os }}-${{ runner.arch }}-
 
             # The smoke tests serve the demos, with their vendor/
             - name: "Install the projects"
@@ -145,6 +157,7 @@ jobs:
               run: "castor nativella:prune-target"
 
             - name: "Save the Rust build"
+              id: save-cargo
               if: github.ref == 'refs/heads/main' && steps.cargo.outputs.cache-hit != 'true'
               uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
@@ -153,3 +166,10 @@ jobs:
                       ~/.cargo/registry
                       target/static
                   key: ${{ steps.cargo.outputs.cache-primary-key }}
+
+            - name: "Delete the Rust builds it replaces"
+              if: steps.save-cargo.outcome == 'success'
+              uses: ./.github/actions/delete-replaced-caches
+              with:
+                  key: ${{ steps.cargo.outputs.cache-primary-key }}
+                  prefix: cargo-${{ runner.os }}-${{ runner.arch }}-

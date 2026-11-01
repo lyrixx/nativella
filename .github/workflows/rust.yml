@@ -6,8 +6,10 @@ name: Rust
 # A pull request runs it on the changes that can break it: the crates; the
 # projects, which the smoke tests serve through the runtime, but not their
 # tests, which they do not load; and the Castor tasks and the Docker stack,
-# which every task goes through. Not on the documentation alone. Weekly too:
-# the builder installs Rust stable.
+# which every task goes through. Not on the documentation alone. Weekly too.
+# The builder has the Rust stable of the day its image was built, which the
+# build cache keeps until the Dockerfile changes: with the monthly updates of
+# Dependabot, at least.
 #
 # Its cache, the cargo registry and the build of the dependencies, is the one
 # of main: main saves it, a pull request restores it (see
@@ -65,6 +67,11 @@ jobs:
         name: Rust
         runs-on: ubuntu-26.04
         timeout-minutes: 60
+        permissions:
+            # Deletes the caches of main that a new one replaces
+            actions: write
+            contents: read
+            packages: read
         steps:
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -84,13 +91,24 @@ jobs:
               with:
                 persist-credentials: false
 
+            - name: "Build the builder"
+              run: "castor docker:build --service=builder"
+
+            # The Rust of the image, which moves when the image is built again
+            - name: "Read the version of Rust"
+              id: rust
+              shell: bash
+              run: |
+                  version="$(castor builder -- rustc --version | cut -d ' ' -f 2)"
+                  echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
             # The cargo registry and the target directory of the builder (see
-            # its CARGO_HOME and CARGO_TARGET_DIR), keyed on the image, for its
-            # Rust, then on Cargo.lock. Else the latest of main for the same
-            # image; for a pull request, for any image. Main starts afresh on a
-            # new image: the build of another Rust is of no use, and would stay
-            # in its cache for good. The iOS job of mobile.yml restores it
-            # too: keep the paths and the key in sync
+            # its CARGO_HOME and CARGO_TARGET_DIR), keyed on its Rust and its
+            # image, then on Cargo.lock. Else the latest of main for the same
+            # Rust and image; for a pull request, for any. Main starts afresh
+            # on a new image: the build of another Rust is of no use, and
+            # would stay in its cache for good. The iOS job of mobile.yml
+            # restores it too: keep the paths and the key in sync
             - name: "Restore the Rust build"
               id: cargo
               uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -99,13 +117,10 @@ jobs:
                       .home/.cargo/git
                       .home/.cargo/registry
                       target/docker
-                  key: cargo-debug-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock') }}
+                  key: cargo-debug-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock') }}
                   restore-keys: |
-                      cargo-debug-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      cargo-debug-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
                       ${{ github.ref != 'refs/heads/main' && 'cargo-debug-' || '' }}
-
-            - name: "Build the builder"
-              run: "castor docker:build --service=builder"
 
             # The smoke tests serve the demos, with their vendor/
             - name: "Install the projects"
@@ -125,6 +140,7 @@ jobs:
               run: "castor nativella:prune-target"
 
             - name: "Save the Rust build"
+              id: save-cargo
               if: github.ref == 'refs/heads/main' && steps.cargo.outputs.cache-hit != 'true'
               uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
@@ -133,3 +149,10 @@ jobs:
                       .home/.cargo/registry
                       target/docker
                   key: ${{ steps.cargo.outputs.cache-primary-key }}
+
+            - name: "Delete the Rust builds it replaces"
+              if: steps.save-cargo.outcome == 'success'
+              uses: ./.github/actions/delete-replaced-caches
+              with:
+                  key: ${{ steps.cargo.outputs.cache-primary-key }}
+                  prefix: cargo-debug-

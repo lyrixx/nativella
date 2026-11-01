@@ -66,6 +66,21 @@ jobs:
                   # versions or the extensions changed, not the rest of the file
                   restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
 
+            # The builder installs and stages the projects
+            - name: "Build the builder"
+              run: "castor docker:build --service=builder"
+
+            - name: "Build the static image"
+              run: "castor docker:build --service=static"
+
+            # The Rust of the static image, as in static.yml
+            - name: "Read the version of Rust"
+              id: rust
+              shell: bash
+              run: |
+                  version="$(castor builder --service=static -- rustc --version | cut -d ' ' -f 2)"
+                  echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
             # The cargo registry and the target directory of the static image
             # (see its CARGO_HOME and CARGO_TARGET_DIR): the build of
             # static.yml, from main, its paths and its key
@@ -76,18 +91,13 @@ jobs:
                       .home/.cargo/git
                       .home/.cargo/registry
                       target/docker-static
-                  key: cargo-static-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock') }}
+                  key: cargo-static-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock') }}
                   restore-keys: |
-                      cargo-static-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      cargo-static-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
                       cargo-static-
 
-            # The builder installs and stages the projects
-            - name: "Build the builder"
-              run: "castor docker:build --service=builder"
-
-            # Builds the static image first. static-php-cli asks the GitHub API
-            # for its downloads: without a token, the runners share its rate
-            # limit
+            # static-php-cli asks the GitHub API for its downloads: without a
+            # token, the runners share its rate limit
             - name: "Build PHP as a static library"
               run: "castor static-php:build"
               env:
@@ -206,6 +216,21 @@ jobs:
                       static-php-android-arm64-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
                       static-php-android-arm64-
 
+            # Downloads the sources of PHP
+            - name: "Build the builder"
+              run: "castor docker:build --service=builder"
+
+            - name: "Build the android image"
+              run: "castor docker:build --service=android"
+
+            # The Rust of the android image, as in mobile.yml
+            - name: "Read the version of Rust"
+              id: rust
+              shell: bash
+              run: |
+                  version="$(castor builder --service=android -- rustc --version | cut -d ' ' -f 2)"
+                  echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
             # The cargo registry and the dependencies of Gradle live in the
             # home of the containers (.home/): the downloads of the Android job
             # of mobile.yml, from main, its paths and its key. Its build is a
@@ -218,18 +243,14 @@ jobs:
                       .home/.cargo/registry
                       .home/.gradle/caches
                       target/docker
-                  key: android-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock', '.castor/mobile.php') }}
+                  key: android-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('Cargo.lock', '.castor/mobile.php') }}
                   restore-keys: |
-                      android-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
+                      android-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
                       android-
 
-            # Downloads the sources of PHP
-            - name: "Build the builder"
-              run: "castor docker:build --service=builder"
-
-            # Builds the android image first, then PHP for Android, unless
-            # restored. static-php-cli asks the GitHub API for the sources of
-            # PHP: without a token, the runners share its rate limit
+            # PHP for Android, unless restored. static-php-cli asks the GitHub
+            # API for the sources of PHP: without a token, the runners share
+            # its rate limit
             - name: "Build the template APK"
               run: "castor mobile:android-template --release --output=release/nativella-android-template-arm64.apk"
               env:

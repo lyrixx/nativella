@@ -1,6 +1,13 @@
 # hadolint global ignore=DL3008
 
-FROM debian:13.7-slim AS php-base
+# The images are pinned by their digest, which Dependabot updates
+# (.github/dependabot.yml): the build cache of the CI, which cache.yml pushes
+# on each change of this file, then stays the one of the images it builds.
+
+# Composer, for the builder
+FROM composer/composer:2.10.0@sha256:dd1ba1cb7f89fbf718762ad0e7e26024ea0e1470606d21a075aab66644f1ff74 AS composer
+
+FROM debian:13.7-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS php-base
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -119,7 +126,9 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
 
-# Rust, for every user: the container runs as the host's raw UID
+# Rust, for every user: the container runs as the host's raw UID. The stable
+# of the day this layer is built, which the build cache keeps until a layer
+# above it changes: the workflows key their cargo caches on its version
 ARG RUST_VERSION=stable
 ENV RUSTUP_HOME=/usr/local/rustup
 ENV PATH="/usr/local/cargo/bin:$PATH"
@@ -140,7 +149,7 @@ RUN phpenmod app-default \
     && phpenmod -s cli app-builder
 
 # Composer
-COPY --from=composer/composer:2.10.0 /usr/bin/composer /usr/bin/composer
+COPY --from=composer /usr/bin/composer /usr/bin/composer
 
 # Autocompletion: the script of Symfony 7.4.22
 ADD --checksum=sha256:aef8296538b17cb94c0d6cb5b30e9f8ca22a8964cb9f8dc6708a34357ecd232a https://raw.githubusercontent.com/symfony/symfony/9da29ec8b7991e3b54255fdf7fa3c5ab2c32f024/src/Symfony/Component/Console/Resources/completion.bash /tmp/completion.bash
@@ -244,7 +253,7 @@ RUN rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-a
 # executable runs on the glibc it was built with, or a newer one. Built on
 # Debian 13, it would need glibc 2.41, which not even Ubuntu 24.04 has. No
 # PHP here: the projects are staged in the builder.
-FROM ubuntu:22.04 AS static
+FROM ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11 AS static
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

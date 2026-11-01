@@ -62,8 +62,10 @@ updates:
       cooldown:
           default-days: 7
 
-    # The images of the Dockerfiles. No security group: the GitHub Advisory
-    # Database has no Docker ecosystem.
+    # The images of the Dockerfiles, pinned by their digest: Dependabot
+    # updates the digest of a tag too. Merged into main, an update runs
+    # cache.yml, which pushes the build cache of the new images. No security
+    # group: the GitHub Advisory Database has no Docker ecosystem.
     - package-ecosystem: 'docker'
       directories:
           - '/infrastructure/docker/services/*'

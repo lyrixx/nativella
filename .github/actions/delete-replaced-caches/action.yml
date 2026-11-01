@@ -1,0 +1,30 @@
+name: Delete the caches a new one replaces
+description: >
+    Deletes the caches of main whose key starts with the prefix, but the one
+    just saved. GitHub would keep them until the 10 GB of the repository are
+    full, then evict the least recently used ones, whatever they are. The job
+    needs the actions: write permission.
+
+inputs:
+    key:
+        description: The key of the cache just saved
+        required: true
+    prefix:
+        description: The start of the key that it shares with the caches it replaces
+        required: true
+
+runs:
+    using: composite
+    steps:
+        - name: "Delete the caches it replaces"
+          shell: bash
+          env:
+              GH_TOKEN: ${{ github.token }}
+              KEY: ${{ inputs.key }}
+              PREFIX: ${{ inputs.prefix }}
+          run: |
+              gh cache list --repo "${GITHUB_REPOSITORY}" --ref refs/heads/main --key "${PREFIX}" --limit 100 --json id,key --jq '.[] | select(.key != env.KEY) | "\(.id) \(.key)"' \
+                  | while read -r id key; do
+                      echo "Deleting ${key}"
+                      gh cache delete "${id}" --repo "${GITHUB_REPOSITORY}"
+                  done
