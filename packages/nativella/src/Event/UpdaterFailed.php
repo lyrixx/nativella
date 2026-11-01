@@ -6,7 +6,7 @@ namespace Nativella\Event;
  * Updater::install() did not install `$version`: the download failed, or its
  * signature did not match.
  */
-final readonly class UpdateFailed
+final readonly class UpdaterFailed
 {
     public function __construct(
         public string $version,

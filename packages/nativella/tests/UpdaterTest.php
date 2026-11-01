@@ -4,8 +4,8 @@ namespace Nativella\Tests;
 
 use Nativella\Client\FakeClient;
 use Nativella\Event\EventFactory;
-use Nativella\Event\UpdateFailed;
-use Nativella\Event\UpdateInstalled;
+use Nativella\Event\UpdaterFailed;
+use Nativella\Event\UpdaterInstalled;
 use Nativella\Updater;
 use Nativella\Updater\Update;
 use PHPUnit\Framework\TestCase;
@@ -52,7 +52,7 @@ final class UpdaterTest extends TestCase
 
     public function testTheEventsOfTheUpdater(): void
     {
-        $this->assertEquals(new UpdateInstalled('1.3.0'), EventFactory::create('updater.installed', ['version' => '1.3.0']));
-        $this->assertEquals(new UpdateFailed('1.3.0', 'No space left.'), EventFactory::create('updater.failed', ['version' => '1.3.0', 'message' => 'No space left.']));
+        $this->assertEquals(new UpdaterInstalled('1.3.0'), EventFactory::create('updater.installed', ['version' => '1.3.0']));
+        $this->assertEquals(new UpdaterFailed('1.3.0', 'No space left.'), EventFactory::create('updater.failed', ['version' => '1.3.0', 'message' => 'No space left.']));
     }
 }

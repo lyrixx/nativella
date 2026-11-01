@@ -87,8 +87,8 @@ Once the executable is in place, PHP and the pages get an event:
 
 | Event | |
 |---|---|
-| `UpdateInstalled` | The next start runs `$event->version`. Tell the user, or [restart](app.md) when it suits them: `$app->restart()`. |
-| `UpdateFailed` | `$event->version` was not installed: `$event->message` says why, a download that failed, a signature that does not match. The executable is the same as before. |
+| `UpdaterInstalled` | The next start runs `$event->version`. Tell the user, or [restart](app.md) when it suits them: `$app->restart()`. |
+| `UpdaterFailed` | `$event->version` was not installed: `$event->message` says why, a download that failed, a signature that does not match. The executable is the same as before. |
 
 As DOM events, `nativella:updater.installed` and `nativella:updater.failed`, with the same properties in `detail`.
 
