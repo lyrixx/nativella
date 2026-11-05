@@ -35,7 +35,7 @@ NATIVELLA_SITE_URL=https://nativella.dev/ castor website:build
 | `src/` | The build: `Site` renders the page with Twig, `TwigExtension` adds `asset()` and the `highlight` filter, `CodeBlock` highlights code with [tempest/highlight](https://github.com/tempestphp/highlight). |
 | `templates/` | The Twig templates. `asset('site.css')` is the URL of an asset, with the hash of its content; `{% apply highlight('php', 'src/Kernel.php') %}…{% endapply %}` highlights the code in between, without the indentation of the template; `site` holds the repository, the URL and the version. |
 | `assets/` | Copied as is to `dist/assets/`: the stylesheet, a few lines of JavaScript, the font, the icons. |
-| `resources/og.html` | The source of `assets/og.png`, the Open Graph image. |
+| `resources/og.html` | The source of `assets/og.png`, the Open Graph image of the site and of the documentation, and the social preview of the GitHub repository. |
 
 The architecture diagram, `docs/images/architecture.svg`, is shown in the documentation as an image and inlined in the landing page; it carries its own light and dark colours.
 
@@ -45,8 +45,10 @@ To regenerate the Open Graph image after changing `resources/og.html`:
 
 ```bash
 google-chrome --headless --hide-scrollbars --allow-file-access-from-files \
-    --window-size=1200,630 --screenshot=assets/og.png "file://$PWD/resources/og.html"
+    --window-size=1280,640 --screenshot=assets/og.png "file://$PWD/resources/og.html"
 ```
+
+Then upload it to the settings of the repository, under *Social preview*: GitHub has no API for it.
 
 ## The documentation
 
@@ -54,7 +56,7 @@ google-chrome --headless --hide-scrollbars --allow-file-access-from-files \
 |---|---|
 | `zensical.yml` | The configuration of Zensical, in the format of `mkdocs.yml`, which Zensical reads: unlike `zensical.toml`, it takes environment variables. |
 | `src/Documentation.php` | What makes the documents of GitHub a site, in `var/docs/`: the navigation, the links to the repository. |
-| `docs-theme/` | The overrides of the theme: the colours and the type of the landing page. |
+| `docs-theme/` | The overrides of the theme: the colours and the type of the landing page, its Open Graph image. |
 
 The documentation is written for GitHub first: it must read well there too. On top of Markdown, Zensical understands:
 

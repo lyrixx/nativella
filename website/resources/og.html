@@ -1,7 +1,8 @@
 <!doctype html>
 <!--
-    The source of assets/og.png, the Open Graph image (1200 × 630). See README.md
-    to regenerate it.
+    The source of assets/og.png, the Open Graph image, which is the social
+    preview of the GitHub repository too (1280 × 640). See README.md to
+    regenerate it.
 -->
 <html lang="en">
 <head>
@@ -14,88 +15,363 @@
         src: url("../assets/fonts/bricolage-grotesque.woff2") format("woff2");
     }
 
+    :root {
+        --night: #0a0d1a;
+        --card: #141a2e;
+        --bar: #0f1324;
+        --ink: #eceffa;
+        --ink-2: #bcc3dc;
+        --ink-3: #8e97b6;
+        --line: #222944;
+        --line-strong: #343c5e;
+        --violet: #5b3ff0;
+        --violet-light: #a594ff;
+        --mint: #4fd6b4;
+        --font-display: "Bricolage Grotesque", ui-sans-serif, sans-serif;
+        --font-body: ui-sans-serif, system-ui, "Segoe UI", Ubuntu, sans-serif;
+        --font-mono: ui-monospace, "DejaVu Sans Mono", monospace;
+    }
+
+    *, *::before, *::after {
+        box-sizing: border-box;
+    }
+
     html, body {
         margin: 0;
-        width: 1200px;
-        height: 630px;
+        width: 1280px;
+        height: 640px;
         overflow: hidden;
     }
 
     body {
         position: relative;
-        box-sizing: border-box;
-        padding: 64px 72px;
         background:
-            radial-gradient(700px 420px at 100% 0%, rgb(91 63 240 / 16%), transparent 70%),
-            radial-gradient(600px 360px at 0% 100%, rgb(8 112 89 / 12%), transparent 70%),
-            #f4f6fb;
-        color: #0d1330;
-        font-family: ui-sans-serif, system-ui, "Segoe UI", Ubuntu, sans-serif;
+            radial-gradient(720px 600px at 75% 58%, rgb(91 63 240 / 34%), transparent 72%),
+            radial-gradient(520px 380px at 0% 100%, rgb(79 214 180 / 10%), transparent 72%),
+            var(--night);
+        color: var(--ink);
+        font-family: var(--font-body);
+    }
+
+    /* The arch of the logo, as tall as the image, with the window in front of it. */
+    .arch {
+        position: absolute;
+        top: -92px;
+        left: 509px;
+        width: 872px;
+        height: 872px;
+    }
+
+    .copy {
+        position: absolute;
+        inset: 56px auto 56px 72px;
+        display: flex;
+        flex-direction: column;
+        width: 590px;
     }
 
     .brand {
         display: flex;
         align-items: center;
         gap: 16px;
-        font: 660 40px/1 "Bricolage Grotesque", ui-sans-serif, sans-serif;
+        font: 660 40px/1 var(--font-display);
         letter-spacing: -.02em;
     }
 
+    .brand img {
+        width: 56px;
+        height: 56px;
+    }
+
     .tag {
-        margin-left: 8px;
+        margin-left: 4px;
         padding: 6px 14px;
-        border: 1.5px solid #bcc5da;
+        border: 1.5px solid var(--line-strong);
         border-radius: 999px;
-        color: #5b6488;
-        font: 500 18px/1.2 ui-monospace, "DejaVu Sans Mono", monospace;
+        color: var(--ink-2);
+        font: 500 16px/1.2 var(--font-mono);
         letter-spacing: 0;
     }
 
     h1 {
-        margin: 60px 0 0;
-        max-width: 900px;
-        font: 660 92px/1 "Bricolage Grotesque", ui-sans-serif, sans-serif;
-        letter-spacing: -.028em;
+        margin: auto 0;
+        font: 680 90px/.98 var(--font-display);
+        letter-spacing: -.03em;
     }
 
-    .line {
-        position: absolute;
-        left: 72px;
-        right: 72px;
-        bottom: 60px;
+    h1 em {
+        background: linear-gradient(95deg, #c4b8ff, #7f66ff);
+        background-clip: text;
+        color: transparent;
+        font-style: normal;
+    }
+
+    .frameworks {
+        color: var(--mint);
+        font: 600 22px/1.3 var(--font-mono);
+    }
+
+    .without {
         display: flex;
-        gap: 28px;
-        padding-top: 22px;
-        border-top: 2px solid #0d1330;
-        color: #3a4366;
-        font: 500 22px/1.3 ui-monospace, "DejaVu Sans Mono", monospace;
+        gap: 24px;
+        margin-top: 12px;
+        color: var(--ink-2);
+        font: 500 21px/1.3 var(--font-mono);
     }
 
-    .line s {
-        text-decoration-color: #5b3ff0;
-        text-decoration-thickness: 3px;
+    .without s {
+        text-decoration-color: var(--violet-light);
+        text-decoration-thickness: 2px;
     }
 
-    .line b {
+    .stage {
+        position: absolute;
+        top: 146px;
+        left: 696px;
+        width: 500px;
+        height: 400px;
+        perspective: 1400px;
+    }
+
+    .scene {
+        position: relative;
+        height: 100%;
+        transform: rotateY(-17deg) rotateX(7deg) rotateZ(1.5deg);
+        transform-style: preserve-3d;
+    }
+
+    .window {
+        overflow: hidden;
+        border: 1px solid var(--line-strong);
+        border-radius: 16px;
+        background: var(--card);
+        box-shadow: 0 40px 90px -20px rgb(0 0 0 / 80%), 0 0 0 1px rgb(165 148 255 / 12%);
+    }
+
+    .titlebar {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        height: 50px;
+        padding: 0 16px 0 18px;
+        background: var(--bar);
+        border-bottom: 1px solid var(--line);
+        font-size: 17px;
+        font-weight: 650;
+    }
+
+    .titlebar img {
+        width: 22px;
+        height: 22px;
+    }
+
+    .controls {
+        display: flex;
+        gap: 10px;
         margin-left: auto;
-        color: #5135d8;
+    }
+
+    .controls i {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--line-strong);
+    }
+
+    .controls i:last-child {
+        background: var(--violet-light);
+    }
+
+    .body {
+        display: grid;
+        grid-template-columns: 42% 1fr;
+        height: 232px;
+    }
+
+    .notes {
+        margin: 0;
+        padding: 10px;
+        border-right: 1px solid var(--line);
+        list-style: none;
+    }
+
+    .notes li {
+        padding: 8px 11px;
+        border-radius: 10px;
+        color: var(--ink-3);
+        font-size: 13.5px;
+        line-height: 1.35;
+    }
+
+    .notes b {
+        display: block;
+        color: var(--ink);
+        font-size: 15px;
+    }
+
+    .notes .active {
+        background: #241d52;
+    }
+
+    .notes .active b {
+        color: #c4b8ff;
+    }
+
+    .note {
+        padding: 18px 20px;
+        color: var(--ink-2);
+        font-size: 15.5px;
+        line-height: 1.5;
+    }
+
+    .note h2 {
+        margin: 0 0 10px;
+        color: var(--ink);
+        font: 650 28px/1.1 var(--font-display);
+        letter-spacing: -.015em;
+    }
+
+    .note p {
+        margin: 0;
+    }
+
+    .toast {
+        position: absolute;
+        top: -62px;
+        left: 232px;
+        display: flex;
+        gap: 12px;
+        width: 296px;
+        padding: 12px 16px;
+        border: 1px solid var(--line-strong);
+        border-radius: 14px;
+        background: #1a2138;
+        box-shadow: 0 24px 50px -16px rgb(0 0 0 / 75%);
+        color: var(--ink-2);
+        font-size: 14px;
+        line-height: 1.4;
+        transform: translateZ(60px);
+    }
+
+    .toast img {
+        flex: none;
+        width: 24px;
+        height: 24px;
+        margin-top: 2px;
+    }
+
+    .toast b {
+        display: block;
+        color: var(--ink);
+        font-size: 15.5px;
+    }
+
+    .log {
+        position: absolute;
+        top: 236px;
+        left: -34px;
+        width: 500px;
+        overflow: hidden;
+        border: 1px solid var(--line-strong);
+        border-radius: 14px;
+        background: #0d1120;
+        box-shadow: 0 30px 70px -18px rgb(0 0 0 / 85%);
+        color: #e4e8f7;
+        font-family: var(--font-mono);
+        transform: translateZ(40px);
+    }
+
+    .log-bar {
+        padding: 9px 18px;
+        background: #141a2d;
+        border-bottom: 1px solid #262d48;
+        color: #8790b3;
+        font-size: 15px;
+        font-weight: 500;
+    }
+
+    .log-bar span {
+        margin-right: 12px;
+        color: #e4e8f7;
+    }
+
+    .log pre {
+        margin: 0;
+        padding: 12px 18px 14px;
+        font: inherit;
+        font-size: 14.5px;
+        line-height: 1.75;
+    }
+
+    .log pre b {
+        color: #c4a7ff;
+    }
+
+    .log pre i {
+        color: #6fd8c0;
+        font-style: normal;
+        font-weight: 700;
+    }
+
+    .log pre u {
+        font-weight: 700;
+        text-decoration: none;
     }
 </style>
 </head>
 <body>
-    <div class="brand">
-        <svg viewBox="0 0 64 64" width="56" height="56">
-            <rect width="64" height="64" rx="16" fill="#5b3ff0"/>
-            <rect x="12" y="12" width="40" height="5" rx="2.5" fill="#ffffff" opacity=".55"/>
-            <path d="M20 50V36a12 12 0 0 1 24 0v14" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
-        </svg>
-        nativella
-        <span class="tag">open source · experimental</span>
+    <svg class="arch" viewBox="0 0 64 64" aria-hidden="true">
+        <defs>
+            <linearGradient id="arch" x1="0" y1="0" x2="0" y2="1">
+                <stop offset=".1" stop-color="#a594ff"/>
+                <stop offset=".5" stop-color="#5b3ff0"/>
+                <stop offset=".95" stop-color="#2a1a8f"/>
+            </linearGradient>
+            <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur stdDeviation="2.4"/>
+            </filter>
+        </defs>
+        <path d="M12.5 64V31.5a19.5 19.5 0 0 1 39 0V64" fill="none" stroke="#5b3ff0" stroke-width="6" filter="url(#glow)" opacity=".8"/>
+        <path d="M12.5 64V31.5a19.5 19.5 0 0 1 39 0V64" fill="none" stroke="url(#arch)" stroke-width="6"/>
+    </svg>
+
+    <div class="copy">
+        <div class="brand"><img src="../assets/favicon.svg" alt=""> nativella <span class="tag">open source · experimental</span></div>
+        <h1>Your PHP app, in a <em>window</em> of&nbsp;its&nbsp;own.</h1>
+        <div class="frameworks">Symfony · Laravel · plain PHP</div>
+        <div class="without"><s>nginx</s><s>PHP-FPM</s><s>a port</s><s>Electron</s></div>
     </div>
-    <h1>Your PHP app, in a window of its own.</h1>
-    <div class="line">
-        <s>nginx</s><s>PHP-FPM</s><s>a port</s><s>Electron</s>
-        <b>Symfony · Laravel · plain PHP</b>
+
+    <div class="stage">
+        <div class="scene">
+            <div class="window">
+                <div class="titlebar">
+                    <img src="../assets/favicon.svg" alt=""> Notes
+                    <span class="controls"><i></i><i></i><i></i></span>
+                </div>
+                <div class="body">
+                    <ul class="notes">
+                        <li class="active"><b>Groceries</b>Eggs, flour, basil</li>
+                        <li><b>Release notes</b>v0.1, the first window</li>
+                        <li><b>Ideas</b>A tray icon for…</li>
+                    </ul>
+                    <div class="note">
+                        <h2>Groceries</h2>
+                        <p>Eggs, flour, basil. Ask PHP to remember the rest.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="toast">
+                <img src="../assets/favicon.svg" alt="">
+                <span><b>Export finished</b>notes.zip is in your Downloads.</span>
+            </div>
+            <div class="log">
+                <div class="log-bar"><span>stderr</span>$ nativella run notes</div>
+<pre><b>[php]</b> GET php://localhost/ 200 <u>4.8 ms</u>
+<i>[static]</i> GET php://localhost/app.css 200
+<b>[php]</b> POST php://localhost/notes/42 303 <u>5.2 ms</u></pre>
+            </div>
+        </div>
     </div>
 </body>
 </html>
