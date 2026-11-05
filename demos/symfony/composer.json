@@ -19,7 +19,7 @@
         "symfony/console": "8.1.*",
         "symfony/dotenv": "8.1.*",
         "symfony/expression-language": "8.1.*",
-        "symfony/flex": "^2",
+        "symfony/flex": "^2.12",
         "symfony/form": "8.1.*",
         "symfony/framework-bundle": "8.1.*",
         "symfony/property-access": "8.1.*",
