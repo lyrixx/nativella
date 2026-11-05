@@ -7,6 +7,7 @@ Nativella is young and experimental. Linux is the platform it is built and teste
 ## Start here
 
 - [Introduction](introduction.md): what Nativella is, what it is not, and when it fits.
+- [Compared to NativePHP and Symfony UX](comparison.md): what each one runs, where, and which one to pick.
 - [Installation](installation.md): the `nativella` command, with PHP inside, and the PHP package.
 - [Getting started](getting-started.md): from an empty directory to a desktop application, in plain PHP.
 - [What runs where](platforms.md): every native API, on computers and on phones.

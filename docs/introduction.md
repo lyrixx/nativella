@@ -69,6 +69,8 @@ It is not a good fit, yet, for:
 - an application for the stores of Android or iOS: phone builds are experimental, and no iOS device has run one yet;
 - long requests or many busy windows: one PHP thread serves every request, one at a time.
 
+[Compared to NativePHP and Symfony UX](comparison.md) says when another tool fits better.
+
 ## Status
 
 Nativella is experimental. It started as a spike to answer one question (can a Tauri window talk to PHP without an HTTP server?) and the answer turned into this project. The APIs may change, and some corners are rough. [Limitations and roadmap](limitations.md) lists them honestly.
