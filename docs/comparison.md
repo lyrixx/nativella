@@ -10,7 +10,7 @@ They make different bets:
 
 All are open source, under the MIT license. NativePHP adds paid extras: Bifrost, its build and deployment service, and premium plugins.
 
-This page compares Nativella 0.5, NativePHP Desktop 2.4, NativePHP Mobile 4.7 and Symfony UX Native 3.7, as of November 2026. What it says of the others comes from their documentation: no application was built with them for it, and both move fast. Check their documentation before you decide.
+This page compares Nativella 0.5, NativePHP Desktop 2.4, NativePHP Mobile 4.7 and Symfony UX Native 3.7, as of November 2026. What it says of the others comes from their documentation and sources, and from the [measures](#size-memory-and-cpu) below. Both move fast: check their documentation before you decide.
 
 ## At a glance
 
@@ -45,7 +45,6 @@ It is the closest project: PHP on the user's device, a static build of it from [
 - **Tools.** NativePHP [builds with Xcode](https://nativephp.com/docs/mobile/4/getting-started/environment-setup), on a Mac with Apple silicon, and Android Studio; Bifrost does it for you, for a fee. Nativella makes an app from a [template](mobile.md#how-it-differs-from-the-desktop), without the tools of either platform.
 - **Stores.** NativePHP [packages for the App Store and Google Play](https://nativephp.com/docs/mobile/4/publishing/introduction). Nativella writes APKs, which Google Play does not take, and no iOS app of it has run on a device yet.
 - **Native features.** NativePHP's come as [plugins](https://nativephp.com/docs/mobile/4/plugins/introduction): Composer packages that carry Swift and Kotlin code, and you can write your own. They include push notifications. Nativella's [phone APIs](phone-apis.md) are a fixed set, in its template, without push notifications.
-- **Size.** NativePHP announces mobile apps under 50 MB. An APK of Nativella weighs about 84 MB, intl and the data of ICU included: see [Size and memory](building.md#size-and-memory).
 
 ## Symfony UX Native
 
@@ -64,8 +63,53 @@ So it answers another question than Nativella:
 
 Stimulus, Turbo, Twig Components, Live Components and the others build pages, and Nativella shows pages: they are not alternatives to it. No demo uses them, so none is tested. Two gaps are known. Turbo reads `response.redirected`, which stays `false`: see [What WebKit does not do](how-it-works.md#what-webkit-does-not-do). And [nothing streams](limitations.md#the-web-layer): what relies on server-sent events, as Mercure does, gets them all at the end. [Events](javascript.md#from-php-to-the-page-events) push to the page instead.
 
+## Size, memory and CPU
+
+Measured on one application: a new Laravel 13 project and its welcome page, packaged for Linux x86_64 with Nativella 0.5.0 and NativePHP Desktop 2.4.0, both with PHP 8.5. The sizes are in MB of 1,048,576 bytes, as in [Size and memory](building.md#size-and-memory).
+
+| | Nativella | NativePHP Desktop |
+|---|---|---|
+| Standalone file | 94 MB, an executable | 145 MB, an AppImage |
+| Debian package | 36 MB | 113 MB |
+| Installed, on disk | 143 MB: the executable, and the project it extracts at first launch | 417 MB |
+| Memory (PSS) | 255 MB | 405 MB |
+| Memory (RSS) | 390 MB | 800 MB |
+| Processes | 3 | 9, two of them PHP: the server and a queue worker, 75 MB together |
+| First page, after the first launch | 0.8 s | 2 s |
+| CPU at rest | 0.13% of a core | 0.43% of a core |
+
+NativePHP carries Chromium and Node.js: the Electron executable alone weighs 194 MB. Nativella leaves the webview to the system: WebKitGTK is not in its sizes, and takes 131 MB on a machine that does not have it yet, as a dependency of the Debian package. The memory of its processes is counted.
+
+Take the memory and the CPU as orders of magnitude: one light page, on one machine. Both ran in the same Docker container (Debian 13, WebKitGTK 2.54, Electron 40) on a virtual display, three times each: the memory 15 seconds after the first page, the CPU over the next 60 seconds. There is no GPU there, so GPU rendering was off in both (`WEBKIT_DISABLE_COMPOSITING_MODE=1` and `WEBKIT_DISABLE_DMABUF_RENDERER=1`, `--disable-gpu`), and Electron ran with `--no-sandbox`. With a GPU emulated in software instead, they take 405 MB and 450 MB. The 255 MB of Nativella match what its Laravel demo takes on a real display; NativePHP was not measured on one.
+
+Under load, the PHP of Nativella uses one core at most: it has [one thread](limitations.md#one-request-at-a-time), and boots the framework at each request, until its [worker mode](limitations.md#roadmap). NativePHP Mobile keeps Laravel booted between requests, by default.
+
+On a phone, for the same project:
+
+| APK, arm64 | Nativella | NativePHP Mobile |
+|---|---|---|
+| Without intl | About 36 MB less, with [your own PHP](custom-php.md#on-phones) | 53 MB |
+| With intl | 85 MB | 56 MB |
+
+The gap comes from two choices. NativePHP compresses its native libraries, which Android unpacks at install: 43 MB of PHP for 13 MB in the APK, so the application takes more room on the phone than the APK says. Nativella stores its library as it is, 71 MB, and Android loads it from the APK. And the ICU of Nativella carries the data of every locale, 36 MB of that library, where the data of NativePHP's take 2 MB.
+
+NativePHP leaves intl out on Android unless you ask for it, with `native:install --with-icu`. The releases of Nativella carry it, but you can customize PHP to save room: a [template with your own PHP](custom-php.md#on-phones), without intl, drops the 36 MB of ICU from every APK made of it. That size comes from the library, this APK was not measured. It takes a build from the repository, until an application [picks its extensions](limitations.md#roadmap). Neither was measured for memory or CPU on a phone.
+
+With Symfony UX Native, PHP takes the memory and the CPU of your server, for all your users, and the phone only runs the shell and a web view. Its apps were not measured.
+
+## Customizing PHP
+
+| | Nativella | NativePHP Desktop | NativePHP Mobile | Symfony UX Native |
+|---|---|---|---|---|
+| Version | 8.5 | 8.3, 8.4 or 8.5: the one of the machine that builds | 8.3, 8.4 or 8.5: the one of the machine that builds, or of `nativephp.lock` | The one of your server |
+| Extensions | [A fixed list](building.md#the-php-inside) | [A fixed list](https://github.com/NativePHP/php-bin/blob/main/php-extensions.txt), with gd, bz2 and sockets on top of those of Nativella | [A fixed list](https://nativephp.com/docs/mobile/4/architecture/embedded-php), with intl optional on Android | Any |
+| Another PHP | [Build `nativella`](custom-php.md) from the repository | [Your own binaries](https://nativephp.com/docs/desktop/2/digging-deeper/php-binaries), through `NATIVEPHP_PHP_BINARY_PATH`, without support | None documented | The one of your server |
+| Settings | `ini_set()`, and the [`php.ini`](custom-php.md#settings) compiled into `nativella` | `ini_set()`, and `phpIni()` in `NativeAppServiceProvider` | `ini_set()` | Those of your server |
+
+Both Nativella and NativePHP Desktop build PHP with static-php-cli, but they do not swap it the same way. NativePHP runs PHP as an executable next to the application, so another PHP is another file. Nativella links PHP into its own executable: another PHP takes a build of `nativella`, which then serves all your applications. Choosing the extensions at `nativella build` is on the [roadmap](limitations.md#roadmap).
+
 ## Which one?
 
 - **NativePHP**, for a Laravel application that must ship now, on Windows, on macOS or in the stores, or for native views on a phone.
 - **Symfony UX Native**, for a Symfony website with accounts and shared data, that wants an app on phones and stays online.
-- **Nativella**, for a PHP application whose data lives on the user's machine, with any framework or none, when you want your pages as they are, no port on the machine, and no Mac or Android Studio to build for phones. Read [Limitations and roadmap](limitations.md) first: it is experimental, and Linux is the only computer it is tested on.
+- **Nativella**, for a PHP application whose data lives on the user's machine, with any framework or none, when you want your pages as they are, a lighter application on computers, no port on the machine, and no Mac or Android Studio to build for phones. Read [Limitations and roadmap](limitations.md) first: it is experimental, and Linux is the only computer it is tested on.
