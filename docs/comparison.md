@@ -1,0 +1,71 @@
+# Compared to NativePHP and Symfony UX
+
+Two projects stand next to Nativella. [NativePHP](https://nativephp.com) also runs PHP inside a desktop or phone application. [Symfony UX Native](https://symfony.com/bundles/ux-native/current/index.html), the part of Symfony UX that reaches phones, leaves PHP on your server and puts a native shell around your website.
+
+They make different bets:
+
+- **NativePHP** turns a Laravel application into a native one: Electron on computers, native views on phones. It is the mature one, and the one to pick today for Windows, macOS or the stores.
+- **Symfony UX Native** keeps your website where it is, and gives it an app on iOS and Android.
+- **Nativella** takes a PHP application as it is, whatever its framework, and runs it on the user's machine, in the webview of the system, without a web server. It is the youngest of the three.
+
+All are open source, under the MIT license. NativePHP adds paid extras: Bifrost, its build and deployment service, and premium plugins.
+
+This page compares Nativella 0.5, NativePHP Desktop 2.4, NativePHP Mobile 4.7 and Symfony UX Native 3.7, as of November 2026. What it says of the others comes from their documentation: no application was built with them for it, and both move fast. Check their documentation before you decide.
+
+## At a glance
+
+| | Nativella | NativePHP Desktop | NativePHP Mobile | Symfony UX Native |
+|---|---|---|---|---|
+| Status | Experimental | Production-ready, says [its roadmap](https://nativephp.com/docs/desktop/2/getting-started/status) | Made for the stores | Experimental |
+| Platforms | Linux. macOS and Windows untested, Android and iOS experimental: see [Platforms](limitations.md#platforms) | Windows, macOS, Linux | iOS, Android | iOS, Android |
+| Applications | Any PHP application with a `public/index.php` | Laravel | Laravel | Symfony |
+| Where PHP runs | On the device, in the process of the application | On the device, in a process of its own | On the device, in the application | On your server |
+| How the interface reaches PHP | In memory, no port | HTTP, between two local web servers | Shared memory, no network | HTTP, over the network |
+| Interface | Your pages, in the webview of the system | Your pages, in Chromium | Blade rendered as SwiftUI and Jetpack Compose views; a web view on request | Your pages, in a web view, with native navigation |
+| Without a network | Works | Works | Works | The pages come from your server |
+| Tools to build | The `nativella` command: no Xcode, no Android SDK, no Mac | PHP and Node.js 22 or later | Xcode on a Mac with Apple silicon and Android Studio, or Bifrost | Xcode and Android Studio: the shells are your own projects |
+| Signing and stores | Android and iOS apps are signed, none is ready for the stores: see [Mobile](mobile.md#what-is-tested). Nothing on computers | Signing and notarization, for macOS and Windows | `native:package`, for the App Store and Google Play | Those of your native projects |
+| Updates | [Standalone executables](updates.md) update themselves | Automatic, through its `publish` command | Through the stores, or over the air with Bifrost | Pages at each deployment, without the stores. The shell through the stores |
+
+## NativePHP
+
+It is the closest project: PHP on the user's device, a static build of it from [static-php-cli](https://github.com/crazywhalecc/static-php-cli) on computers, and a local SQLite database, migrated when the application starts.
+
+### On a computer
+
+- **Frameworks.** NativePHP is built on Laravel, and needs it. Nativella takes any PHP application with a front controller, and has integrations for [Symfony](symfony.md) and [Laravel](laravel.md).
+- **Engine.** NativePHP ships Electron, so Chromium: pages render the same everywhere, and every application carries a browser. Nativella uses the webview of the system: nothing to carry, but one engine per platform, each with its gaps. See [What WebKit does not do](how-it-works.md#what-webkit-does-not-do).
+- **Requests.** NativePHP starts a web server on each side of the application, and they talk over HTTP with a key made at each start, which [its security guide](https://nativephp.com/docs/desktop/2/digging-deeper/security) tells you never to bypass. Nativella has no port to protect: a request stays in the memory of the process.
+- **Background work.** NativePHP starts [Laravel queue workers](https://nativephp.com/docs/desktop/2/digging-deeper/queues) as child processes. Nativella has [one PHP thread](limitations.md#one-request-at-a-time): a slow request holds back the others, and a queue worker takes PHP's command line on the machine.
+- **Distribution.** NativePHP [signs and notarizes](https://nativephp.com/docs/desktop/2/publishing/building) for macOS and Windows. Nativella has Debian packages and no code signing: see [Distribution](limitations.md#distribution).
+
+### On a phone
+
+- **Interface.** Since version 4, NativePHP renders Blade as SwiftUI and Jetpack Compose views, without a web view: see [SuperNative](https://nativephp.com/docs/mobile/4/architecture/super-native). The app gets the scrolling and the accessibility of the platform, and its screens are written for it, with EDGE components; a web view stays available, as a component. Nativella shows the pages you already have: nothing to rewrite, and they remain web pages.
+- **Tools.** NativePHP [builds with Xcode](https://nativephp.com/docs/mobile/4/getting-started/environment-setup), on a Mac with Apple silicon, and Android Studio; Bifrost does it for you, for a fee. Nativella makes an app from a [template](mobile.md#how-it-differs-from-the-desktop), without the tools of either platform.
+- **Stores.** NativePHP [packages for the App Store and Google Play](https://nativephp.com/docs/mobile/4/publishing/introduction). Nativella writes APKs, which Google Play does not take, and no iOS app of it has run on a device yet.
+- **Native features.** NativePHP's come as [plugins](https://nativephp.com/docs/mobile/4/plugins/introduction): Composer packages that carry Swift and Kotlin code, and you can write your own. They include push notifications. Nativella's [phone APIs](phone-apis.md) are a fixed set, in its template, without push notifications.
+- **Size.** NativePHP announces mobile apps under 50 MB. An APK of Nativella weighs about 84 MB, intl and the data of ICU included: see [Size and memory](building.md#size-and-memory).
+
+## Symfony UX Native
+
+Symfony UX is a family of front-end packages. One of them compares with Nativella: UX Native, which is experimental too.
+
+It runs nothing on the phone. It is a server-side bundle for [Hotwire Native](https://native.hotwired.dev): it detects the requests of the app, gives Twig `ux_is_native()`, generates the JSON the app reads to know how to open each path, and drives its navigation from PHP. The shells are projects you create in Xcode and Android Studio, with Hotwire Native. In the words of [its documentation](https://native.hotwired.dev/overview/how-it-works): "Content is all web. Navigation is all native."
+
+So it answers another question than Nativella:
+
+- **The server.** UX Native needs your server, and the network: every user reaches the same application and the same database. With Nativella there is no server to run: each user has their own [database](database.md), on their machine, and the application works offline.
+- **Deployment.** With UX Native, a change to your pages reaches everyone at the next deployment, without a store review. With Nativella, the project is inside the application: a change takes a new build.
+- **The native feel.** Hotwire Native gives native navigation, modals and tabs. Bridge components connect a page to native code, and a screen can move to Swift or Kotlin when it needs to. Nativella has a webview and [PHP APIs](platforms.md): no Swift or Kotlin to write, and none to reach for.
+- **Computers.** UX Native is for phones only.
+
+### The rest of Symfony UX
+
+Stimulus, Turbo, Twig Components, Live Components and the others build pages, and Nativella shows pages: they are not alternatives to it. No demo uses them, so none is tested. Two gaps are known. Turbo reads `response.redirected`, which stays `false`: see [What WebKit does not do](how-it-works.md#what-webkit-does-not-do). And [nothing streams](limitations.md#the-web-layer): what relies on server-sent events, as Mercure does, gets them all at the end. [Events](javascript.md#from-php-to-the-page-events) push to the page instead.
+
+## Which one?
+
+- **NativePHP**, for a Laravel application that must ship now, on Windows, on macOS or in the stores, or for native views on a phone.
+- **Symfony UX Native**, for a Symfony website with accounts and shared data, that wants an app on phones and stays online.
+- **Nativella**, for a PHP application whose data lives on the user's machine, with any framework or none, when you want your pages as they are, no port on the machine, and no Mac or Android Studio to build for phones. Read [Limitations and roadmap](limitations.md) first: it is experimental, and Linux is the only computer it is tested on.
