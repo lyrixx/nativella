@@ -5,9 +5,8 @@ namespace Nativella\Event;
 use Nativella\ChildProcess\Stream;
 
 /**
- * A process started with ChildProcess::start() wrote something, as it came:
- * often whole lines with their line endings, sometimes a prompt or a part of
- * a line.
+ * $output comes as the process wrote it, often whole lines with their line
+ * endings, sometimes a prompt or a part of a line.
  */
 final readonly class ChildProcessOutput
 {

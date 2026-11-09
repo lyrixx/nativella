@@ -5,8 +5,6 @@ namespace Nativella\Laravel\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * The system clipboard.
- *
  * @method static ?string readText()
  * @method static void    writeText(string $text)
  * @method static void    writeHtml(string $html, ?string $altText = null)

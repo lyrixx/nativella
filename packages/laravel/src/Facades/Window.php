@@ -5,8 +5,6 @@ namespace Nativella\Laravel\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * Opens and drives windows, each one known by its label.
- *
  * @method static \Nativella\Window\WindowInfo       open(string $window, ?\Nativella\Window\WindowOptions $options = null)
  * @method static void                               close(?string $window = null)
  * @method static list<\Nativella\Window\WindowInfo> all()

@@ -3,7 +3,7 @@
 namespace Nativella\Window;
 
 /**
- * How Window::open() opens a window. Null leaves the default of the system.
+ * Null leaves the system default.
  *
  * Keep in sync with WindowOptions in crates/nativella/src/native/window.rs.
  */
@@ -12,7 +12,7 @@ final readonly class WindowOptions
     public function __construct(
         /** A path of the application ("/settings"), or an absolute URL; "/" when null. */
         public ?string $url = null,
-        /** The name of the application when null. */
+        /** The application's name when null. */
         public ?string $title = null,
         public ?float $width = null,
         public ?float $height = null,

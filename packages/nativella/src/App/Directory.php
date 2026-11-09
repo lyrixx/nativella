@@ -2,9 +2,6 @@
 
 namespace Nativella\App;
 
-/**
- * The directories App::path() knows.
- */
 enum Directory: string
 {
     case AppCache = 'appCache';

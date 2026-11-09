@@ -5,8 +5,6 @@ namespace Nativella\Laravel\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * An icon in the system tray (the menu bar on macOS), with its menu.
- *
  * @method static void set(?string $tooltip = null, array<\Nativella\Menu\MenuItem> $menu = [], ?string $icon = null, ?string $title = null)
  * @method static void remove()
  *

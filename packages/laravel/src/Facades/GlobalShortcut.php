@@ -5,8 +5,6 @@ namespace Nativella\Laravel\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * Keyboard shortcuts caught even when the application is in the background.
- *
  * @method static void register(string $accelerator)
  * @method static void unregister(string $accelerator)
  * @method static void unregisterAll()

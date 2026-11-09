@@ -5,9 +5,6 @@ namespace Nativella;
 use Nativella\App\AppInfo;
 use Nativella\App\Directory;
 
-/**
- * The application itself: its identity, its directories, its lifecycle.
- */
 final readonly class App
 {
     public function __construct(
@@ -28,8 +25,8 @@ final readonly class App
 
     /**
      * The licenses of the software the application contains (PHP, its
-     * libraries, the Rust crates of Nativella…), which they ask to show or
-     * to ship with it: for an "about" page. Null when running from a
+     * libraries, Nativella's Rust crates…), which they ask to show or to ship
+     * with it. Use it for an "about" page. Null when running from a
      * development build of Nativella, which has none.
      */
     public function thirdPartyNotices(): ?string
@@ -54,7 +51,7 @@ final readonly class App
     }
 
     /**
-     * Hides every window of the application (macOS only).
+     * macOS only.
      */
     public function hide(): void
     {
@@ -70,8 +67,8 @@ final readonly class App
     }
 
     /**
-     * Shows a count on the application icon, in the dock or the taskbar
-     * (macOS and some Linux desktops). Null removes it.
+     * On the application icon, in the dock or the taskbar (macOS and some
+     * Linux desktops). Null removes it.
      */
     public function setBadgeCount(?int $count, ?string $window = null): void
     {

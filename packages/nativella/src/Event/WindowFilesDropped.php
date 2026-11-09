@@ -2,9 +2,6 @@
 
 namespace Nativella\Event;
 
-/**
- * Files were dragged from the system and dropped on a window.
- */
 final readonly class WindowFilesDropped
 {
     /**

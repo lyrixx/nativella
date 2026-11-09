@@ -41,14 +41,11 @@ use Nativella\Window;
 
 /**
  * Runs the application in Nativella: the native APIs in the container, native
- * events dispatched as Laravel events, the database in the data directory of
- * the application, migrated at boot.
+ * events dispatched as Laravel events, the database in the application's data
+ * directory, migrated at boot.
  */
 final class NativellaServiceProvider extends ServiceProvider
 {
-    /**
-     * The services built on the client.
-     */
     private const array APIS = [
         App::class,
         BarcodeScanner::class,
@@ -85,8 +82,8 @@ final class NativellaServiceProvider extends ServiceProvider
 
         // Before the binding: once bound, rebinding() would build the client.
         $this->app->rebinding(Client::class, static function (Application $app): void {
-            // Another client (Nativella::fake()): the APIs, and the facades
-            // that hold them, must use it.
+            // With another client (Nativella::fake()), the APIs and the facades
+            // that hold them must use it.
             foreach (self::APIS as $api) {
                 $app->forgetInstance($api);
                 Facade::clearResolvedInstance($api);
@@ -97,9 +94,9 @@ final class NativellaServiceProvider extends ServiceProvider
             $this->app->singleton($api);
         }
 
-        // Once every provider has registered, before any boots: the
-        // configuration is final, no connection is open and nothing is
-        // encrypted yet.
+        // Once every provider has registered, before any boots. The
+        // configuration is final by then, no connection is open and nothing
+        // is encrypted yet.
         $this->app->booting($this->storeDatabaseInDataDir(...));
         $this->app->booting($this->useInstallationSecret(...));
     }
@@ -110,9 +107,9 @@ final class NativellaServiceProvider extends ServiceProvider
 
         $this->loadRoutesFrom(__DIR__.'/../routes/nativella.php');
 
-        // Before the listeners of the application, which may use the
-        // database: the providers of packages boot before the application's,
-        // and discovered listeners come last.
+        // Before the application's listeners, which may use the database.
+        // Package providers boot before the application's, and discovered
+        // listeners come last.
         Event::listen(AppBooted::class, MigrateOnBootListener::class);
 
         $this->callAfterResolving('blade.compiler', static function (BladeCompiler $blade): void {
@@ -121,10 +118,10 @@ final class NativellaServiceProvider extends ServiceProvider
     }
 
     /**
-     * Encrypts and signs with the secret of the installation, whatever
-     * APP_KEY and APP_PREVIOUS_KEYS say: the .env file ships with the
-     * application, so its keys would be the same for every user, and anyone
-     * holding the application could forge the cookies of any installation.
+     * Encrypts and signs with the installation's secret, whatever APP_KEY and
+     * APP_PREVIOUS_KEYS say. The .env file ships with the application, so its
+     * keys would be the same for every user, and anyone holding the
+     * application could forge any installation's cookies.
      */
     private function useInstallationSecret(Application $app): void
     {
@@ -149,7 +146,7 @@ final class NativellaServiceProvider extends ServiceProvider
 
     /**
      * Points the "sqlite" connection at the data directory, and makes it the
-     * default one: the user's data must survive an update of the application.
+     * default one, because the user's data must survive an application update.
      */
     private function storeDatabaseInDataDir(Application $app): void
     {

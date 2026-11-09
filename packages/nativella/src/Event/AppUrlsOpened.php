@@ -3,8 +3,8 @@
 namespace Nativella\Event;
 
 /**
- * The system opened URLs of a deep link scheme of the application
- * ("notes://42", see "deepLinks" in extra.nativella): at launch, or later
+ * The system opened URLs of one of the application's deep link schemes
+ * ("notes://42", see "deepLinks" in extra.nativella), at launch or later
  * when the application already runs.
  */
 final readonly class AppUrlsOpened

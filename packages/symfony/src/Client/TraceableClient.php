@@ -5,9 +5,6 @@ namespace Nativella\Symfony\Client;
 use Nativella\Client;
 use Symfony\Contracts\Service\ResetInterface;
 
-/**
- * Records the native calls of the request for the profiler.
- */
 final class TraceableClient implements Client, ResetInterface
 {
     /** @var list<TracedCall> */

@@ -3,7 +3,7 @@
 namespace Nativella;
 
 /**
- * Tokens and passwords, kept in the keychain of the system (Secret Service
+ * Tokens and passwords, kept in the system keychain (Secret Service
  * on Linux, the Keychain on macOS, the Credential Manager on Windows), which
  * encrypts them, rather than in the database or the settings. Desktop only.
  */

@@ -19,8 +19,6 @@ final readonly class Tray
     }
 
     /**
-     * Creates the tray icon, or updates it.
-     *
      * @param array<MenuItem> $menu  a list, or what array_filter() leaves of one
      * @param string|null     $icon  the path of a PNG file, the application icon when null
      * @param string|null     $title next to the icon, on macOS and Linux

@@ -3,11 +3,11 @@
 namespace Nativella;
 
 /**
- * Fingerprint or face authentication, on phones: to unlock what only the
- * owner of the phone should see.
+ * Fingerprint or face authentication, on phones, to unlock what only the
+ * phone's owner should see.
  *
- * The application asks for it with "biometrics" in the permissions of
- * extra.nativella, in its composer.json.
+ * The application asks for it with "biometrics" in
+ * extra.nativella.permissions, in its composer.json.
  */
 final readonly class Biometrics
 {
@@ -16,19 +16,16 @@ final readonly class Biometrics
     ) {
     }
 
-    /**
-     * Whether the phone has a fingerprint or a face enrolled.
-     */
     public function isAvailable(): bool
     {
         return $this->client->call('biometrics.isAvailable')['available'];
     }
 
     /**
-     * Asks the user to prove who they are, with their fingerprint, their
-     * face or the PIN of the phone. Blocks until they do.
+     * Blocks until the user proves who they are, with their fingerprint, their
+     * face or the phone's PIN.
      *
-     * Works without biometrics, with the PIN only: do not skip it when
+     * Works without biometrics, with the PIN only, so do not skip it when
      * isAvailable() is false.
      *
      * @param string $reason what for, shown to the user

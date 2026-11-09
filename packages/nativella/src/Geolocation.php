@@ -6,10 +6,9 @@ use Nativella\Geolocation\Accuracy;
 use Nativella\Geolocation\Position;
 
 /**
- * Where the phone is.
- *
- * The application asks for it with "geolocation" in the permissions of
- * extra.nativella, in its composer.json; the user is asked on the first call.
+ * The application asks for it with "geolocation" in
+ * extra.nativella.permissions, in its composer.json; the user is asked on the
+ * first call.
  */
 final readonly class Geolocation
 {
@@ -19,7 +18,7 @@ final readonly class Geolocation
     }
 
     /**
-     * Null when the user does not allow it. Blocks until the phone knows: a
+     * Null when the user does not allow it. Blocks until the phone knows, a
      * few seconds at worst.
      *
      * @param int $maximumAge in seconds: how old a position the phone already knows may be, 0 for a new one

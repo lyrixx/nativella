@@ -3,7 +3,7 @@
 namespace Nativella\Event;
 
 /**
- * An event this version of the package does not know: a newer runtime sent it.
+ * An event this version of the package does not know, sent by a newer runtime.
  */
 final readonly class NativeEvent
 {

@@ -8,8 +8,8 @@ use Nativella\Haptics\Impact;
 /**
  * Vibrations and haptic feedback, on phones.
  *
- * The application asks for them with "haptics" in the permissions of
- * extra.nativella, in its composer.json.
+ * The application asks for them with "haptics" in
+ * extra.nativella.permissions, in its composer.json.
  */
 final readonly class Haptics
 {

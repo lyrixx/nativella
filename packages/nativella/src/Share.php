@@ -3,11 +3,11 @@
 namespace Nativella;
 
 /**
- * The share sheet of the phone: the user sends a text or a file to another
+ * The phone's share sheet, where the user sends a text or a file to another
  * application, or to a contact. No permission needed.
  *
- * The sheet opens and the call returns: nothing tells whether the user shared
- * or closed it.
+ * The sheet opens and the call returns, so nothing tells whether the user
+ * shared or closed it.
  */
 final readonly class Share
 {
@@ -17,7 +17,7 @@ final readonly class Share
     }
 
     /**
-     * A text, a link: the receiving application makes what it can of it.
+     * A text or a link. The receiving application makes what it can of it.
      */
     public function text(string $text): void
     {

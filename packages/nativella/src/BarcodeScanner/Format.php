@@ -3,8 +3,7 @@
 namespace Nativella\BarcodeScanner;
 
 /**
- * The kinds of barcodes the camera reads. The values are the names of the
- * plugin of Tauri.
+ * The values are the names the Tauri plugin uses.
  */
 enum Format: string
 {

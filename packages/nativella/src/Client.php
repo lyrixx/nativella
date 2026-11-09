@@ -3,8 +3,6 @@
 namespace Nativella;
 
 /**
- * Calls a native method of the Nativella runtime.
- *
  * Methods are named "<domain>.<method>" ("window.open"), payloads and results
  * are JSON objects with camelCase keys. Keep in sync with the native methods
  * in crates/nativella/src/native/.
@@ -22,7 +20,7 @@ interface Client
     public function call(string $method, array $payload = []): array;
 
     /**
-     * Whether native calls work: PHP runs in Nativella, or the client is a
+     * Native calls work when PHP runs in Nativella, or when the client is a
      * fake, under which the application behaves as in Nativella.
      */
     public function isNative(): bool;

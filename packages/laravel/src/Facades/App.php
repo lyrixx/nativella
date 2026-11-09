@@ -5,8 +5,7 @@ namespace Nativella\Laravel\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * The application itself: its identity, its directories, its lifecycle. Not
- * Laravel's App facade: import this class, or alias it.
+ * This is not Laravel's App facade. Import this class, or alias it.
  *
  * @method static \Nativella\App\AppInfo info()
  * @method static string                 path(\Nativella\App\Directory $directory)

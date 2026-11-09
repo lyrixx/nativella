@@ -9,7 +9,7 @@ final readonly class Position
         public float $latitude,
         /** In degrees. */
         public float $longitude,
-        /** In meters: the radius of the circle the phone is in. */
+        /** In meters, the radius of the circle the phone is in. */
         public float $accuracy,
         /** In meters, above sea level. */
         public ?float $altitude,

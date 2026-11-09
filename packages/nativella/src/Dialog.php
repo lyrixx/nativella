@@ -6,8 +6,8 @@ use Nativella\Dialog\FileFilter;
 use Nativella\Dialog\MessageKind;
 
 /**
- * Message boxes and file pickers. They are modal to the window that made the
- * request, and PHP waits for the answer.
+ * Dialogs are modal to the window that made the request, and PHP waits for
+ * the answer.
  */
 final readonly class Dialog
 {

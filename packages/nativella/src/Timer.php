@@ -3,11 +3,11 @@
 namespace Nativella;
 
 /**
- * Wakes PHP up: PHP only runs to answer requests and native events, so
- * periodic work (a sync, a cleanup, a reminder) needs a timer. Each one
- * dispatches Event\TimerFired with its name.
+ * PHP only runs to answer requests and native events, so periodic work (a
+ * sync, a cleanup, a reminder) needs a timer. Each one dispatches
+ * Event\TimerFired with its name.
  *
- * Timers live as long as the application: register them when it boots.
+ * Timers live as long as the application, so register them when it boots.
  */
 final readonly class Timer
 {
@@ -17,7 +17,7 @@ final readonly class Timer
     }
 
     /**
-     * Fires every $seconds, from now on. A timer of the same name is replaced.
+     * A timer of the same name is replaced.
      *
      * @param float $seconds from 1 second to 1 year
      */
@@ -27,7 +27,7 @@ final readonly class Timer
     }
 
     /**
-     * Fires once, in $seconds. A timer of the same name is replaced.
+     * A timer of the same name is replaced.
      *
      * @param float $seconds from 1 second to 1 year
      */

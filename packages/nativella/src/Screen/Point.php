@@ -4,8 +4,8 @@ namespace Nativella\Screen;
 
 /**
  * In physical pixels, from the top left corner of the desktop the displays
- * share: the one of the primary display on Windows and macOS, of the leftmost
- * display on X11.
+ * share. That is the primary display's corner on Windows and macOS, and the
+ * leftmost display's on X11.
  */
 final readonly class Point
 {

@@ -5,8 +5,6 @@ namespace Nativella\Laravel\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * Fingerprint or face authentication, on phones.
- *
  * @method static bool isAvailable()
  * @method static bool authenticate(string $reason, ?string $title = null)
  *

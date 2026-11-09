@@ -34,7 +34,7 @@ final readonly class Menu
 
     /**
      * Changes the item `$id` in the application menu and the tray menu, without
-     * setting them again: what is null stays as it is.
+     * setting them again. What is null stays as it is.
      */
     public function update(string $id, ?string $label = null, ?bool $enabled = null, ?bool $checked = null): void
     {

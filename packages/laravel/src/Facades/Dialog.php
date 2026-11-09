@@ -5,8 +5,6 @@ namespace Nativella\Laravel\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * Message boxes and file pickers, modal to the window that made the request.
- *
  * @method static void         message(string $message, ?string $title = null, \Nativella\Dialog\MessageKind $kind = \Nativella\Dialog\MessageKind::Info)
  * @method static bool         confirm(string $message, ?string $title = null, \Nativella\Dialog\MessageKind $kind = \Nativella\Dialog\MessageKind::Info, ?string $okLabel = null, ?string $cancelLabel = null)
  * @method static bool         ask(string $message, ?string $title = null, \Nativella\Dialog\MessageKind $kind = \Nativella\Dialog\MessageKind::Info)

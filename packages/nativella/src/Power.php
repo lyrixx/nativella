@@ -5,8 +5,7 @@ namespace Nativella;
 use Nativella\Power\Battery;
 
 /**
- * The battery and the power source of the computer, and keeping it awake.
- * Events tell when they change: Event\PowerSourceChanged, and
+ * Event\PowerSourceChanged tells when the power source changes, and
  * Event\PowerResumed when the computer wakes from sleep. Desktop only.
  */
 final readonly class Power
@@ -22,8 +21,8 @@ final readonly class Power
     }
 
     /**
-     * Null without a battery: a desktop computer. Several batteries count as
-     * one.
+     * Null without a battery, as on a desktop computer. Several batteries
+     * count as one.
      */
     public function battery(): ?Battery
     {
@@ -34,7 +33,7 @@ final readonly class Power
 
     /**
      * Keeps the screen on and the computer awake until allowSleep(), or until
-     * the application quits: during a presentation, a long export.
+     * the application quits. Use it during a presentation or a long export.
      *
      * @param string $reason what the system shows the user, as "Exporting the notes"
      */

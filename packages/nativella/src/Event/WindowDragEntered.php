@@ -3,7 +3,7 @@
 namespace Nativella\Event;
 
 /**
- * Files dragged from the system entered a window: the page may highlight
+ * Files dragged from the system entered a window, so the page may highlight
  * where to drop them, until WindowDragLeft or WindowFilesDropped.
  */
 final readonly class WindowDragEntered
