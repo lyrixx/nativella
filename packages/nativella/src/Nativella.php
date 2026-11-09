@@ -5,7 +5,7 @@ namespace Nativella;
 use Nativella\Client\ExtensionClient;
 
 /**
- * Every API of Nativella, for applications without a service container:
+ * Every Nativella API, for applications without a service container:
  *
  *     $native = Nativella::create();
  *     $native->notification->send('Saved!');
@@ -74,7 +74,7 @@ final readonly class Nativella
     }
 
     /**
-     * Whether native calls work: the application runs in Nativella, or the
+     * Native calls work when the application runs in Nativella, or when the
      * tests gave it a FakeClient. Offer native features only then.
      */
     public function isNative(): bool

@@ -2,9 +2,6 @@
 
 namespace Nativella\Symfony\Client;
 
-/**
- * A native call of the request, as TraceableClient recorded it.
- */
 final readonly class TracedCall
 {
     /**
@@ -15,7 +12,7 @@ final readonly class TracedCall
         public string $method,
         public array $payload,
         public ?array $result,
-        /** The message of the exception, when it failed. */
+        /** The exception's message, when it failed. */
         public ?string $error,
         public float $durationInMs,
     ) {

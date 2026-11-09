@@ -3,7 +3,7 @@
 namespace Nativella\Event;
 
 /**
- * A download of a window was saved where the user chose: `$path`, absolute.
+ * A window's download was saved where the user chose. `$path` is absolute.
  */
 final readonly class WindowDownloaded
 {

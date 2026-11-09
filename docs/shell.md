@@ -1,6 +1,6 @@
 # Shell
 
-`Nativella\Shell` hands URLs and files over to the applications of the system.
+`Nativella\Shell` hands URLs and files over to the system's applications.
 
 ```php
 $shell->openUrl('https://github.com/lyrixx/nativella/issues');
@@ -18,7 +18,7 @@ $shell->trash('/home/me/Documents/old-report.pdf');
 
 ## Links to other sites
 
-A plain link to another website already opens in the browser of the system, not in the window: see [Pages and JavaScript](javascript.md#links-and-absolute-urls). `openUrl()` is for the other cases, when PHP decides what to open:
+A plain link to another website already opens in the system browser, not in the window. See [Pages and JavaScript](javascript.md#links-and-absolute-urls). `openUrl()` is for the other cases, when PHP decides what to open:
 
 ```php
 use Nativella\Event\MenuItemClicked;
@@ -28,4 +28,4 @@ if ($event instanceof MenuItemClicked && 'help.docs' === $event->id) {
 }
 ```
 
-`openUrl()` opens whatever it is given: only hand it URLs you trust, or that the user typed.
+`openUrl()` opens whatever it is given, so only hand it URLs you trust, or that the user typed.

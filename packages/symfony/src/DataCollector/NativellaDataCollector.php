@@ -9,10 +9,6 @@ use Symfony\Bundle\FrameworkBundle\DataCollector\AbstractDataCollector;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * The "Nativella" panel of the profiler: the native calls of the request,
- * and what the runtime told PHP.
- */
 final class NativellaDataCollector extends AbstractDataCollector
 {
     public function __construct(
@@ -91,7 +87,7 @@ final class NativellaDataCollector extends AbstractDataCollector
     }
 
     /**
-     * Profiles are kept on disk: secrets of the keychain stay out of them.
+     * Profiles are kept on disk, so keychain secrets stay out of them.
      *
      * @param array<string, mixed> $data
      *

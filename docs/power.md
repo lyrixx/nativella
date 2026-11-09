@@ -1,6 +1,6 @@
 # Power
 
-`Nativella\Power` tells whether the computer runs on battery, and how much is left: to put off a heavy sync until it is plugged in, or to warn before a long export. It also keeps the computer awake while it works.
+`Nativella\Power` tells whether the computer runs on battery, and how much is left, so you can put off a heavy sync until it is plugged in, or warn before a long export. It also keeps the computer awake while it works.
 
 ```php
 if ($power->isOnBattery() && $power->battery()?->level < 0.2) {
@@ -10,7 +10,7 @@ if ($power->isOnBattery() && $power->battery()?->level < 0.2) {
 
 | Method | |
 |---|---|
-| `isOnBattery(): bool` | Whether the computer runs on its battery: false on mains, and without a battery. |
+| `isOnBattery(): bool` | Whether the computer runs on its battery. It is false on mains, and without a battery. |
 | `battery(): ?Battery` | The battery, null without one (a desktop computer). Several batteries count as one. |
 
 A `Battery` has a `level`, from 0 to 1, a `state` (`BatteryState::Charging`, `Discharging`, `Full`, `Empty`, `NotCharging` when a charge limit holds it on mains, or `Unknown`), and `timeToEmpty` and `timeToFull` in seconds, when the system has an estimate.
@@ -31,15 +31,15 @@ try {
 | `keepAwake(string $reason): void` | Keeps the screen on and the computer awake, until `allowSleep()` or until the application quits. `$reason` is what the system shows the user. Calling it again replaces the reason. |
 | `allowSleep(): void` | Lets the computer sleep again. |
 
-The user can still put the computer to sleep, or close its lid. On Linux, Nativella asks the screen saver of the desktop and systemd-logind not to go idle: `systemd-inhibit --list` shows it, with the name of the application and the reason. macOS and Windows go through the same library, untested.
+The user can still put the computer to sleep, or close its lid. On Linux, Nativella asks the desktop's screen saver and systemd-logind not to go idle, and `systemd-inhibit --list` shows it, with the application's name and the reason. macOS and Windows go through the same library, untested.
 
 ## Events
 
 | Event | When |
 |---|---|
 | `PowerSourceChanged` | The computer went on battery, or back on mains: `$event->onBattery`. |
-| `PowerResumed` | The computer woke from sleep: data fetched before may be stale, a connection may be dead. |
+| `PowerResumed` | The computer woke from sleep, so data fetched before may be stale, and a connection may be dead. |
 
-Nativella looks every 5 seconds, and reports sleeps of 15 seconds or more. On Linux, it reads how long the computer slept from the system. Elsewhere, it compares the wall clock to the monotonic one: setting the clock forward looks like a sleep, and Windows, whose monotonic clock runs during sleep, never reports one.
+Nativella looks every 5 seconds, and reports sleeps of 15 seconds or more. On Linux, it reads how long the computer slept from the system. Elsewhere, it compares the wall clock to the monotonic one. Setting the clock forward looks like a sleep, and Windows, whose monotonic clock runs during sleep, never reports one.
 
-Desktop only: on a phone, `Power` throws a `NativeCallException`.
+`Power` is desktop only. On a phone, it throws a `NativeCallException`.

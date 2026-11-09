@@ -28,13 +28,13 @@ The press reaches the pages too, as a `nativella:globalShortcut.pressed` DOM eve
 | `unregisterAll(): void` | Stops listening to every shortcut of the application. |
 | `isRegistered(string $accelerator): bool` | |
 
-Register shortcuts while handling [`AppBooted`](lifecycle.md#booting): registrations do not survive a restart of the application.
+Register shortcuts while handling [`AppBooted`](lifecycle.md#booting), because registrations do not survive an application restart.
 
 ## Accelerators
 
 An accelerator is modifiers and a key, joined by `+`: `CmdOrCtrl+Shift+K`, `Alt+F1`, `Super+N`. The modifiers are `Shift`, `Control`, `Alt`, `Super` and `CmdOrCtrl`, which is Command on macOS and Control elsewhere. An accelerator Nativella cannot read throws a `NativeCallException` that says why.
 
-Another application may hold the shortcut already, or the system may reserve it: then `register()` throws too. Pick combinations with two modifiers, and let the user change them through [settings](settings.md).
+Another application may hold the shortcut already, or the system may reserve it, in which case `register()` throws too. Pick combinations with two modifiers, and let the user change them through [settings](settings.md).
 
 > [!NOTE]
 > On Linux, global shortcuts are implemented for X11 only. Under a Wayland session, expect them not to fire.

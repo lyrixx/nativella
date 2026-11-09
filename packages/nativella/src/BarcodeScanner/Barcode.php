@@ -5,7 +5,6 @@ namespace Nativella\BarcodeScanner;
 final readonly class Barcode
 {
     public function __construct(
-        /** What the code holds. */
         public string $content,
         /** Null for a kind of code that Format does not list. */
         public ?Format $format,

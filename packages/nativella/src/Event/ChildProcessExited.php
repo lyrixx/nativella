@@ -3,8 +3,7 @@
 namespace Nativella\Event;
 
 /**
- * A process started with ChildProcess::start() ended, after its last
- * ChildProcessOutput.
+ * Comes after the process's last ChildProcessOutput.
  */
 final readonly class ChildProcessExited
 {

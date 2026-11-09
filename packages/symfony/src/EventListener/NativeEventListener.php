@@ -15,8 +15,8 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
  *     #[AsEventListener]
  *     public function __invoke(MenuItemClicked $event): void
  *
- * Only the runtime can reach it: it sets NATIVELLA_INTERNAL for its own
- * requests, which a page cannot do (headers only become HTTP_* variables).
+ * Only the runtime can reach it, because it sets NATIVELLA_INTERNAL for its
+ * own requests, which a page cannot do (headers only become HTTP_* variables).
  */
 final readonly class NativeEventListener
 {

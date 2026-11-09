@@ -20,7 +20,7 @@ Values are anything JSON can hold: strings, numbers, booleans, null, and arrays 
 | `all(): array` | Every setting, by key. |
 | `clear(): void` | Removes every setting. |
 
-Keys are plain strings: the dot in `editor.fontSize` is a convention, not a path. A key set to null is still set: `get()` returns null, not the default, and `has()` returns true.
+Keys are plain strings, so the dot in `editor.fontSize` is a convention, not a path. A key set to null is still set. `get()` returns null, not the default, and `has()` returns true.
 
 Every change is written to disk right away, to a temporary file then renamed, so that a crash never leaves half a file behind.
 
@@ -28,4 +28,4 @@ Every change is written to disk right away, to a temporary file then renamed, so
 
 Settings are global to the application and read one key at a time. They suit preferences the user could reset without losing work. Anything you would list, search, or migrate belongs in the database.
 
-Settings are stored in clear, in a JSON file: keep tokens and passwords in the [keychain of the system](secrets.md) instead.
+Settings are stored in clear, in a JSON file, so keep tokens and passwords in the [system keychain](secrets.md) instead.

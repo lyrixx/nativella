@@ -5,8 +5,8 @@ namespace Nativella;
 /**
  * What the Nativella runtime tells PHP about the current request.
  *
- * The runtime sets these server variables itself: a request coming from a
- * page cannot forge them, its headers only ever become HTTP_* variables.
+ * The runtime sets these server variables itself, so a request coming from
+ * a page cannot forge them. Its headers only ever become HTTP_* variables.
  */
 final class Runtime
 {
@@ -27,7 +27,7 @@ final class Runtime
     }
 
     /**
-     * The version of the runtime, null outside Nativella.
+     * Null outside Nativella.
      */
     public static function version(): ?string
     {
@@ -35,8 +35,7 @@ final class Runtime
     }
 
     /**
-     * The operating system: "linux", "macos", "windows", "android" or "ios".
-     * Null outside Nativella.
+     * "linux", "macos", "windows", "android" or "ios". Null outside Nativella.
      */
     public static function platform(): ?string
     {
@@ -44,8 +43,8 @@ final class Runtime
     }
 
     /**
-     * Whether the application runs on a phone or a tablet, where there is no
-     * menu bar, tray icon, global shortcut or autostart.
+     * True on a phone or a tablet, where there is no menu bar, tray icon,
+     * global shortcut or autostart.
      */
     public static function isMobile(): bool
     {
@@ -53,8 +52,8 @@ final class Runtime
     }
 
     /**
-     * Where the application keeps its data (its database, its files), unique
-     * to the application and the user. Null outside Nativella.
+     * For the application's database and files, unique to the application and
+     * the user. Null outside Nativella.
      */
     public static function dataDir(): ?string
     {
@@ -63,8 +62,8 @@ final class Runtime
 
     /**
      * A secret unique to the installation (64 hexadecimal characters), for
-     * the framework to sign and encrypt with: an application ships the same
-     * code to every user, it cannot ship its secret. Null outside Nativella.
+     * the framework to sign and encrypt with. An application ships the same
+     * code to every user, so it cannot ship its secret. Null outside Nativella.
      */
     public static function secret(): ?string
     {

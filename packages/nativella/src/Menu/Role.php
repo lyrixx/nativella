@@ -5,9 +5,10 @@ namespace Nativella\Menu;
 /**
  * Menu entries the system implements.
  *
- * Hide, HideOthers, Services and ShowAll only exist on macOS: other systems
- * leave them out. On Linux, where GTK implements few of them, Nativella does:
- * edit roles act on the focused page and keep the page's own shortcuts.
+ * Hide, HideOthers, Services and ShowAll only exist on macOS, and other
+ * systems leave them out. On Linux, where GTK implements few of them,
+ * Nativella does. Edit roles act on the focused page and keep the page's own
+ * shortcuts.
  */
 enum Role: string
 {

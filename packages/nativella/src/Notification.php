@@ -3,7 +3,7 @@
 namespace Nativella;
 
 /**
- * The notifications of the system, on the desktop and on phones.
+ * System notifications, on the desktop and on phones.
  */
 final readonly class Notification
 {

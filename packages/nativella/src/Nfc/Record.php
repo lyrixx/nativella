@@ -3,12 +3,12 @@
 namespace Nativella\Nfc;
 
 /**
- * A record of the NDEF message of a tag. $type, $id and $payload are bytes:
+ * A record of a tag's NDEF message. $type, $id and $payload are bytes, and
  * text() and uri() read the records most tags hold.
  */
 final readonly class Record
 {
-    /** The prefixes of the URI records, by their code. */
+    /** The index is the code a URI record holds. */
     private const array URI_PREFIXES = [
         '', 'http://www.', 'https://www.', 'http://', 'https://', 'tel:', 'mailto:', 'ftp://anonymous:anonymous@', 'ftp://ftp.',
         'ftps://', 'sftp://', 'smb://', 'nfs://', 'ftp://', 'dav://', 'news:', 'telnet://', 'imap:', 'rtsp://', 'urn:', 'pop:',
@@ -38,7 +38,7 @@ final readonly class Record
     }
 
     /**
-     * The text of a text record, null for another one.
+     * Null for a record that is not a text one.
      */
     public function text(): ?string
     {
@@ -54,7 +54,7 @@ final readonly class Record
     }
 
     /**
-     * The URI of a URI record, or of an absolute URI one, null for another one.
+     * For a URI record or an absolute URI one. Null for any other record.
      */
     public function uri(): ?string
     {

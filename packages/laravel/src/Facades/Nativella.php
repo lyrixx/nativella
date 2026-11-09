@@ -8,15 +8,14 @@ use Nativella\Client;
 use Nativella\Client\FakeClient;
 
 /**
- * Nativella itself: whether the application runs in it, and a fake of it for
- * tests. Its root holds every API, as Nativella\Nativella does.
+ * Its root holds every API, as Nativella\Nativella does.
  *
  * @see \Nativella\Nativella
  */
 final class Nativella extends Facade
 {
     /**
-     * Whether native calls work: the application runs in Nativella, or the
+     * Native calls work when the application runs in Nativella, or when the
      * tests faked it. Offer native features only then, with @native in Blade.
      */
     public static function isNative(): bool
@@ -48,7 +47,7 @@ final class Nativella extends Facade
 
     private static function application(): Application
     {
-        // A test case of PHPUnit itself, without Laravel's.
+        // PHPUnit's own test case, without Laravel's.
         return static::getFacadeApplication() ?? throw new \LogicException('Nativella::isNative() and Nativella::fake() need a Laravel application: use the TestCase of Laravel or Testbench.');
     }
 }

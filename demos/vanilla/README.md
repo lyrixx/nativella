@@ -1,8 +1,8 @@
 # Snippets: Nativella without a framework
 
-A small desktop app in plain PHP: save text snippets, search them, copy one to the clipboard in one
-click. No framework, no template engine, no build step: a hand-written router, PHP templates, one
-CSS file and one JavaScript file. The database is SQLite through `doctrine/dbal`.
+A small desktop app in plain PHP to save text snippets, search them, and copy one to the clipboard
+in one click. It has no framework, template engine or build step, only a hand-written router, PHP
+templates, one CSS file and one JavaScript file. The database is SQLite through `doctrine/dbal`.
 
 | Feature | Nativella API |
 |---|---|
@@ -36,8 +36,8 @@ The database is `snippets.sqlite` in the data directory Nativella gives the app
 - `public/index.php` builds the few services by hand. A native event (an internal
   `POST /_nativella/event`, see `EventFactory::fromGlobals()`) goes to `src/Native/NativeEventHandler.php`;
   anything else goes to the router.
-- On `app.booted`, the schema is created or upgraded by DBAL's comparator (`src/Snippet/SnippetSchema.php`):
-  change the definition, and every user's database follows on the next launch. Under `php -S`, which
+- On `app.booted`, the schema is created or upgraded by DBAL's comparator (`src/Snippet/SnippetSchema.php`).
+  Change the definition, and every user's database follows on the next launch. Under `php -S`, which
   sends no such event, the table is created on the first request.
 - Forms post and redirect (303). Validation errors re-render the form with a 422.
 - `public/app.js` only enhances: copy without leaving the page, search as you type, refresh the list on
@@ -45,6 +45,6 @@ The database is `snippets.sqlite` in the data directory Nativella gives the app
   zone (PHP stores and renders them in UTC).
 - Outside Nativella (`Runtime::isNative()` is false), the copy and import routes do not exist, their buttons
   are hidden, and deleting asks with the browser's `confirm()`.
-- On phones and tablets (`Runtime::isMobile()`), there is no menu, no global shortcut and no import (the
+- On phones and tablets (`Runtime::isMobile()`), there is no menu, global shortcut or import (the
   Android file picker gives a content URI, not a path). The page goes under the status bar
   (`viewport-fit=cover`) and keeps clear of it with the `safe-area-inset-*` of `[data-mobile]` in `app.css`.

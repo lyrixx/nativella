@@ -3,8 +3,6 @@
 namespace Nativella\Menu;
 
 /**
- * An entry of the application menu, a context menu or the tray menu.
- *
  * Clicking an action or a checkbox dispatches Event\MenuItemClicked with its
  * id; clicking a link also opens its URL in the focused window.
  */

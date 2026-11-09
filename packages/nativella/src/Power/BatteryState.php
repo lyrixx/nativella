@@ -8,7 +8,7 @@ enum BatteryState: string
     case Discharging = 'discharging';
     case Empty = 'empty';
     case Full = 'full';
-    /** On mains, but held below full: a charge limit. */
+    /** On mains, but held below full by a charge limit. */
     case NotCharging = 'notCharging';
     case Unknown = 'unknown';
 }

@@ -5,8 +5,6 @@ namespace Nativella\Laravel\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * The application menu, and context menus.
- *
  * @method static void set(\Nativella\Menu\MenuItem ...$items)
  * @method static void remove()
  * @method static void update(string $id, ?string $label = null, ?bool $enabled = null, ?bool $checked = null)

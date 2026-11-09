@@ -1,6 +1,6 @@
 # Phone APIs
 
-Phones can do what computers cannot: vibrate, locate themselves, recognize the fingerprint or the face of their owner, read a barcode with their camera or an NFC tag, share with the other applications. Nativella exposes these to PHP, on Android (and on iOS, untested), with Tauri's plugins.
+Phones can do what computers cannot: vibrate, locate themselves, recognize their owner's fingerprint or face, read a barcode with their camera or an NFC tag, share with other applications. Nativella exposes these to PHP, on Android (and on iOS, untested), with Tauri's plugins.
 
 | API | | Permission |
 |---|---|---|
@@ -11,7 +11,7 @@ Phones can do what computers cannot: vibrate, locate themselves, recognize the f
 | `Nativella\Nfc` | NFC tags, held against the phone. | `nfc` |
 | `Nativella\Share` | The share sheet, with a text or a file. | None |
 
-Two more permissions have no API of PHP: `camera` and `microphone` let the [pages](#camera-and-microphone-in-the-pages) use them. `geolocation` lets the [pages](#location-in-the-pages) locate the device too.
+Two more permissions have no PHP API: `camera` and `microphone` let the [pages](#camera-and-microphone-in-the-pages) use them. `geolocation` lets the [pages](#location-in-the-pages) locate the device too.
 
 ## Permissions
 
@@ -27,9 +27,9 @@ An application asks for the APIs it uses in the `permissions` of its [configurat
 }
 ```
 
-Every application has the plugins of the five, from the template of its platform, but registers only those it asks for. On Android, it keeps only the permissions they declare, location for `geolocation`: an application that never locates the phone does not ask for it. On iOS, its `Info.plist` has the reasons of those it asks for only, which iOS shows the user: Face ID for `biometrics`, the location for `geolocation`, the camera for `barcodeScanner` and `camera`, the microphone for `microphone`, NFC for `nfc`.
+Every application has the plugins of all five, from its platform's template, but registers only those it asks for. On Android, it keeps only the permissions they declare, location for `geolocation`, so an application that never locates the phone does not ask for it. On iOS, its `Info.plist` has the reasons only for those it asks for, which iOS shows the user: Face ID for `biometrics`, the location for `geolocation`, the camera for `barcodeScanner` and `camera`, the microphone for `microphone`, NFC for `nfc`.
 
-Where the user must agree, they are asked on the first call, not at install: location and camera, on Android.
+Where the user must agree (location and camera, on Android), they are asked on the first call, not at install.
 
 Calling an API that the application did not ask for throws a `NativeCallException` that says so, and so does calling any of them on a computer. Check `Runtime::isMobile()` first:
 
@@ -78,7 +78,7 @@ $position->longitude; // 4.83433
 $position->accuracy;  // 20.0: the phone is within 20 meters
 ```
 
-`currentPosition(Accuracy $accuracy = Accuracy::Balanced, int $maximumAge = 0): ?Position` asks the user the first time, then blocks until the phone knows where it is. It returns null when the user does not allow it. It throws a `NativeCallException` when the location is turned off on the phone, or when the phone does not find its position within 20 seconds: indoors, GPS may never get a fix.
+`currentPosition(Accuracy $accuracy = Accuracy::Balanced, int $maximumAge = 0): ?Position` asks the user the first time, then blocks until the phone knows where it is. It returns null when the user does not allow it. It throws a `NativeCallException` when the location is turned off on the phone, or when the phone does not find its position within 20 seconds. Indoors, GPS may never get a fix.
 
 | Argument | |
 |---|---|
@@ -87,7 +87,7 @@ $position->accuracy;  // 20.0: the phone is within 20 meters
 
 A `Position` has `latitude` and `longitude` (degrees), `accuracy` (meters), `altitude` (meters), `altitudeAccuracy` (meters), `speed` (meters per second), `heading` (degrees, clockwise from the north) and `timestamp` (a `DateTimeImmutable`). The last four are null when the phone does not know.
 
-On Android 12 and later, the user may grant an approximate location only: the position is then about a kilometer off, whatever the accuracy asked.
+On Android 12 and later, the user may grant an approximate location only, and the position is then about a kilometer off, whatever the accuracy asked.
 
 ## Biometrics
 
@@ -102,7 +102,7 @@ if (!$biometrics->authenticate('Show the private notes')) {
 | `isAvailable(): bool` | Whether the phone has a fingerprint or a face enrolled. |
 | `authenticate(string $reason, ?string $title = null): bool` | Asks the user to prove who they are, and blocks until they do. `$reason` tells them why. False when they cancel, or do not match. Throws a `NativeCallException` when the phone has no lock at all. |
 
-The user can fall back on the PIN of the phone, as everywhere else on it, and a phone without a fingerprint or a face enrolled asks for the PIN only. So call `authenticate()` whatever `isAvailable()` says: skipping it when biometrics are not available would let anyone holding a phone locked by a PIN through. Biometrics prove that the owner of the phone holds it, nothing more: there is no key or identity to check on a server.
+The user can fall back on the phone's PIN, as everywhere else on it, and a phone without a fingerprint or a face enrolled asks for the PIN only. So call `authenticate()` whatever `isAvailable()` says, because skipping it when biometrics are not available would let anyone holding a phone locked by a PIN through. Biometrics only prove that the phone's owner holds it. There is no key or identity to check on a server.
 
 ## Barcode scanner
 
@@ -123,13 +123,13 @@ $barcode->format;  // Format::Ean13
 | Argument | |
 |---|---|
 | `$formats` | The kinds of codes to read: `Format::Aztec`, `Codabar`, `Code128`, `Code39`, `Code93`, `DataMatrix`, `Ean13`, `Ean8`, `Itf`, `Pdf417`, `QrCode`, `UpcA`, `UpcE`. Every kind when empty. |
-| `$cancelLabel` | The label of the button that gives up, in the language of the application. |
+| `$cancelLabel` | The label of the cancel button, in the application's language. |
 
-The camera shows behind the page: while PHP waits, Nativella makes the page transparent and hides it, and draws a frame and the button to cancel on top. The page comes back as it was. A `Barcode` has the `content` of the code, and its `format`, null for a kind of code that `Format` does not list.
+The camera shows behind the page. While PHP waits, Nativella makes the page transparent and hides it, and draws a frame and the cancel button on top. The page comes back as it was. A `Barcode` has the `content` of the code, and its `format`, null for a kind of code that `Format` does not list.
 
-On Android, ML Kit reads the codes with a model that ships in the APK: no Google Play services, no download. It always reads QR codes, whatever the `$formats`. `Codabar` and `UpcA` are Android's: iOS reads a UPC-A code as an EAN-13 one, with a leading zero, and fails when asked for either.
+On Android, ML Kit reads the codes with a model that ships in the APK, without Google Play services or a download. It always reads QR codes, whatever the `$formats`. `Codabar` and `UpcA` are Android's. iOS reads a UPC-A code as an EAN-13 one, with a leading zero, and fails when asked for either.
 
-The call blocks PHP, so make it in a request the page waits for, a link or a form, and redirect once it is done. A `fetch()` gets a 504 after 25 seconds on Android: see [Mobile](mobile.md#limitations).
+The call blocks PHP, so make it in a request the page waits for, a link or a form, and redirect once it is done. A `fetch()` gets a 504 after 25 seconds on Android (see [Mobile](mobile.md#limitations)).
 
 ## NFC
 
@@ -146,11 +146,11 @@ $tag->records[1]->text();    // "Shelf B"
 | `isAvailable(): bool` | Whether the phone has NFC, turned on in its settings. |
 | `read(): Tag` | Waits for a tag to come near the phone, and reads it. Throws a `NativeCallException` when NFC is not available, or when no tag comes within 60 seconds. |
 
-A `Tag` has its `id` in hexadecimal, null when the phone does not tell it, its `technologies` (Android's classes, as `android.nfc.tech.NfcA`, or iOS's families, as `MiFare`) and its `records`, the NDEF message it holds: empty when it holds none. A `Record` has its `format` (`Nfc\TypeNameFormat`), and its `type`, `id` and `payload` as bytes; `text()` and `uri()` read the text and URI records, which most tags hold, and return null for the others.
+A `Tag` has its `id` in hexadecimal, null when the phone does not tell it, its `technologies` (Android's classes, as `android.nfc.tech.NfcA`, or iOS's families, as `MiFare`) and its `records`, the NDEF message it holds, empty when it holds none. A `Record` has its `format` (`Nfc\TypeNameFormat`), and its `type`, `id` and `payload` as bytes; `text()` and `uri()` read the text and URI records, which most tags hold, and return null for the others.
 
-The call blocks PHP, so make it in a request the page waits for, and tell the user to hold the tag against the phone first: Android shows nothing while it waits. A `fetch()` gets a 504 after 25 seconds on Android: see [Mobile](mobile.md#limitations).
+The call blocks PHP, so make it in a request the page waits for, and tell the user to hold the tag against the phone first, because Android shows nothing while it waits. A `fetch()` gets a 504 after 25 seconds on Android (see [Mobile](mobile.md#limitations)).
 
-Not tried on a phone: emulators have no NFC, where `isAvailable()` is false. On iOS, reading tags needs an entitlement that `nativella ios` does not set yet. Writing tags is not there yet.
+NFC has not been tried on a phone, as emulators have no NFC (`isAvailable()` is false there). On iOS, reading tags needs an entitlement that `nativella ios` does not set yet. Writing tags is not there yet.
 
 ## Share
 
@@ -162,23 +162,23 @@ $share->file(Runtime::dataDir().'/export.csv', 'text/csv');
 
 | Method | |
 |---|---|
-| `text(string $text): void` | Opens the share sheet with a text, or a link: the application the user picks makes what it can of it. |
-| `file(string $path, ?string $mimeType = null, ?string $title = null): void` | Opens it with a file, absolute and readable by PHP: one of the data directory, the cache. `$mimeType` (`text/csv`, `image/png`…) tells the phone which applications can take it. Throws when there is no such file. |
+| `text(string $text): void` | Opens the share sheet with a text or a link. The application the user picks makes what it can of it. |
+| `file(string $path, ?string $mimeType = null, ?string $title = null): void` | Opens it with a file, absolute and readable by PHP, such as one in the data directory or the cache. `$mimeType` (`text/csv`, `image/png`…) tells the phone which applications can take it. Throws when there is no such file. |
 
-Sharing needs no permission: the user picks where it goes, or closes the sheet. The call returns once the sheet is open, and nothing tells whether the user shared: Android does not say. The file is copied to the cache of the application first, so PHP can delete or change its own afterwards.
+Sharing needs no permission, because the user picks where it goes, or closes the sheet. The call returns once the sheet is open, and nothing tells whether the user shared, as Android does not say. The file is copied to the application's cache first, so PHP can delete or change its own afterwards.
 
 ## Camera and microphone in the pages
 
-The pages of the application may use the camera and the microphone themselves, with `navigator.mediaDevices.getUserMedia()`: a video call, a photo, a voice note. The application asks for them in its `permissions`, `camera` and `microphone`, one by one:
+The application's pages may use the camera and the microphone themselves, with `navigator.mediaDevices.getUserMedia()`, for a video call, a photo or a voice note. The application asks for them in its `permissions`, `camera` and `microphone`, one by one:
 
 ```js
 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 document.querySelector('video').srcObject = stream;
 ```
 
-A page that asks for what the application did not ask for gets a `NotAllowedError`. The user is asked on the first use, as in a browser: by Android for the camera and the microphone, by iOS with the reason of the `Info.plist`. Computers have no question: Linux's webview lets the page use the devices once the application asked for them, and nothing tried it on macOS or Windows.
+A page that asks for what the application did not ask for gets a `NotAllowedError`. The user is asked on the first use, as in a browser: by Android for the camera and the microphone, by iOS with the reason in the `Info.plist`. Computers ask no question. Linux's webview lets the page use the devices once the application asked for them, and this has not been tried on macOS or Windows.
 
-These two are not phone APIs: they work on computers too, and need no PHP.
+These two are not phone APIs. They work on computers too, and need no PHP.
 
 ## Location in the pages
 
@@ -191,16 +191,16 @@ navigator.geolocation.getCurrentPosition(
 );
 ```
 
-Without `geolocation` in the `permissions`, the page gets a `PERMISSION_DENIED` error. With it, the system has the last word: Linux's webview asks GeoClue, the location service of the desktop, which fails with `POSITION_UNAVAILABLE` when the location services are off in the settings. Nothing tried it on Android, iOS, macOS or Windows yet.
+Without `geolocation` in the `permissions`, the page gets a `PERMISSION_DENIED` error. With it, the system has the last word. Linux's webview asks GeoClue, the desktop's location service, which fails with `POSITION_UNAVAILABLE` when the location services are off in the settings. It has not been tried on Android, iOS, macOS or Windows yet.
 
 ## In the demos
 
 - Laravel Tasks vibrates with a success when the last open task is done.
-- Symfony Notes adds the location of the phone to a note, as a link to OpenStreetMap.
-- Symfony Notes adds what a barcode or a QR code holds to a note: a link for a web address.
+- Symfony Notes adds the phone's location to a note, as a link to OpenStreetMap.
+- Symfony Notes adds what a barcode or a QR code holds to a note, with a link for a web address.
 - Symfony Notes shares a note, its title and its text, with the share sheet.
 - Plain PHP Snippets asks for a fingerprint, rather than a dialog, before deleting a snippet.
 
 ## Not there yet
 
-A PHP API for the camera (photos and videos) and the microphone, writing NFC tags, and push notifications. Tauri has no plugin for the first two: the pages can use them with `getUserMedia()`, see above.
+PHP has no API yet for the camera (photos and videos) or the microphone, for writing NFC tags, or for push notifications. Tauri has no plugin for the first two, but the pages can use them with `getUserMedia()` (see above).

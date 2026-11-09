@@ -35,11 +35,11 @@ Run it:
 nativella run .
 ```
 
-A window opens on the page. Submit the form: `$_GET` is filled, as behind any web server, except that no server started. `ss -ltnp` shows no new port: the request went from the webview to PHP inside the `nativella` process.
+A window opens on the page. Submit the form and `$_GET` is filled, as behind any web server, except that no server started. `ss -ltnp` shows no new port, because the request went from the webview to PHP inside the `nativella` process.
 
 ### Reloading
 
-Change `index.php` and save: the window reloads. `nativella run` watches the files of the project, and reloads every window once they stop changing, with the new code: opcache checks the files on every request. It leaves out what the application and its tools write to, `var/`, `storage/`, `bootstrap/cache/`, `vendor/`, `node_modules/` and `.git/`, the data directory, the logs and SQLite databases an application writes anywhere (`*.log`, `*.sqlite`, `*.db` and their journals), and the files editors keep aside (`.index.php.swp`, `index.php~`). A [standalone executable](building.md) does not watch anything. `NATIVELLA_RELOAD=0` turns it off.
+When you change `index.php` and save, the window reloads. `nativella run` watches the project files, and reloads every window once they stop changing, with the new code, as opcache checks the files on every request. It leaves out what the application and its tools write to, `var/`, `storage/`, `bootstrap/cache/`, `vendor/`, `node_modules/` and `.git/`, the data directory, the logs and SQLite databases an application writes anywhere (`*.log`, `*.sqlite`, `*.db` and their journals), and the files editors keep aside (`.index.php.swp`, `index.php~`). A [standalone executable](building.md) does not watch anything. `NATIVELLA_RELOAD=0` turns it off.
 
 ## 2. Give it a name
 
@@ -58,7 +58,7 @@ The window is titled after the directory. Name the application in `composer.json
 }
 ```
 
-The identifier names the directory where the application keeps its data: pick it once. [Configuration](configuration.md) lists every key.
+The identifier names the directory where the application keeps its data, so pick it once. [Configuration](configuration.md) lists every key.
 
 ## 3. Call native code
 
@@ -96,11 +96,11 @@ if ('POST' === $_SERVER['REQUEST_METHOD']) {
 </form>
 ```
 
-Click the button: a notification shows up, and the page comes back. The 303 redirect works although WebKit follows no redirect for a custom scheme: the runtime follows it for the page. [How it works](how-it-works.md) has the details.
+When you click the button, a notification shows up and the page comes back. The 303 redirect works although WebKit follows no redirect for a custom scheme, because the runtime follows it for the page. [How it works](how-it-works.md) has the details.
 
 ## 4. React to native events
 
-Step 3 only calls native code. When something must happen the other way round (the application started, a menu item was clicked, files were dropped on a window, a timer fired), PHP has to hear about it: that is a native event. An application that does not react to any can skip this step. With [Symfony](symfony.md#native-events-are-symfony-events) and [Laravel](laravel.md#native-events-are-laravel-events), a listener does what the code below does by hand.
+Step 3 only calls native code. When something must happen the other way round (the application started, a menu item was clicked, files were dropped on a window, a timer fired), PHP has to hear about it through a native event. An application that does not react to any can skip this step. With [Symfony](symfony.md#native-events-are-symfony-events) and [Laravel](laravel.md#native-events-are-laravel-events), a listener does what the code below does by hand.
 
 Native events reach PHP as requests to `POST /_nativella/event`, which only the runtime can send. `EventFactory::fromGlobals()` turns such a request into an event object, and returns null for every other request. Put it at the top of the front controller:
 
@@ -141,7 +141,7 @@ if (null !== $event = EventFactory::fromGlobals()) {
 // The pages of the application, as before.
 ```
 
-`AppBooted` comes first, before any page is served: it is where an application sets its menus, opens its windows and migrates its database. [Lifecycle and events](lifecycle.md) lists every event.
+`AppBooted` comes first, before any page is served. It is where an application sets its menus, opens its windows and migrates its database. [Lifecycle and events](lifecycle.md) lists every event.
 
 ## 5. Ship it
 
@@ -159,6 +159,6 @@ nativella build hello
 - [What runs where](platforms.md): which native API works on computers, which on phones.
 - [Windows](windows.md), [Menus](menus.md), [Dialogs](dialogs.md): the native APIs, one page each.
 - [Mobile](mobile.md): the same project as an Android or iOS application, with `nativella android` and `nativella ios`.
-- [Database](database.md): keep data in SQLite, in the data directory of the application.
+- [Database](database.md): keep data in SQLite, in the application's data directory.
 - [Pages and JavaScript](javascript.md): native events in the browser, and context menus.
-- The demos of the repository: [Notes](../demos/symfony) with Symfony, [Tasks](../demos/laravel) with Laravel, [Snippets](../demos/vanilla) in plain PHP.
+- The repository's demos: [Notes](../demos/symfony) with Symfony, [Tasks](../demos/laravel) with Laravel, [Snippets](../demos/vanilla) in plain PHP.

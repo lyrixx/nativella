@@ -5,8 +5,6 @@ namespace Nativella\Laravel\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * The share sheet of the phone.
- *
  * @method static void text(string $text)
  * @method static void file(string $path, ?string $mimeType = null, ?string $title = null)
  *

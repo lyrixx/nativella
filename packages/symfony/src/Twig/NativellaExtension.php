@@ -10,9 +10,9 @@ use Twig\TwigFunction;
 /**
  * What templates need to know about the runtime:
  *
- * - nativella_is_native(): whether native calls work, to offer native
- *   features only then: Nativella shows the page, or the tests use the fake
- *   client;
+ * - nativella_is_native(): whether native calls work (Nativella shows the
+ *   page, or the tests use the fake client), to offer native features only
+ *   then;
  * - nativella_is_mobile(): whether it runs on a phone, without menu bar, tray
  *   icon, global shortcut or file dropping;
  * - nativella_platform(): "linux", "macos", "windows", "android", "ios", or

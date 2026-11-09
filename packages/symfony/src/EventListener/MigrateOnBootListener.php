@@ -8,8 +8,8 @@ use Nativella\Event\AppBooted;
 use Psr\Log\LoggerInterface;
 
 /**
- * Migrates the database when the application starts: a desktop application
- * has no deployment step, its database lives on the user's machine.
+ * A desktop application has no deployment step, and its database lives on the
+ * user's machine.
  */
 final readonly class MigrateOnBootListener
 {
@@ -21,7 +21,7 @@ final readonly class MigrateOnBootListener
 
     public function __invoke(AppBooted $event): void
     {
-        // Git keeps no empty directory: a project may have none yet.
+        // Git keeps no empty directory, so a project may have none yet.
         foreach ($this->dependencyFactory->getConfiguration()->getMigrationDirectories() as $directory) {
             if (!is_dir($directory)) {
                 $this->logger?->warning('The migrations directory {directory} does not exist: no migration runs.', ['directory' => $directory]);

@@ -3,7 +3,7 @@
 namespace Nativella;
 
 /**
- * Talks to the JavaScript of the pages, which listen with:
+ * Talks to the pages' JavaScript, which listens with:
  *
  *     window.addEventListener('nativella:note.saved', (event) => console.log(event.detail));
  *

@@ -6,10 +6,8 @@ use Nativella\Window\WindowInfo;
 use Nativella\Window\WindowOptions;
 
 /**
- * Opens and drives windows, each one known by its label.
- *
- * Without a label, a method acts on the window that made the request, or on
- * the focused one during a native event.
+ * Each window is known by its label. Without one, a method acts on the window
+ * that made the request, or on the focused one during a native event.
  */
 final readonly class Window
 {
@@ -19,10 +17,10 @@ final readonly class Window
     }
 
     /**
-     * Opens a window, or focuses it if it is already open.
+     * Focuses the window if it is already open.
      *
-     * The main window starts from the options of the "window" key of
-     * extra.nativella in composer.json, which $options complete.
+     * The main window starts from the "window" key of extra.nativella in
+     * composer.json, which $options complete.
      */
     public function open(string $window, ?WindowOptions $options = null): WindowInfo
     {
@@ -79,8 +77,8 @@ final readonly class Window
     }
 
     /**
-     * Shows a progress bar on the icon of the window, in the taskbar or the
-     * dock, where the system has one (Windows, macOS, GNOME with libunity).
+     * Shows a progress bar on the window's icon, in the taskbar or the dock,
+     * where the system has one (Windows, macOS, GNOME with libunity).
      *
      * @param int<0, 100>|null $percent null removes the bar
      */
@@ -130,7 +128,7 @@ final readonly class Window
     }
 
     /**
-     * Opens the print dialog of the system for the page of the window.
+     * Opens the system print dialog for the window's page.
      */
     public function print(?string $window = null): void
     {
@@ -138,8 +136,8 @@ final readonly class Window
     }
 
     /**
-     * Writes the page of the window to a PDF file, without a dialog, as it
-     * would print: @media print styles apply. Linux only, for now.
+     * Shows no dialog. @media print styles apply, as when printing. Linux
+     * only, for now.
      *
      * @param string $path absolute
      */

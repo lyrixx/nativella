@@ -5,8 +5,6 @@ namespace Nativella\Laravel\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * The displays and the cursor.
- *
  * @method static list<\Nativella\Screen\Display> all()
  * @method static ?\Nativella\Screen\Display      primary()
  * @method static \Nativella\Screen\Point         cursorPosition()

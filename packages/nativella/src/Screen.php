@@ -5,9 +5,6 @@ namespace Nativella;
 use Nativella\Screen\Display;
 use Nativella\Screen\Point;
 
-/**
- * The displays and the cursor.
- */
 final readonly class Screen
 {
     public function __construct(
@@ -25,8 +22,8 @@ final readonly class Screen
     }
 
     /**
-     * Null when the system has no primary display: Wayland sessions, among
-     * others, where Display::$primary is always false too.
+     * Null when the system has no primary display, as on Wayland sessions
+     * among others, where Display::$primary is always false too.
      */
     public function primary(): ?Display
     {

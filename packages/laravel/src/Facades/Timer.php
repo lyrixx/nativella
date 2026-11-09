@@ -5,8 +5,6 @@ namespace Nativella\Laravel\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * Wakes PHP up with Nativella\Event\TimerFired events, for periodic work.
- *
  * @method static void every(string $name, float $seconds)
  * @method static void after(string $name, float $seconds)
  * @method static void cancel(string $name)

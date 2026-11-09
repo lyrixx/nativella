@@ -2,9 +2,6 @@
 
 namespace Nativella;
 
-/**
- * The system clipboard: text, HTML or an image.
- */
 final readonly class Clipboard
 {
     public function __construct(
@@ -13,7 +10,8 @@ final readonly class Clipboard
     }
 
     /**
-     * Null when the clipboard holds no text: it is empty, or holds an image.
+     * Null when the clipboard holds no text, because it is empty or holds an
+     * image.
      */
     public function readText(): ?string
     {
@@ -34,7 +32,7 @@ final readonly class Clipboard
     }
 
     /**
-     * The image of the clipboard as PNG bytes, null when it holds none.
+     * PNG bytes, null when the clipboard holds no image.
      */
     public function readImage(): ?string
     {

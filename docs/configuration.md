@@ -1,6 +1,6 @@
 # Configuration
 
-A Nativella application describes itself in the `extra.nativella` section of its `composer.json`. Every key is optional: a project without `composer.json` runs too, named after its directory.
+A Nativella application describes itself in the `extra.nativella` section of its `composer.json`. Every key is optional, and a project without `composer.json` runs too, named after its directory.
 
 ```json title="composer.json"
 {
@@ -37,29 +37,29 @@ Defaults to the package name of `composer.json`, title-cased: `acme/note-taker` 
 
 A reverse domain name, unique to the application: `com.acme.notes`. Letters, digits and dashes, separated by dots.
 
-The identifier names the directories of the application, the [data directory](#the-data-directory) first. Choose it once: changing it moves the application to a new, empty data directory, and its users lose their data.
+The identifier names the application's directories, the [data directory](#the-data-directory) first. Choose it once, because changing it moves the application to a new, empty data directory, and its users lose their data.
 
 Defaults to `dev.nativella.` followed by the package name: `acme/note-taker` becomes `dev.nativella.note-taker`.
 
-On Android, the application ID, what Android knows the application by, is the identifier with its dashes as underscores, as Android accepts no dash: `dev.nativella.note_taker`. It needs two segments at least, each starting with a letter: `com.acme.2048` cannot make one. See [Mobile](mobile.md#building-an-apk).
+On Android, the application ID, what Android knows the application by, is the identifier with its dashes as underscores, as Android accepts no dash: `dev.nativella.note_taker`. It needs at least two segments, each starting with a letter, so `com.acme.2048` cannot make one. See [Mobile](mobile.md#building-an-apk).
 
-On iOS, the bundle ID is the identifier as it is: Apple accepts letters, digits, dashes and dots there. The provisioning profile of an app for devices must be for it, or for a wildcard App ID that matches it, such as `com.acme.*`. See [Mobile](mobile.md#building-an-ios-app).
+On iOS, the bundle ID is the identifier as it is, because Apple accepts letters, digits, dashes and dots there. The provisioning profile of an app for devices must be for it, or for a wildcard App ID that matches it, such as `com.acme.*`. See [Mobile](mobile.md#building-an-ios-app).
 
 ## `version`
 
-The version of the application, as [`App::info()`](app.md) reports it. Defaults to the `version` of `composer.json`, then to `0.1.0`. A semantic version, `1.2.0`, which [updates](updates.md) compare; `1.2` and `1` stand for `1.2.0` and `1.0.0`. Nativella refuses to start with anything else, `v1.2.0` or `dev-main`.
+The application's version, as [`App::info()`](app.md) reports it. Defaults to the `version` of `composer.json`, then to `0.1.0`. It is a semantic version, `1.2.0`, which [updates](updates.md) compare; `1.2` and `1` stand for `1.2.0` and `1.0.0`. Nativella refuses to start with anything else, like `v1.2.0` or `dev-main`.
 
 ## `icon`
 
 A PNG file, relative to the project. It is the icon of the windows, of the [tray](tray.md) unless the tray sets its own, and the launcher icon of the [Android application](mobile.md#building-an-apk). Without it, the application uses the Nativella icon.
 
-The windows of a [standalone executable](building.md) take it from the project the executable carries: the build refuses an icon that does not [ship](building.md#what-ships), such as one under `tests/`. An icon that cannot be read leaves the windows with the Nativella icon, and a warning.
+The windows of a [standalone executable](building.md) take it from the project the executable carries, so the build refuses an icon that does not [ship](building.md#what-ships), such as one under `tests/`. An icon that cannot be read leaves the windows with the Nativella icon, and a warning.
 
-Make it square, 512 or 1024 pixels: Android shows it at up to 192 pixels, and `nativella android` warns below that. A rectangle is centered on a transparent square.
+Make it square, 512 or 1024 pixels. Android shows it at up to 192 pixels, and `nativella android` warns below that. A rectangle is centered on a transparent square.
 
 ## `window`
 
-The options of the main window: the one Nativella opens when PHP opens none while handling [`AppBooted`](lifecycle.md#booting). The keys are those of [`WindowOptions`](windows.md#window-options), in camelCase: `url`, `title`, `width`, `height`, `minWidth`, `resizable`, `decorations`…
+The options of the main window, the one Nativella opens when PHP opens none while handling [`AppBooted`](lifecycle.md#booting). The keys are those of [`WindowOptions`](windows.md#window-options), in camelCase: `url`, `title`, `width`, `height`, `minWidth`, `resizable`, `decorations`…
 
 ```json
 "window": { "url": "/inbox", "width": 1200, "height": 800, "center": true }
@@ -69,7 +69,7 @@ Without `window`, the main window opens on `/`, 1024 by 768 pixels, titled after
 
 ## `deepLinks`
 
-URL schemes that open the application: with `"deepLinks": ["notes"]`, a `notes://42` link in a browser, a mail or a terminal (`xdg-open notes://42`) starts the application, or wakes it up if it runs, and PHP gets the URL as an [`AppUrlsOpened`](lifecycle.md#native-events) event:
+URL schemes that open the application. With `"deepLinks": ["notes"]`, a `notes://42` link in a browser, a mail or a terminal (`xdg-open notes://42`) starts the application, or wakes it up if it runs, and PHP gets the URL as an [`AppUrlsOpened`](lifecycle.md#native-events) event:
 
 ```php
 use Nativella\Event\AppUrlsOpened;
@@ -84,11 +84,11 @@ public function __invoke(AppUrlsOpened $event): void
 }
 ```
 
-Schemes are lowercase letters, digits, `+`, `-` and `.`, starting with a letter; web schemes (`http`, `https`…) are refused. On Linux and Windows, a [standalone executable](building.md) registers its schemes with the system when it starts; `nativella run` does not, as it is not what the system should launch. macOS registers schemes when an application is installed, which Nativella does not do yet. Not on mobile yet.
+Schemes are lowercase letters, digits, `+`, `-` and `.`, starting with a letter; web schemes (`http`, `https`…) are refused. On Linux and Windows, a [standalone executable](building.md) registers its schemes with the system when it starts; `nativella run` does not, as it is not what the system should launch. macOS registers schemes when an application is installed, which Nativella does not do yet. Deep links are not available on mobile yet.
 
 ## `permissions`
 
-The [phone APIs](phone-apis.md) the application uses: `barcodeScanner`, `biometrics`, `geolocation`, `haptics`, `nfc`, and what its pages may use of the device: `camera`, `microphone`, and the location, with `geolocation` too. Mobile applications have the phone APIs it lists, and only those: on Android, with the permissions they declare. Computers ignore the phone APIs, but not what the pages may use.
+The [phone APIs](phone-apis.md) the application uses (`barcodeScanner`, `biometrics`, `geolocation`, `haptics`, `nfc`), and what its pages may use of the device (`camera`, `microphone`, and the location, with `geolocation` too). Mobile applications have the phone APIs it lists and only those, on Android with the permissions they declare. Computers ignore the phone APIs, but not what the pages may use.
 
 ## `updates`
 
@@ -108,27 +108,27 @@ Nativella creates it at startup and prints it on the standard error output. PHP 
 
 | File | |
 |---|---|
-| `.nativella-secret` | The secret of the installation: [`NATIVELLA_SECRET`](#what-php-sees). Back it up with the database: what the framework encrypted with it is unreadable without it. A file that holds no secret, after a restore gone wrong, is set aside as `.nativella-secret.corrupted-<time>`, never overwritten, and a new secret replaces it. |
+| `.nativella-secret` | The installation's secret, [`NATIVELLA_SECRET`](#what-php-sees). Back it up with the database, because what the framework encrypted with it is unreadable without it. A file that holds no secret, after a restore gone wrong, is set aside as `.nativella-secret.corrupted-<time>`, never overwritten, and a new secret replaces it. |
 | `.nativella-cookies` | The cookies with an expiry date, which outlive the application as in a browser. Session cookies end with it. |
 
 ## Environment variables
 
 | Variable | Effect |
 |---|---|
-| `NATIVELLA_DATA_DIR` | Moves the data directory: handy to start from a clean state while developing, or to run two copies side by side. |
+| `NATIVELLA_DATA_DIR` | Moves the data directory, which is handy to start from a clean state while developing, or to run two copies side by side. |
 | `NATIVELLA_RELOAD` | `0` stops `nativella run` from [reloading the windows](getting-started.md#reloading) when a file of the project changes. |
-| `NO_AT_BRIDGE` | Nativella sets it to `1` on Linux unless it is already set, to work around a crash of WebKitGTK in the accessibility bridge: for itself, not for the [child processes](child-processes.md) and the browser it starts. See [Limitations](limitations.md#linux). |
+| `NO_AT_BRIDGE` | Nativella sets it to `1` on Linux unless it is already set, to work around a WebKitGTK crash in the accessibility bridge. It sets it for itself, not for the [child processes](child-processes.md) and the browser it starts. See [Limitations](limitations.md#linux). |
 
-Like PHP-FPM without `clear_env`, PHP gets the environment of the process in `$_SERVER`: `APP_ENV=prod nativella run .` works as you would expect.
+Like PHP-FPM without `clear_env`, PHP gets the process environment in `$_SERVER`, so `APP_ENV=prod nativella run .` works as you would expect.
 
 ## What PHP sees
 
-On top of the usual CGI variables, the runtime sets these in `$_SERVER`. A request from a page cannot forge them: its headers only ever become `HTTP_*` variables.
+On top of the usual CGI variables, the runtime sets these in `$_SERVER`. A request from a page cannot forge them, because its headers only ever become `HTTP_*` variables.
 
 | Variable | Value |
 |---|---|
 | `NATIVELLA_DATA_DIR` | The [data directory](#the-data-directory). |
-| `NATIVELLA_SECRET` | A random secret, unique to the installation: 64 hexadecimal characters, created on the first launch and kept in the data directory. Sign and encrypt with it, rather than with a secret of `.env` that every user would share. |
+| `NATIVELLA_SECRET` | A random secret, unique to the installation, of 64 hexadecimal characters, created on the first launch and kept in the data directory. Sign and encrypt with it, rather than with a secret in `.env` that every user would share. |
 | `NATIVELLA_PLATFORM` | `linux`, `macos`, `windows`, `android` or `ios`. |
 | `NATIVELLA_VERSION` | The version of Nativella. |
 | `NATIVELLA_WINDOW` | The label of the window whose page made the request. Absent for internal requests. |
@@ -141,12 +141,12 @@ On top of the usual CGI variables, the runtime sets these in `$_SERVER`. A reque
 
 | Method | |
 |---|---|
-| `Runtime::isNative(): bool` | Whether PHP runs in Nativella: `nativella_call()` exists. False under the [fake client](testing.md) of the tests: guard native features with `Nativella::isNative()`, which asks the client. |
+| `Runtime::isNative(): bool` | Whether PHP runs in Nativella, meaning `nativella_call()` exists. False under the [fake client](testing.md) of the tests, so guard native features with `Nativella::isNative()`, which asks the client. |
 | `Runtime::dataDir(): ?string` | The data directory. |
-| `Runtime::secret(): ?string` | The secret of the installation. |
+| `Runtime::secret(): ?string` | The installation's secret. |
 | `Runtime::platform(): ?string` | The platform. |
 | `Runtime::isMobile(): bool` | Whether the platform is `android` or `ios`. |
-| `Runtime::window(): ?string` | The label of the window of the request. |
+| `Runtime::window(): ?string` | The label of the request's window. |
 | `Runtime::isInternalRequest(): bool` | Whether the runtime sent the request. |
 | `Runtime::version(): ?string` | The version of Nativella. |
 
@@ -154,24 +154,24 @@ Each one returns null, or false, outside Nativella.
 
 ## `php.ini`
 
-PHP reads the php.ini of Nativella, [`crates/runtime/php.ini`](../crates/runtime/php.ini), compiled into the `nativella` command, and no other: neither a php.ini of the machine, which belongs to another PHP, nor the files `PHPRC` and `PHP_INI_SCAN_DIR` point to. It keeps the defaults of PHP, except for these:
+PHP reads Nativella's php.ini, [`crates/runtime/php.ini`](../crates/runtime/php.ini), compiled into the `nativella` command, and no other. It ignores a php.ini on the machine, which belongs to another PHP, and the files `PHPRC` and `PHP_INI_SCAN_DIR` point to. It keeps PHP's defaults, except for these:
 
 | Setting | Value |
 |---|---|
 | `display_errors` | `Off`: errors go to the standard error output, the terminal of `nativella run` (logcat on Android), not into the page. A fatal error answers a 500, which PHP only does when it does not display the error. |
 | `zend.assertions` | `-1`, as in production. |
-| `post_max_size`, `upload_max_filesize` | `512M`: the 2 MB of PHP are less than a photo of a phone. |
+| `post_max_size`, `upload_max_filesize` | `512M`, because PHP's default 2 MB is less than a phone photo. |
 | `hard_timeout` | `0`, see below. |
 
-An application changes the settings it needs with `ini_set()`, at the top of its front controller: `memory_limit`, `max_execution_time`… `ini_set()` cannot change the ones PHP reads before the script runs, like `post_max_size` and `upload_max_filesize`, nor the ones it reads only when it starts, like the size of the memory of opcache: they take a change of that file, in a `nativella` [of your own](custom-php.md).
+An application changes the settings it needs with `ini_set()`, at the top of its front controller: `memory_limit`, `max_execution_time`… `ini_set()` cannot change the ones PHP reads before the script runs, like `post_max_size` and `upload_max_filesize`, nor the ones it reads only when it starts, like opcache's memory size. Those take a change to that file, in a `nativella` [of your own](custom-php.md).
 
 At startup, Nativella sets two more, which point at the system otherwise:
 
 | Setting | Value |
 |---|---|
-| `date.timezone` | The time zone of the user, so that dates are local. |
-| `session.save_path` | `sessions/` in the cache directory of the application. |
+| `date.timezone` | The user's time zone, so that dates are local. |
+| `session.save_path` | `sessions/` in the application's cache directory. |
 
-`max_execution_time` applies as usual, except that a native call that waited more than a second for the user starts its count again: a user may leave a [dialog](dialogs.md) open as long as they like, as `sleep()` does not count on Linux either. Quick native calls do not: a loop of them still times out. The hard timeout is off, `hard_timeout = 0`: PHP counts the time of the whole process, and would kill it, the application with it, two seconds after the limit.
+`max_execution_time` applies as usual, except that a native call that waited more than a second for the user starts its count again, so a user may leave a [dialog](dialogs.md) open as long as they like, as `sleep()` does not count on Linux either. Quick native calls do not restart it, so a loop of them still times out. The hard timeout is off, `hard_timeout = 0`, because PHP counts the time of the whole process and would kill it, and the application with it, two seconds after the limit.
 
-A `nativella` linked with [the PHP of the system](development.md#the-php-of-the-system), in development, reads the php.ini of that PHP first, which loads its extensions: `/etc/php/8.5/embed/php.ini` and `/etc/php/8.5/embed/conf.d/` on Ubuntu. The one of Nativella applies over it.
+A `nativella` linked with [the system PHP](development.md#the-php-of-the-system), in development, first reads that PHP's php.ini, which loads its extensions: `/etc/php/8.5/embed/php.ini` and `/etc/php/8.5/embed/conf.d/` on Ubuntu. Nativella's applies over it.

@@ -7,8 +7,6 @@ use Nativella\Runtime;
 use Nativella\System\Theme;
 
 /**
- * Turns the native events the runtime sends into event objects.
- *
  * Names and payloads: keep in sync with the callers of events::send() in
  * crates/nativella/src/.
  */

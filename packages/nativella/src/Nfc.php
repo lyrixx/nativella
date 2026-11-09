@@ -5,10 +5,8 @@ namespace Nativella;
 use Nativella\Nfc\Tag;
 
 /**
- * Reads the NFC tag held against the phone.
- *
- * The application asks for it with "nfc" in the permissions of
- * extra.nativella, in its composer.json.
+ * The application asks for it with "nfc" in extra.nativella.permissions, in
+ * its composer.json.
  */
 final readonly class Nfc
 {

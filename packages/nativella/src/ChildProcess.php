@@ -5,8 +5,8 @@ namespace Nativella;
 use Nativella\ChildProcess\RunningProcess;
 
 /**
- * Processes the application starts and watches: a queue worker, a command
- * line tool, a local server. What they write comes as
+ * Processes the application starts and watches, such as a queue worker, a
+ * command line tool or a local server. What they write comes as
  * Event\ChildProcessOutput events, their end as Event\ChildProcessExited.
  *
  * They end with the application. Desktop only.
@@ -19,8 +19,8 @@ final readonly class ChildProcess
     }
 
     /**
-     * Starts $command, under the name $alias, and returns its process id. A
-     * process of that name being stopped gets 4 seconds to end first.
+     * Returns the process id. A process of that name being stopped gets 4
+     * seconds to end first.
      *
      * @param non-empty-list<string> $command the program, then its arguments: no shell is involved
      * @param string|null            $cwd     relative to the project, the project itself by default
@@ -38,7 +38,7 @@ final readonly class ChildProcess
     }
 
     /**
-     * Writes to the standard input of the process. It returns at once: the
+     * Writes to the process's standard input. Returns at once, and the
      * process reads it when it likes.
      */
     public function write(string $alias, string $data): void
@@ -47,8 +47,8 @@ final readonly class ChildProcess
     }
 
     /**
-     * Closes the standard input of the process, after what was written: the
-     * end that `sort` or `jq` wait for.
+     * Closes the process's standard input, after what was written. This is
+     * the end that `sort` or `jq` wait for.
      */
     public function closeInput(string $alias): void
     {

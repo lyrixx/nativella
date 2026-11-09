@@ -3,7 +3,7 @@
 namespace Nativella\Event;
 
 /**
- * Updater::install() replaced the executable: the next start runs `$version`.
+ * Updater::install() replaced the executable, so the next start runs `$version`.
  */
 final readonly class UpdaterInstalled
 {

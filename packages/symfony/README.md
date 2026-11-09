@@ -8,7 +8,7 @@ database when the application starts, and adds a Nativella panel to the profiler
 composer require nativella/symfony-bundle
 ```
 
-There is no Flex recipe yet: enable the bundle yourself.
+There is no Flex recipe yet, so enable the bundle yourself.
 
 ```php
 // config/bundles.php
@@ -18,7 +18,7 @@ return [
 ];
 ```
 
-The application runs with the `nativella` command: see [Installation](https://lyrixx.github.io/nativella/docs/installation/)
+The application runs with the `nativella` command. See [Installation](https://lyrixx.github.io/nativella/docs/installation/)
 and [Symfony](https://lyrixx.github.io/nativella/docs/symfony/).
 
 ## Contributing

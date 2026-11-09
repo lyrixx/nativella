@@ -6,9 +6,8 @@ use Nativella\Client;
 use Nativella\Exception\NativeCallException;
 
 /**
- * A client for tests: it records the calls and answers what the native side
- * would when nothing happens (no file picked, an empty clipboard…), or what
- * the test told it to.
+ * Records the calls and answers what the native side would when nothing
+ * happens (no file picked, an empty clipboard…), or what the test told it to.
  */
 final class FakeClient implements Client
 {
@@ -94,7 +93,7 @@ final class FakeClient implements Client
     }
 
     /**
-     * Always: the code under test takes its native branches.
+     * Always true, so the code under test takes its native branches.
      */
     public function isNative(): bool
     {

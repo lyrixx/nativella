@@ -6,10 +6,11 @@ use Nativella\BarcodeScanner\Barcode;
 use Nativella\BarcodeScanner\Format;
 
 /**
- * Reads a barcode or a QR code with the camera of the phone.
+ * Reads a barcode or a QR code with the phone's camera.
  *
- * The application asks for it with "barcodeScanner" in the permissions of
- * extra.nativella, in its composer.json; the user is asked on the first call.
+ * The application asks for it with "barcodeScanner" in
+ * extra.nativella.permissions, in its composer.json; the user is asked on the
+ * first call.
  */
 final readonly class BarcodeScanner
 {

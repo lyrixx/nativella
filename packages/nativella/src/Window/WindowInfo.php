@@ -3,7 +3,7 @@
 namespace Nativella\Window;
 
 /**
- * A window as it is now. Sizes and positions are in logical pixels.
+ * Sizes and positions are in logical pixels.
  */
 final readonly class WindowInfo
 {

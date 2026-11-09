@@ -1,6 +1,6 @@
 # Plain PHP
 
-No framework is needed. `nativella/nativella` works on its own: one object for the APIs, one function call for the events. The [Snippets demo](../demos/vanilla) is a complete application written this way, with a hand-written router, PHP templates and DBAL.
+No framework is needed. `nativella/nativella` works on its own, with one object for the APIs and one function call for the events. The [Snippets demo](../demos/vanilla) is a complete application written this way, with a hand-written router, PHP templates and DBAL.
 
 ## Installation
 
@@ -22,7 +22,7 @@ $native->clipboard->writeText($snippet);
 $native->notification->send('Copied', 'The snippet is in the clipboard.');
 ```
 
-Its properties are `app`, `barcodeScanner`, `biometrics`, `childProcess`, `clipboard`, `dialog`, `geolocation`, `globalShortcut`, `haptics`, `menu`, `nfc`, `notification`, `page`, `power`, `screen`, `secrets`, `settings`, `share`, `shell`, `system`, `timer`, `tray`, `updater` and `window`, one per API of the [documentation](README.md#native-apis). Creating it calls nothing: it is safe outside Nativella, until you use it.
+Its properties are `app`, `barcodeScanner`, `biometrics`, `childProcess`, `clipboard`, `dialog`, `geolocation`, `globalShortcut`, `haptics`, `menu`, `nfc`, `notification`, `page`, `power`, `screen`, `secrets`, `settings`, `share`, `shell`, `system`, `timer`, `tray`, `updater` and `window`, one per API in the [documentation](README.md#native-apis). Creating it calls nothing, so it is safe outside Nativella, until you use it.
 
 To build the API objects one by one, give each the same client:
 
@@ -38,7 +38,7 @@ $window = new Window($client);
 
 ## The events
 
-Native events arrive as requests to your front controller: `POST /_nativella/event`, sent by the runtime. `EventFactory::fromGlobals()` returns the event of such a request, and null for any other one, including a page that would post to the same path. Handle it before your router:
+Native events arrive as requests to your front controller (`POST /_nativella/event`), sent by the runtime. `EventFactory::fromGlobals()` returns the event of such a request, and null for any other one, including a page that would post to the same path. Handle it before your router:
 
 ```php title="public/index.php"
 <?php
@@ -134,11 +134,11 @@ final class Database
 }
 ```
 
-Without a framework, nothing migrates the schema for you: do it on `AppBooted`, which the runtime handles before serving any page. [Database](database.md) shows how, with PDO or with DBAL.
+Without a framework, nothing migrates the schema for you, so do it on `AppBooted`, which the runtime handles before serving any page. [Database](database.md) shows how, with PDO or with DBAL.
 
 ## Running in a browser
 
-The same front controller runs under `php -S localhost:8000 -t public`, which is handy to work on the pages. `EventFactory::fromGlobals()` returns null there, and the native APIs throw a `RuntimeUnavailableException`: check `Runtime::isNative()` before offering a native feature.
+The same front controller runs under `php -S localhost:8000 -t public`, which is handy to work on the pages. `EventFactory::fromGlobals()` returns null there, and the native APIs throw a `RuntimeUnavailableException`, so check `Runtime::isNative()` before offering a native feature.
 
 ```php
 use Nativella\Runtime;
@@ -148,6 +148,6 @@ if (Runtime::isNative()) {
 }
 ```
 
-`php -S` sends no `app.booted` event either: create the schema on the first request if it is missing.
+`php -S` sends no `app.booted` event either, so create the schema on the first request if it is missing.
 
-In a browser, a page of another site can post the forms of the application for the user: give the forms that change data a CSRF token, kept in the session, and refuse a request without it. The [demo](../demos/vanilla) does it in `src/Http/CsrfToken.php`.
+In a browser, a page of another site can post the application's forms for the user. Give the forms that change data a CSRF token, kept in the session, and refuse a request without it. The [demo](../demos/vanilla) does it in `src/Http/CsrfToken.php`.

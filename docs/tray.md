@@ -17,7 +17,7 @@ $tray->set(
 );
 ```
 
-While the tray icon exists, closing the last window does not quit the application: it keeps running in the tray. Give the user a way out: the `Quit` [role](menus.md#roles), or an item whose click calls `App::quit()`.
+While the tray icon exists, closing the last window does not quit the application, which keeps running in the tray. Give the user a way out, with the `Quit` [role](menus.md#roles) or an item whose click calls `App::quit()`.
 
 ## Methods
 
@@ -26,13 +26,13 @@ While the tray icon exists, closing the last window does not quit the applicatio
 | `set(?string $tooltip = null, list<MenuItem> $menu = [], ?string $icon = null, ?string $title = null): void` | Creates the tray icon, or updates it. |
 | `remove(): void` | Removes the tray icon. Closing the last window quits the application again. |
 
-`set()` replaces everything at once: call it again with new values to change the tooltip, the icon or the menu. [`Menu::update()`](menus.md#methods) changes one item of its menu.
+`set()` replaces everything at once, so call it again with new values to change the tooltip, the icon or the menu. [`Menu::update()`](menus.md#methods) changes one item of its menu.
 
 | Argument | |
 |---|---|
 | `$tooltip` | Shown when the mouse rests on the icon. |
 | `$menu` | The [menu items](menus.md#menu-items) of the tray menu. Their clicks dispatch `MenuItemClicked`, like those of the application menu. |
-| `$icon` | The absolute path of a PNG file. Defaults to the icon of the application. |
+| `$icon` | The absolute path of a PNG file. Defaults to the application icon. |
 | `$title` | A text next to the icon, on macOS and Linux. |
 
 ## Clicks
@@ -49,7 +49,7 @@ if ($event instanceof TrayClicked && 'left' === $event->button) {
 ```
 
 > [!NOTE]
-> Linux reports no click on tray icons: only the menu works there. Put every action of the tray in its menu.
+> Linux reports no click on tray icons, so only the menu works there. Put every tray action in its menu.
 
 ## Example: keep running in the tray
 
@@ -77,4 +77,4 @@ if ($event instanceof MenuItemClicked) {
 }
 ```
 
-Opened again, the main window starts from the [`window`](configuration.md#window) options of `composer.json`. Starting the application a second time brings it back too: see [A second launch](lifecycle.md#a-second-launch).
+Opened again, the main window starts from the [`window`](configuration.md#window) options in `composer.json`. Starting the application a second time brings it back too. See [A second launch](lifecycle.md#a-second-launch).
