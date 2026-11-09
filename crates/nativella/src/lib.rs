@@ -486,6 +486,8 @@ fn start(
                     );
                 }
                 WindowEvent::Focused(false) => {
+                    #[cfg(desktop)]
+                    native::tray::blurred(window.app_handle(), label);
                     events::send(
                         window.app_handle(),
                         "window.blurred",
