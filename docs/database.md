@@ -1,15 +1,15 @@
 # Database
 
-A desktop application keeps its data on the user's machine. Nativella gives each application a [data directory](configuration.md#the-data-directory), and the natural database to put there is SQLite: a file, no server, and a PHP extension (`pdo_sqlite`) that the PHP of Nativella [carries](building.md#the-php-inside).
+A desktop application keeps its data on the user's machine. Nativella gives each application a [data directory](configuration.md#the-data-directory), and the natural database to put there is SQLite. It needs no server, only a file, and Nativella's PHP [carries](building.md#the-php-inside) its extension (`pdo_sqlite`).
 
 ## Where the database lives
 
-In the data directory, never in the project: the project is replaced by every update of a [standalone build](building.md), the data directory is not. PHP finds it in `$_SERVER['NATIVELLA_DATA_DIR']`, or with `Nativella\Runtime::dataDir()`, which returns null outside Nativella.
+The database lives in the data directory, never in the project. Every update of a [standalone build](building.md) replaces the project, but not the data directory. PHP finds it in `$_SERVER['NATIVELLA_DATA_DIR']`, or with `Nativella\Runtime::dataDir()`, which returns null outside Nativella.
 
 | | Database file | Outside Nativella |
 |---|---|---|
-| [Symfony](symfony.md#the-database) | Where `DATABASE_URL` says: `${NATIVELLA_DATA_DIR}/app.db` | `var/app.db`, with the fallback of the URL |
-| [Laravel](laravel.md#the-database) | `database.sqlite` in the data directory, set by the package | The database configuration of the application |
+| [Symfony](symfony.md#the-database) | Where `DATABASE_URL` says: `${NATIVELLA_DATA_DIR}/app.db` | `var/app.db`, with the URL's fallback |
+| [Laravel](laravel.md#the-database) | `database.sqlite` in the data directory, set by the package | The application's database configuration |
 | [Plain PHP](plain-php.md#the-database) | Yours to choose, from `Runtime::dataDir()` | Yours to choose |
 
 To start from an empty database, or to look at a copy, move the data directory:
@@ -20,19 +20,19 @@ NATIVELLA_DATA_DIR=$PWD/var/data nativella run .
 
 ## Migrations run at boot
 
-There is no deployment step: the user installs a new version and starts it. So the schema follows the code when the application starts, on [`AppBooted`](lifecycle.md#booting), which the runtime handles before it serves any page.
+There is no deployment step. The user installs a new version and starts it, so the schema follows the code when the application starts, on [`AppBooted`](lifecycle.md#booting), which the runtime handles before it serves any page.
 
-- **Symfony**: with `doctrine/doctrine-migrations-bundle`, the bundle runs the pending Doctrine migrations before the listeners of the application, as `doctrine:migrations:migrate` does: each one in its own transaction, so the migrations before a failing one stay applied. `all_or_nothing: true` in the configuration of the migrations bundle runs them in a single transaction, but then refuses a non-transactional migration (a table rebuild on SQLite).
-- **Laravel**: the package runs `migrate --force` before the listeners of the application.
-- **Plain PHP**: migrate in your `AppBooted` handler.
+- With Symfony and `doctrine/doctrine-migrations-bundle`, the bundle runs the pending Doctrine migrations before the application's listeners, as `doctrine:migrations:migrate` does: each one in its own transaction, so the migrations before a failing one stay applied. `all_or_nothing: true` in the migrations bundle configuration runs them in a single transaction, but then refuses a non-transactional migration (a table rebuild on SQLite).
+- With Laravel, the package runs `migrate --force` before the application's listeners.
+- In plain PHP, migrate in your `AppBooted` handler.
 
-Write migrations that work on existing data: a new column needs a default value or must be nullable, for the rows already there. And never edit a migration that shipped: some users already ran it.
+Write migrations that work on existing data. A new column needs a default value or must be nullable, for the rows already there. And never edit a migration that shipped, because some users already ran it.
 
 A failing migration makes the `app.booted` request fail. The runtime logs it (`[event] PHP answered 500 to the "app.booted" event.`) and opens the main window anyway, so show the error in the application rather than counting on the log.
 
 ## Plain PHP: migrating with DBAL
 
-DBAL can compare the schema of the database with the one your code describes, and apply the difference. Describe the tables once, and migrate on `AppBooted`:
+DBAL can compare the database schema with the one your code describes, and apply the difference. Describe the tables once, and migrate on `AppBooted`:
 
 ```php title="src/DatabaseSchema.php"
 namespace App;
@@ -69,7 +69,7 @@ final readonly class DatabaseSchema
 }
 ```
 
-Changing the definition is enough: on the next launch, `migrateSchema()` creates what is missing and alters what changed. The [Snippets demo](../demos/vanilla) works this way, with DBAL 4.
+Changing the definition is enough. On the next launch, `migrateSchema()` creates what is missing and alters what changed. The [Snippets demo](../demos/vanilla) works this way, with DBAL 4.
 
 With PDO alone, keep a version number in `PRAGMA user_version` and run the steps above it:
 

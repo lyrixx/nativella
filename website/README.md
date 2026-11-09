@@ -1,23 +1,23 @@
 # The Nativella website
 
-The landing page and the documentation of Nativella, as a static site, published on GitHub Pages:
+Nativella's landing page and documentation, as a static site, published on GitHub Pages:
 
-- the landing page, built by a PHP script, naturally: it renders the [Twig](https://twig.symfony.com) templates of `templates/` into `dist/`;
+- the landing page, built by a PHP script, which renders the [Twig](https://twig.symfony.com) templates of `templates/` into `dist/`;
 - the documentation, the documents of [`../docs`](../docs), built by [Zensical](https://zensical.org), with the look of Material for MkDocs (its `classic` variant), into `dist/docs/`.
 
 ## Build
 
-From the root of the repository:
+From the repository root:
 
 ```bash
 castor website:build
 ```
 
-The task runs `bin/build` first: it builds the landing page, as it empties `dist/`, and stages the documents in `var/docs/`. Then Zensical builds the documentation from there. It runs in the builder, from a virtual environment of its own, `tools/zensical/.venv`, with the versions of [`tools/zensical/requirements.txt`](../tools/zensical/requirements.txt).
+The task runs `bin/build` first, which builds the landing page, as it empties `dist/`, and stages the documents in `var/docs/`. Then Zensical builds the documentation from there. It runs in the builder, from a virtual environment of its own, `tools/zensical/.venv`, with the versions of [`tools/zensical/requirements.txt`](../tools/zensical/requirements.txt).
 
 The build fails, with a message that says why, when a document links to a page, a section or a file of the repository that does not exist, or when `docs/README.md` does not list a document.
 
-`dist/` is self-contained, and every link in it is relative: it works at the root of a domain as well as under a path, like `https://lyrixx.github.io/nativella/`. The few URLs that must be absolute (Open Graph, canonical, the sitemap of the documentation) use `NATIVELLA_SITE_URL`, `https://lyrixx.github.io/nativella/` by default. The GitHub Pages workflow sets it to the URL of the site:
+`dist/` is self-contained, and every link in it is relative, so it works at the root of a domain as well as under a path, like `https://lyrixx.github.io/nativella/`. The few URLs that must be absolute (Open Graph, canonical, the documentation sitemap) use `NATIVELLA_SITE_URL`, `https://lyrixx.github.io/nativella/` by default. The GitHub Pages workflow sets it to the site's URL:
 
 ```bash
 NATIVELLA_SITE_URL=https://nativella.dev/ castor website:build
@@ -39,7 +39,7 @@ NATIVELLA_SITE_URL=https://nativella.dev/ castor website:build
 
 The architecture diagram, `docs/images/architecture.svg`, is shown in the documentation as an image and inlined in the landing page; it carries its own light and dark colours.
 
-The font of the titles is [Bricolage Grotesque](https://github.com/ateliertriay/bricolage) (SIL Open Font License, `assets/fonts/OFL.txt`), self-hosted: the site loads nothing from another domain, and tracks nobody.
+The title font is [Bricolage Grotesque](https://github.com/ateliertriay/bricolage) (SIL Open Font License, `assets/fonts/OFL.txt`), self-hosted, as the site loads nothing from another domain and tracks nobody.
 
 To regenerate the Open Graph image after changing `resources/og.html`:
 
@@ -48,23 +48,23 @@ google-chrome --headless --hide-scrollbars --allow-file-access-from-files \
     --window-size=1280,640 --screenshot=assets/og.png "file://$PWD/resources/og.html"
 ```
 
-Then upload it to the settings of the repository, under *Social preview*: GitHub has no API for it.
+Then upload it to the repository settings, under *Social preview*, because GitHub has no API for it.
 
 ## The documentation
 
 | Path | What |
 |---|---|
-| `zensical.yml` | The configuration of Zensical, in the format of `mkdocs.yml`, which Zensical reads: unlike `zensical.toml`, it takes environment variables. |
-| `src/Documentation.php` | What makes the documents of GitHub a site, in `var/docs/`: the navigation, the links to the repository. |
-| `docs-theme/` | The overrides of the theme: the colours and the type of the landing page, its Open Graph image. |
+| `zensical.yml` | Zensical's configuration, in the format of `mkdocs.yml`, which Zensical reads. Unlike `zensical.toml`, it takes environment variables. |
+| `src/Documentation.php` | What makes a site of the GitHub documents, in `var/docs/`: the navigation, the links to the repository. |
+| `docs-theme/` | The theme overrides: the landing page's colours and type, its Open Graph image. |
 
-The documentation is written for GitHub first: it must read well there too. On top of Markdown, Zensical understands:
+The documentation is written for GitHub first, and must read well there too. On top of Markdown, Zensical understands:
 
 - links between documents (`windows.md#window-options`), turned into links between pages;
 - links to the rest of the repository (`../crates/runtime`), turned into links to GitHub by `src/Documentation.php`;
 - GitHub alerts (`> [!NOTE]`, `> [!WARNING]`…), with the `callouts` of `pymdownx.quotes`;
 - a title after the language of a code block, shown as its caption, which GitHub ignores: `` ```php title="src/Kernel.php" ``.
 
-The navigation follows `docs/README.md`: one `## Group` per section, one `- [Label](file.md): description` per page. `src/Documentation.php` writes it to `var/docs/.nav.yml`, the file of the `awesome-nav` plugin, which Zensical implements. Headings get the anchors GitHub gives them, so that a link to a section works in both places.
+The navigation follows `docs/README.md`: one `## Group` per section, one `- [Label](file.md): description` per page. `src/Documentation.php` writes it to `var/docs/.nav.yml`, the `awesome-nav` plugin's file, which Zensical implements. Headings get the anchors GitHub gives them, so that a link to a section works in both places.
 
-The site loads nothing from another domain there either: no Google Fonts (`font: false`), and the link to the repository does not fetch its stars from the GitHub API (`docs-theme/partials/source.html`). The font of the titles comes from the landing page, in `../assets/fonts/`: the documentation is always published under it.
+The site loads nothing from another domain there either: no Google Fonts (`font: false`), and the link to the repository does not fetch its stars from the GitHub API (`docs-theme/partials/source.html`). The title font comes from the landing page, in `../assets/fonts/`, because the documentation is always published under it.

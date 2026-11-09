@@ -1,8 +1,8 @@
 # Tasks: Nativella with Laravel
 
 A small to-do list built with Laravel 13, persisted with Eloquent in SQLite, running as a desktop
-application. Blade views and one hand-written CSS file (`public/app.css`): no Vite, no npm, no build
-step. The Laravel side of Nativella is the `nativella/laravel` package (`packages/laravel`).
+application. It has Blade views and one hand-written CSS file (`public/app.css`), without Vite, npm
+or a build step. The Laravel side of Nativella is the `nativella/laravel` package (`packages/laravel`).
 
 | Feature | Nativella API |
 |---|---|
@@ -29,7 +29,7 @@ php artisan serve
 php artisan test
 ```
 
-In Nativella, the database is `database.sqlite` in the data directory of the application
+In Nativella, the database is `database.sqlite` in the application's data directory
 (`NATIVELLA_DATA_DIR` moves it), migrated when the application starts. `NATIVELLA_DATA_DIR=… php
 artisan tinker` works on that database too. Outside Nativella, it is `database/database.sqlite`.
 
@@ -46,17 +46,17 @@ cargo run -p nativella-runtime --example request -- demos/laravel \
 ## How it works
 
 - `nativella/laravel` routes the native events (`POST /_nativella/event`) to Laravel's event
-  dispatcher: the listeners of `app/Listeners` are discovered as usual. On `AppBooted`, the package
+  dispatcher, and the listeners in `app/Listeners` are discovered as usual. On `AppBooted`, the package
   migrates the database first, then the application sets its menu (`App\Desktop\ApplicationMenu`), its
   tray (`App\Desktop\TaskTray`) and its global shortcut.
 - `App\Observers\TaskObserver` keeps the tray in step with the tasks, and celebrates the last one done.
 - The menu items handled in PHP are the cases of `App\Desktop\MenuAction`; links (New task, Settings…)
   and system roles (Quit, the Edit and Window menus) are handled by the runtime itself.
 - Closing the window leaves the application in the tray. The tray menu or the global shortcut open it
-  again (`App\Desktop\MainWindow`): `Window::open('main')` without options, the runtime starts from
+  again (`App\Desktop\MainWindow`) with `Window::open('main')`. Without options, the runtime starts from
   `extra.nativella.window` in `composer.json`.
 - On phones and tablets (`Runtime::isMobile()`), there is no menu, tray, global shortcut or autostart.
-- Inside Nativella, `nativella/laravel` encrypts with the secret of the installation, not the `APP_KEY`
+- Inside Nativella, `nativella/laravel` encrypts with the installation's secret, not the `APP_KEY`
   of the `.env` file, which ships with the application.
 - Outside Nativella (`Nativella::isNative()` is false), `@native` hides the native buttons, the routes
   behind `EnsureNative` do not exist, and deleting asks with the browser's `confirm()`.

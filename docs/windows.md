@@ -1,6 +1,6 @@
 # Windows
 
-`Nativella\Window` opens and drives the windows of the application. Each window has a label, `main` for the one Nativella opens at startup, and loads pages of the application like a browser tab would.
+`Nativella\Window` opens and drives the application's windows. Each window has a label, `main` for the one Nativella opens at startup, and loads the application's pages like a browser tab would.
 
 ```php
 use Nativella\Window\WindowOptions;
@@ -31,20 +31,20 @@ Labels are made of letters, digits, `-`, `/`, `:` and `_`.
 
 ## Opening a window
 
-`open(string $window, ?WindowOptions $options = null): WindowInfo` opens the window of label `$window` and returns its [`WindowInfo`](#window-info). If a window with that label is already open, `open()` focuses it instead, and ignores the options.
+`open(string $window, ?WindowOptions $options = null): WindowInfo` opens the window labelled `$window` and returns its [`WindowInfo`](#window-info). If a window with that label is already open, `open()` focuses it instead, and ignores the options.
 
-The `main` window starts from the [`window`](configuration.md#window) options of `composer.json`, which the options you pass complete: `$window->open('main')` opens it again exactly as at startup.
+The `main` window starts from the [`window`](configuration.md#window) options in `composer.json`, and the options you pass complete them. `$window->open('main')` opens it again exactly as at startup.
 
-The first request of the new window waits for the current one to finish, since one PHP thread serves them all.
+The new window's first request waits for the current one to finish, since one PHP thread serves them all.
 
 ## Window options
 
-`Nativella\Window\WindowOptions` takes named arguments. Anything left null keeps the default of the system. The same keys, in a JSON object, configure the main window in [`composer.json`](configuration.md#window).
+`Nativella\Window\WindowOptions` takes named arguments. Anything left null keeps the system default. The same keys, in a JSON object, configure the main window in [`composer.json`](configuration.md#window).
 
 | Option | Type | Default | |
 |---|---|---|---|
-| `url` | `?string` | `'/'` | A path of the application (`/settings`), or an absolute URL. |
-| `title` | `?string` | The name of the application | |
+| `url` | `?string` | `'/'` | An application path (`/settings`), or an absolute URL. |
+| `title` | `?string` | The application name | |
 | `width`, `height` | `?float` | 1024 × 768 | The size of the page area, in logical pixels. |
 | `minWidth`, `minHeight` | `?float` | | Applied when both are set. |
 | `maxWidth`, `maxHeight` | `?float` | | Applied when both are set. |
@@ -77,14 +77,14 @@ The first request of the new window waits for the current one to finish, since o
 | `maximize(?string $window = null): void` | |
 | `unmaximize(?string $window = null): void` | |
 | `show(?string $window = null): void` | |
-| `hide(?string $window = null): void` | A hidden window is still open: `show()` brings it back. |
+| `hide(?string $window = null): void` | A hidden window is still open, and `show()` brings it back. |
 | `focus(?string $window = null): void` | |
 | `reload(?string $window = null): void` | Reloads the page. |
-| `setProgress(?int $percent, ?string $window = null): void` | Shows a progress bar, from 0 to 100, on the icon of the window in the taskbar or the dock (Windows, macOS, GNOME with libunity). Null removes it. Desktop only. |
-| `print(?string $window = null): void` | Opens the print dialog of the system for the page of the window, which can also print to PDF. |
-| `printToPdf(string $path, ?string $window = null): void` | Writes the page of the window to a PDF file, at an absolute path, without a dialog: an invoice, a report. `@media print` styles apply. Linux only, for now. |
-| `navigate(string $url, ?string $window = null): void` | Loads a path of the application (`/notes/42`), or an absolute URL. |
-| `openDevtools(?string $window = null): void` | Opens the web inspector of the window. Debug builds of Nativella only: elsewhere it throws. |
+| `setProgress(?int $percent, ?string $window = null): void` | Shows a progress bar, from 0 to 100, on the window's icon in the taskbar or the dock (Windows, macOS, GNOME with libunity). Null removes it. Desktop only. |
+| `print(?string $window = null): void` | Opens the system print dialog, which can also print to PDF, for the window's page. |
+| `printToPdf(string $path, ?string $window = null): void` | Writes the window's page to a PDF file, at an absolute path, without a dialog, for an invoice or a report. `@media print` styles apply. Linux only, for now. |
+| `navigate(string $url, ?string $window = null): void` | Loads an application path (`/notes/42`), or an absolute URL. |
+| `openDevtools(?string $window = null): void` | Opens the window's web inspector. Debug builds of Nativella only. Elsewhere it throws. |
 
 ## Window info
 
@@ -92,9 +92,9 @@ The first request of the new window waits for the current one to finish, since o
 
 | Property | Type | |
 |---|---|---|
-| `window` | `string` | Its label, as the `$window` argument of the methods and the events take it. |
+| `window` | `string` | Its label, the value that the `$window` argument of methods and events takes. |
 | `title` | `?string` | |
-| `url` | `?string` | The URL of the page: `php://localhost/notes/42`. |
+| `url` | `?string` | The page URL, like `php://localhost/notes/42`. |
 | `width`, `height` | `?float` | The size of the page area, in logical pixels. |
 | `x`, `y` | `?float` | The position of the window, in logical pixels. |
 | `focused`, `maximized`, `minimized`, `fullscreen`, `visible` | `bool` | |
@@ -114,7 +114,7 @@ The size and position are null when the system does not report them.
 | `WindowDragLeft` | They left it without being dropped. |
 | `WindowFilesDropped` | Files were dropped on the window: `$event->paths`, absolute. |
 
-Each one has the label of the window in `$event->window`. See [Lifecycle and events](lifecycle.md) for how to listen to them.
+Each one has the window's label in `$event->window`. See [Lifecycle and events](lifecycle.md) for how to listen to them.
 
 ## Example: a preferences window
 
@@ -141,11 +141,11 @@ $settings->set('theme', $theme);
 $window->close();
 ```
 
-`$window->close()` needs no label here: the request came from the preferences window, so that is the one that closes.
+`$window->close()` needs no label here. The request came from the preferences window, so that is the one that closes.
 
 ## Frameless windows
 
-A window opened with `decorations: false` has no title bar to move it by. Mark the elements that should act as one with `data-tauri-drag-region`: dragging them moves the window, double-clicking them maximizes it.
+A window opened with `decorations: false` has no title bar to move it by. Mark the elements that should act as one with `data-tauri-drag-region`. Dragging them moves the window, and double-clicking them maximizes it.
 
 ```html
 <header class="title-bar" data-tauri-drag-region>
@@ -154,8 +154,8 @@ A window opened with `decorations: false` has no title bar to move it by. Mark t
 </header>
 ```
 
-The attribute applies to the element itself, not to its children: repeat it on the ones that should drag too, and leave it off buttons.
+The attribute applies to the element itself, not to its children, so repeat it on the ones that should drag too, and leave it off buttons.
 
 ## What a window loads
 
-A window shows the pages of the application. A link to another website opens in the browser of the system rather than in the window, and so do `mailto:` and `tel:` links. See [Pages and JavaScript](javascript.md#links-and-absolute-urls).
+A window shows the application's pages. A link to another website opens in the system browser rather than in the window, and so do `mailto:` and `tel:` links. See [Pages and JavaScript](javascript.md#links-and-absolute-urls).

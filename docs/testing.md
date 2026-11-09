@@ -1,6 +1,6 @@
 # Testing
 
-The native APIs only work inside Nativella: elsewhere, in PHPUnit or on the command line, `nativella_call()` does not exist. Calling an API there throws a `Nativella\Exception\RuntimeUnavailableException`. Tests swap the client that makes the calls for `Nativella\Client\FakeClient`.
+The native APIs only work inside Nativella. Elsewhere, in PHPUnit or on the command line, `nativella_call()` does not exist. Calling an API there throws a `Nativella\Exception\RuntimeUnavailableException`. Tests swap the client that makes the calls for `Nativella\Client\FakeClient`.
 
 ## The fake client
 
@@ -130,7 +130,7 @@ The integrations replace the client in the container, so that the application un
 
 ## Running outside Nativella
 
-An application is a web application first: it also runs with `symfony serve`, `php artisan serve` or `php -S`, in a browser, which is handy for working on templates. The native APIs throw there, so guard the calls that may run outside Nativella:
+An application is a web application first, so it also runs with `symfony serve`, `php artisan serve` or `php -S`, in a browser, which is handy for working on templates. The native APIs throw there, so guard the calls that may run outside Nativella:
 
 ```php
 use Nativella\Nativella;
@@ -140,4 +140,4 @@ if ($nativella->isNative()) {
 }
 ```
 
-`isNative()` of `Nativella\Nativella` (a service with Symfony, the `Nativella` facade with Laravel) asks the client: true in Nativella, and under the fake client, so that the tests go through the native code as the application does. `nativella_is_native()` in Twig and `@native` in Blade answer the same. `Runtime::isNative()` only tells whether `nativella_call()` exists, which is false in tests, fake client or not: keep it for where there is no client.
+`isNative()` of `Nativella\Nativella` (a service with Symfony, the `Nativella` facade with Laravel) asks the client. It is true in Nativella and under the fake client, so that the tests go through the native code as the application does. `nativella_is_native()` in Twig and `@native` in Blade answer the same. `Runtime::isNative()` only tells whether `nativella_call()` exists, which is false in tests, fake client or not, so keep it for where there is no client.

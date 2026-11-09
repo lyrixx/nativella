@@ -1166,10 +1166,6 @@ main :not(pre) > code {
     color: var(--paper);
 }
 
-.steps strong {
-    color: var(--ink);
-}
-
 @media (max-width: 1000px) {
     .steps {
         grid-template-columns: repeat(2, minmax(0, 1fr));

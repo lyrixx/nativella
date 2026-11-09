@@ -1,6 +1,6 @@
 # Laravel
 
-The `nativella/laravel` package runs a Laravel application in Nativella. It binds the native APIs in the container and gives them facades, dispatches native events as Laravel events, keeps the SQLite database in the data directory of the application, migrates it when the application starts, and encrypts with a secret of its own for each installation.
+The `nativella/laravel` package runs a Laravel application in Nativella. It binds the native APIs in the container and gives them facades, dispatches native events as Laravel events, keeps the SQLite database in the application's data directory, migrates it when the application starts, and encrypts with a secret of its own for each installation.
 
 The [Tasks demo](../demos/laravel) is a complete Laravel application built with it.
 
@@ -18,7 +18,7 @@ nativella run .
 
 ## The APIs, injected or through facades
 
-Every API class is a singleton of the container: type-hint `Nativella\Window`, `Nativella\Dialog`, `Nativella\Notification`… in a controller, a listener or a job. Each one also has a facade in `Nativella\Laravel\Facades`:
+Every API class is a singleton in the container. Type-hint `Nativella\Window`, `Nativella\Dialog`, `Nativella\Notification`… in a controller, a listener or a job. Each one also has a facade in `Nativella\Laravel\Facades`:
 
 ```php title="app/Http/Controllers/TaskController.php"
 use App\Models\Task;
@@ -99,15 +99,15 @@ final readonly class RunMenuAction
 }
 ```
 
-The route answers 404 to anything but the runtime: it checks `$_SERVER['NATIVELLA_INTERNAL']`, which a page cannot set. Every event and its properties are listed in [Lifecycle and events](lifecycle.md#native-events).
+The route answers 404 to anything but the runtime. It checks `$_SERVER['NATIVELLA_INTERNAL']`, which a page cannot set. Every event and its properties are listed in [Lifecycle and events](lifecycle.md#native-events).
 
 ## The database
 
 In Nativella, the package points the `sqlite` connection at `database.sqlite` in the [data directory](configuration.md#the-data-directory), creates the file, and makes `sqlite` the default connection, whatever `.env` says. Outside Nativella (`php artisan`, `php artisan serve`, the tests), your database configuration applies unchanged.
 
-When the application starts, on `AppBooted`, the package runs `migrate --force` before the listeners of the application: the database of every user follows the code, with no deployment step. Write migrations as usual. See [Database](database.md).
+When the application starts, on `AppBooted`, the package runs `migrate --force` before the application's listeners, so every user's database follows the code, with no deployment step. Write migrations as usual. See [Database](database.md).
 
-To work on the database of the application from the command line, give Artisan the same data directory:
+To work on the application's database from the command line, give Artisan the same data directory:
 
 ```bash
 NATIVELLA_DATA_DIR=~/.local/share/com.acme.tasks php artisan tinker
@@ -115,7 +115,7 @@ NATIVELLA_DATA_DIR=~/.local/share/com.acme.tasks php artisan tinker
 
 ## The encryption key
 
-The `.env` file ships with the application, and its `APP_KEY` with it: the same key for every user, and anyone holding the application could forge the cookies of any installation. In Nativella, the package replaces `app.key` with the secret the runtime creates for each installation (`NATIVELLA_SECRET`). There is nothing to configure.
+The `.env` file ships with the application, and its `APP_KEY` with it, so every user would have the same key and anyone holding the application could forge any installation's cookies. In Nativella, the package replaces `app.key` with the secret the runtime creates for each installation (`NATIVELLA_SECRET`). There is nothing to configure.
 
 ## Configuration
 
@@ -151,7 +151,7 @@ use Nativella\Laravel\Http\Middleware\EnsureNative;
 Route::post('/tasks/export', ExportTasks::class)->name('tasks.export')->middleware(EnsureNative::class);
 ```
 
-Laravel builds absolute URLs (`route()`, `url()`, `asset()`) from the request, so `http://localhost/…` in Nativella. The runtime rewrites them to the address of the window in the URL attributes of HTML and the `url()` of CSS that PHP answers: links, forms and assets work as usual. In JSON and scripts, use relative URLs (`route('notes.show', $note, absolute: false)`): only the requests of `fetch()`, `XMLHttpRequest` and `EventSource` to `http://localhost/` are brought back to the application. See [Pages and JavaScript](javascript.md#links-and-absolute-urls).
+Laravel builds absolute URLs (`route()`, `url()`, `asset()`) from the request, so they point to `http://localhost/…` in Nativella. The runtime rewrites them to the window's address in the HTML URL attributes and CSS `url()` that PHP answers, and links, forms and assets work as usual. In JSON and scripts, use relative URLs (`route('notes.show', $note, absolute: false)`), because only `fetch()`, `XMLHttpRequest` and `EventSource` requests to `http://localhost/` are brought back to the application. See [Pages and JavaScript](javascript.md#links-and-absolute-urls).
 
 ## Testing
 
@@ -174,4 +174,4 @@ To test a native event, dispatch it as Laravel would: `event(new AppBooted())`. 
 
 ## Running in a browser
 
-The application still runs with `php artisan serve`, which is handy for working on views. The native APIs throw a `RuntimeUnavailableException` there: guard what must keep working with `Nativella::isNative()`, `@native` or the `EnsureNative` middleware.
+The application still runs with `php artisan serve`, which is handy for working on views. The native APIs throw a `RuntimeUnavailableException` there, so guard what must keep working with `Nativella::isNative()`, `@native` or the `EnsureNative` middleware.

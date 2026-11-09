@@ -13,7 +13,7 @@ composer require nativella/symfony-bundle
 It brings `nativella/nativella`, the native APIs.
 
 > [!IMPORTANT]
-> `composer require` does not enable the bundle: there is no Flex recipe yet. Add it to `config/bundles.php` yourself, or the native APIs are no services, and no native event reaches your listeners.
+> `composer require` does not enable the bundle, because there is no Flex recipe yet. Add it to `config/bundles.php` yourself, or the native APIs are not services and no native event reaches your listeners.
 
 ```php title="config/bundles.php"
 return [
@@ -28,11 +28,11 @@ Then run the application, with the [`nativella` command](installation.md):
 nativella run .
 ```
 
-It needs nothing else to open in a window: the front controller of Symfony, `public/index.php`, is served as it is.
+It needs nothing else to open in a window. Symfony's front controller, `public/index.php`, is served as it is.
 
 ## The APIs are services
 
-Every API class is a service, named after its class: inject `Nativella\Window`, `Nativella\Dialog`, `Nativella\Notification`… wherever you need them. `Nativella\Nativella` holds them all.
+Every API class is a service named after its class. Inject `Nativella\Window`, `Nativella\Dialog`, `Nativella\Notification`… wherever you need them. `Nativella\Nativella` holds them all.
 
 ```php title="src/Controller/NoteController.php"
 use Nativella\Dialog;
@@ -54,14 +54,14 @@ public function delete(Note $note, Dialog $dialog): RedirectResponse
 }
 ```
 
-The application runs in a browser too, through a web server or `php -S`: protect the forms that change data from other sites as on the web. Here, `#[IsCsrfTokenValid]` (from `symfony/security-bundle`) checks the `_token` field the form sends, `{{ csrf_token('delete-note') }}`.
+The application runs in a browser too, through a web server or `php -S`, so protect the forms that change data from other sites as on the web. Here, `#[IsCsrfTokenValid]` (from `symfony/security-bundle`) checks the `_token` field the form sends, `{{ csrf_token('delete-note') }}`.
 
 ## Native events are Symfony events
 
 The bundle answers `POST /_nativella/event` before the router and the firewall run, and dispatches the event object through the event dispatcher, named after its class. A listener gets it by type:
 
 > [!NOTE]
-> Native events are handled before the firewall and the locale listeners: there is no user (`getUser()` is null), and translations use the default locale. The session is there, though (the runtime sends its cookie with native events too): read what you need from it.
+> Native events are handled before the firewall and the locale listeners, so there is no user (`getUser()` is null), and translations use the default locale. The session is there, though (the runtime sends its cookie with native events too), so read what you need from it.
 
 
 ```php title="src/EventListener/BootListener.php"
@@ -132,7 +132,7 @@ final readonly class MenuListener
 }
 ```
 
-Only the runtime reaches that endpoint: the bundle checks `$_SERVER['NATIVELLA_INTERNAL']`, which a page cannot set. Every event and its properties are listed in [Lifecycle and events](lifecycle.md#native-events).
+Only the runtime reaches that endpoint, because the bundle checks `$_SERVER['NATIVELLA_INTERNAL']`, which a page cannot set. Every event and its properties are listed in [Lifecycle and events](lifecycle.md#native-events).
 
 ## The database
 
@@ -142,9 +142,9 @@ Point Doctrine at the [data directory](configuration.md#the-data-directory). In 
 DATABASE_URL="sqlite:///${NATIVELLA_DATA_DIR:-%kernel.project_dir%/var}/app.db"
 ```
 
-In Nativella, the database is `app.db` in the data directory of the application; outside it (`bin/console`, `symfony serve`, the tests), it falls back to `var/app.db`.
+In Nativella, the database is `app.db` in the application's data directory; outside it (`bin/console`, `symfony serve`, the tests), it falls back to `var/app.db`.
 
-With `doctrine/doctrine-migrations-bundle` installed, the bundle runs the pending migrations when the application starts, on `AppBooted`, before the listeners of the application: a desktop application has no deployment step, the database of every user follows the code. Write migrations as usual, with `bin/console make:migration` or `doctrine:migrations:diff`. See [Database](database.md).
+With `doctrine/doctrine-migrations-bundle` installed, the bundle runs the pending migrations when the application starts, on `AppBooted`, before the application's listeners. A desktop application has no deployment step, so every user's database follows the code. Write migrations as usual, with `bin/console make:migration` or `doctrine:migrations:diff`. See [Database](database.md).
 
 ## The secret
 
@@ -175,13 +175,13 @@ when@test:
 | Option | Default | |
 |---|---|---|
 | `migrate_on_boot` | `true` | Runs the Doctrine migrations on `AppBooted`. Needs the DoctrineMigrationsBundle. |
-| `fake_client` | `false` | Replaces the client with `Nativella\Client\FakeClient`: see [Testing](#testing). |
+| `fake_client` | `false` | Replaces the client with `Nativella\Client\FakeClient`. See [Testing](#testing). |
 
 ## Twig
 
 | Function | |
 |---|---|
-| `nativella_is_native()` | Whether native calls work: Nativella shows the page, or the tests use the [fake client](#testing). Offer native features only then. |
+| `nativella_is_native()` | Whether native calls work, which means Nativella shows the page or the tests use the [fake client](#testing). Offer native features only then. |
 | `nativella_is_mobile()` | Whether it runs on a phone or a tablet. |
 | `nativella_platform()` | `linux`, `macos`, `windows`, `android`, `ios`, or null outside Nativella. |
 
@@ -193,17 +193,17 @@ when@test:
 {% endif %}
 ```
 
-`url()` and `absolute_url()` work too: Symfony believes it is served from `http://localhost/`, and the runtime rewrites those URLs to the address of the window in the URL attributes of HTML and the `url()` of CSS. In JSON and scripts, use `path()`: only the requests of `fetch()`, `XMLHttpRequest` and `EventSource` to `http://localhost/` are brought back to the application. See [Pages and JavaScript](javascript.md#links-and-absolute-urls).
+`url()` and `absolute_url()` work too. Symfony believes it is served from `http://localhost/`, and the runtime rewrites those URLs to the window's address in HTML URL attributes and CSS `url()`. In JSON and scripts, use `path()`, because only `fetch()`, `XMLHttpRequest` and `EventSource` requests to `http://localhost/` are brought back to the application. See [Pages and JavaScript](javascript.md#links-and-absolute-urls).
 
 ## The profiler
 
-In the `dev` environment, with the WebProfilerBundle, the toolbar gets a Nativella panel: every native call of the request, with its payload, its result or its error, and its duration.
+In the `dev` environment, with the WebProfilerBundle, the toolbar gets a Nativella panel that lists every native call of the request, with its payload, its result or its error, and its duration.
 
-Profiles are written to disk: the values of `secrets.*` calls show as `******`.
+Profiles are written to disk, so the values of `secrets.*` calls show as `******`.
 
 ## Testing
 
-With `fake_client: true` in the `test` environment, the container holds a `Nativella\Client\FakeClient` instead of the real client, and the application behaves as in Nativella: `isNative()` of the `Nativella\Nativella` service and `nativella_is_native()` are true. Tests fetch the fake to queue answers and check the calls:
+With `fake_client: true` in the `test` environment, the container holds a `Nativella\Client\FakeClient` instead of the real client, and the application behaves as in Nativella. `isNative()` on the `Nativella\Nativella` service and `nativella_is_native()` are true. Tests fetch the fake to queue answers and check the calls:
 
 ```php title="tests/Controller/NoteControllerTest.php"
 use Nativella\Client\FakeClient;
@@ -231,4 +231,4 @@ final class NoteControllerTest extends WebTestCase
 
 ## Running in a browser
 
-The application still runs with `symfony serve` or any web server, which is handy for working on templates. The native APIs throw a `RuntimeUnavailableException` there: guard what must keep working with `isNative()` of the `Nativella\Nativella` service in PHP, and `nativella_is_native()` in Twig. Both are true under the fake client, unlike `Nativella\Runtime::isNative()`: the tests then go through the native code.
+The application still runs with `symfony serve` or any web server, which is handy for working on templates. The native APIs throw a `RuntimeUnavailableException` there. Guard what must keep working with `isNative()` on the `Nativella\Nativella` service in PHP, and `nativella_is_native()` in Twig. Both are true under the fake client, unlike `Nativella\Runtime::isNative()`, so the tests go through the native code.

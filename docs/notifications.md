@@ -1,6 +1,6 @@
 # Notifications
 
-`Nativella\Notification` shows the notifications of the system, on the desktop and on phones.
+`Nativella\Notification` shows system notifications, on the desktop and on phones.
 
 ```php
 $notification->send('Export finished', 'notes.zip is in your Downloads folder.');
@@ -10,7 +10,7 @@ $notification->send('Export finished', 'notes.zip is in your Downloads folder.')
 |---|---|
 | `send(string $title, ?string $body = null, ?string $reference = null): void` | Shows a notification, with an optional body. |
 
-`send()` returns as soon as the system has the notification: it does not wait for the user.
+`send()` returns as soon as the system has the notification, without waiting for the user.
 
 ## Clicks
 
@@ -31,13 +31,13 @@ public function onClick(NotificationClicked $event): void
 }
 ```
 
-Linux only, for now: macOS and Windows show the notification, but do not report the click.
+Clicks are reported on Linux only, for now. macOS and Windows show the notification, but do not report the click.
 
-On Linux, notifications go through the notification service of the desktop (`org.freedesktop.Notifications`, on D-Bus), which every mainstream desktop provides.
+On Linux, notifications go through the desktop's notification service (`org.freedesktop.Notifications`, on D-Bus), which every mainstream desktop provides.
 
 ## A notification from a page
 
-A notification needs no page change: a `fetch()` from the page is enough. `new Notification()`, the API of browsers, shows nothing in a page, so that a script injected in one cannot show notifications of the system: PHP decides.
+A notification needs no page change, and a `fetch()` from the page is enough. `new Notification()`, the browser API, shows nothing in a page, so a script injected in one cannot show system notifications. Only PHP can send them.
 
 ```js
 await fetch('/reminders/42/notify', { method: 'POST' });
@@ -52,4 +52,4 @@ http_response_code(204);
 
 ## A notification from the background
 
-PHP only runs when something asks it to: a request from a page, or a [native event](lifecycle.md#native-events). A reminder "in ten minutes" is a [timer](timers.md): `$timer->after('reminder-42', 600)`, then the notification from the listener of `TimerFired`.
+PHP only runs when something asks it to: a request from a page, or a [native event](lifecycle.md#native-events). A reminder "in ten minutes" is a [timer](timers.md): `$timer->after('reminder-42', 600)`, then the notification from the `TimerFired` listener.

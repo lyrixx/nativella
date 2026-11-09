@@ -1,6 +1,6 @@
 # Dialogs
 
-`Nativella\Dialog` shows the dialogs of the system: message boxes, questions and file pickers. They are modal to the window, and PHP waits for the answer: the method returns what the user chose.
+`Nativella\Dialog` shows the system dialogs: message boxes, questions and file pickers. They are modal to the window, and PHP waits for the answer, so the method returns what the user chose.
 
 ```php
 use Nativella\Dialog\FileFilter;
@@ -21,7 +21,7 @@ if (null !== $path) {
 ```
 
 > [!WARNING]
-> While a dialog is open, PHP waits, and so does every other request: one PHP thread serves them all. The files of `public/` keep loading, as the runtime serves them without PHP. Dialogs are for answers the user must give before anything else happens.
+> While a dialog is open, PHP waits, and so does every other request, because one PHP thread serves them all. The files in `public/` keep loading, as the runtime serves them without PHP. Dialogs are for answers the user must give before anything else happens.
 
 ## Messages
 
@@ -40,7 +40,7 @@ if (null !== $path) {
 | `openFile(?string $title = null, ?string $directory = null, list<FileFilter> $filters = []): ?string` | The absolute path of the chosen file. |
 | `openFiles(?string $title = null, ?string $directory = null, list<FileFilter> $filters = []): list<string>` | The absolute paths of the chosen files. |
 | `openDirectory(?string $title = null, ?string $directory = null): ?string` | The absolute path of the chosen directory. |
-| `saveFile(?string $title = null, ?string $directory = null, ?string $fileName = null, list<FileFilter> $filters = []): ?string` | Where the user wants the file. The file is not created: writing it is up to you. |
+| `saveFile(?string $title = null, ?string $directory = null, ?string $fileName = null, list<FileFilter> $filters = []): ?string` | Where the user wants the file. The file is not created, so writing it is up to you. |
 
 A cancelled dialog returns null, or an empty list. `$directory` is where the dialog starts, `$fileName` the name `saveFile()` suggests.
 
@@ -54,7 +54,7 @@ $paths = $dialog->openFiles('Import pictures', filters: [
 ]);
 ```
 
-The paths are local files, readable by PHP right away: there is no upload. That is the main difference with an `<input type="file">`, which hands PHP a copy of the file in `$_FILES` rather than its path. Uploads go through PHP like any other request body, but they are untested so far.
+The paths are local files, readable by PHP right away, with no upload. That is the main difference with an `<input type="file">`, which hands PHP a copy of the file in `$_FILES` rather than its path. Uploads go through PHP like any other request body, but they are untested so far.
 
 ## Dialogs from a native event
 

@@ -5,9 +5,17 @@
 **[Download](https://github.com/lyrixx/nativella/releases/latest)**
 
 Run a PHP web application as a desktop or mobile application. Your Symfony,
-Laravel or plain PHP project opens in a native window, PHP runs **inside** the
-application, and nothing listens on the network: no web server, no TCP port,
-no Electron, no Node.
+Laravel or plain PHP project opens in a native window. PHP runs inside the
+application process and answers the window directly, so no web server is
+involved and no port is opened. The window is the system webview, through
+Tauri, so the application ships neither Electron nor Node.
+
+Nativella started as a proof of concept of PHP, Rust and Tauri in one process,
+to find out if a Tauri window could hand its requests to PHP through a SAPI
+written in Rust. The [proof of concept](https://github.com/lyrixx/nativella/tree/850aa2df4b9f15c680b81ca07696914744565496)
+is the first commit of this repository, with its measurements and what it ran
+into, such as WebKitGTK handling neither cookies nor redirects on a custom
+scheme. The rest of the project was built on top of it.
 
 ```
 system webview ──php://localhost/…──▶ Tauri scheme handler (Rust)
@@ -23,22 +31,23 @@ system webview ──php://localhost/…──▶ Tauri scheme handler (Rust)
                          windows, menus, tray, dialogs, clipboard, notifications…
 ```
 
-- **Any PHP application**: anything with a `public/index.php`. Integrations for
-  [Symfony](https://lyrixx.github.io/nativella/docs/symfony/) and [Laravel](https://lyrixx.github.io/nativella/docs/laravel/), or
-  [plain PHP](https://lyrixx.github.io/nativella/docs/plain-php/).
-- **[Native APIs](https://lyrixx.github.io/nativella/docs/#native-apis)** from PHP: windows, application and context menus, tray icon,
-  dialogs, notifications, clipboard, global shortcuts, settings, secrets,
-  timers, child processes, power, screens, shell… and typed native events
-  (`MenuItemClicked`, `WindowFilesDropped`…). On phones, haptics, geolocation,
-  biometrics, a barcode scanner, NFC tags and the share sheet.
-- **[State](https://lyrixx.github.io/nativella/docs/database/)**: an SQLite database in the data directory
-  of the application, migrated when it starts (Doctrine, Eloquent).
-- **[Distribution](https://lyrixx.github.io/nativella/docs/building/)**: `nativella build` writes one
-  executable that carries the project and PHP: the machine needs no PHP.
-- **[Phones](https://lyrixx.github.io/nativella/docs/mobile/)**: the same project builds into an Android APK
-  and an iOS app, experimentally, without Android's or Apple's tools.
+- It runs any PHP application with a `public/index.php`. [Symfony](https://lyrixx.github.io/nativella/docs/symfony/) and
+  [Laravel](https://lyrixx.github.io/nativella/docs/laravel/) have integrations, and
+  [plain PHP](https://lyrixx.github.io/nativella/docs/plain-php/) works too.
+- PHP gets [native APIs](https://lyrixx.github.io/nativella/docs/#native-apis) for windows, application and context menus,
+  the tray icon, dialogs, notifications, the clipboard, global shortcuts,
+  settings, secrets, timers, child processes, power, screens and the shell,
+  and receives typed native events (`MenuItemClicked`, `WindowFilesDropped`…).
+  Phones add haptics, geolocation, biometrics, a barcode scanner, NFC tags and
+  the share sheet.
+- The [state](https://lyrixx.github.io/nativella/docs/database/) lives in an SQLite database in the application's
+  data directory, migrated when the application starts (Doctrine, Eloquent).
+- To [distribute it](https://lyrixx.github.io/nativella/docs/building/), `nativella build` writes one executable
+  that carries the project and PHP, so the machine does not need PHP.
+- The same project builds into an [Android APK and an iOS app](https://lyrixx.github.io/nativella/docs/mobile/),
+  experimentally, without Android's or Apple's tools.
 
-Nativella is young and experimental, developed on Linux: read
+Nativella is young and experimental, and is developed on Linux. Read
 [Limitations and roadmap](https://lyrixx.github.io/nativella/docs/limitations/) first.
 
 ## Try it

@@ -1,6 +1,6 @@
 # Updates
 
-A [standalone executable](building.md) updates itself from the releases you publish: it asks your server whether there is a newer version, downloads it in the background, checks that you signed it and that it is that version of the application, for this machine, and replaces itself. The next start runs the new version.
+A [standalone executable](building.md) updates itself from the releases you publish. It asks your server whether there is a newer version, downloads it in the background, checks that you signed it and that it is that version of the application, for this machine, and replaces itself. The next start runs the new version.
 
 ## Configuration
 
@@ -21,9 +21,9 @@ A [standalone executable](building.md) updates itself from the releases you publ
 | Key | |
 |---|---|
 | `endpoint` | The URL of the document that describes the latest release. HTTPS only, and so are its redirections and the URLs of the executables; `http://localhost` and `http://127.0.0.1` too, for testing. |
-| `publicKey` | The public key of the [signatures](#signing), base64-encoded as Tauri's signer prints it, or as minisign writes it. It ships with the application: it is public. |
+| `publicKey` | The public key of the [signatures](#signing), base64-encoded as Tauri's signer prints it, or as minisign writes it. It is public, so it ships with the application. |
 
-The [`version`](configuration.md#version) of the application is what the endpoint is compared to: keep it a semantic version (`1.2.0`), and raise it with each release.
+The application's [`version`](configuration.md#version) is what the endpoint is compared to. Keep it a semantic version (`1.2.0`), and raise it with each release.
 
 ## The document
 
@@ -47,13 +47,13 @@ The endpoint serves a JSON document in the format of [Tauri's updater](https://v
 }
 ```
 
-`version` may start with a `v`. `notes` and `pub_date` are optional; `pub_date` is an RFC 3339 date, with or without a fraction of a second, or `Updater::check()` throws. Each platform, `linux-x86_64`, `linux-aarch64`, `darwin-aarch64`, `windows-x86_64`, gives the URL of the executable of `nativella build` for it, and its signature. A platform the document leaves out gets no update.
+`version` may start with a `v`. `notes` and `pub_date` are optional; `pub_date` is an RFC 3339 date, with or without a fraction of a second, or `Updater::check()` throws. Each platform, `linux-x86_64`, `linux-aarch64`, `darwin-aarch64`, `windows-x86_64`, gives the URL of its `nativella build` executable, and its signature. A platform the document leaves out gets no update.
 
-The executable says what it is: the application keeps it only if it has its `identifier`, the `version` of the document, newer than the running one, and runs on the machine. Build each release with the `version` of composer.json raised to the one you announce: a release announced as `99.0.0` cannot bring back an older build, signed or not.
+The executable says what it is. The application keeps it only if it has its `identifier`, the `version` of the document, newer than the running one, and runs on the machine. Build each release with the `version` of composer.json raised to the one you announce, so that a release announced as `99.0.0` cannot bring back an older build, signed or not.
 
 ## Signing
 
-Every executable is signed with your secret key, which never ships, and the application checks the signature with the public key before it replaces itself: whoever controls the server, or the network, cannot make it run something you did not build.
+Every executable is signed with your secret key, which never ships, and the application checks the signature with the public key before it replaces itself, so whoever controls the server, or the network, cannot make it run something you did not build.
 
 The keys and the signatures are [minisign](https://jedisct1.github.io/minisign/)'s. With minisign:
 
@@ -81,9 +81,9 @@ if (null !== $update) {
 | Method | |
 |---|---|
 | `check(): ?Update` | The latest release, when it is newer than this version, null otherwise. It asks the endpoint, and waits for its answer, 30 seconds at most. |
-| `install(): ?string` | Starts installing the latest release, if it is newer: its version, null otherwise. The download goes on in the background, PHP is free meanwhile. |
+| `install(): ?string` | Starts installing the latest release, if it is newer, and returns its version, or null otherwise. The download goes on in the background, and PHP is free meanwhile. |
 
-Once an update is being installed, or installed, both compare the endpoint to its version rather than to the running one: they do not offer it again before the next start.
+Once an update is being installed, or installed, both compare the endpoint to its version rather than to the running one, so they do not offer it again before the next start.
 
 Both throw a `NativeCallException` when the endpoint fails or answers a document they cannot read, and `install()` outside a standalone executable (`nativella run` runs the project as it is), or while another update is being installed.
 
@@ -92,14 +92,14 @@ Once the executable is in place, PHP and the pages get an event:
 | Event | |
 |---|---|
 | `UpdaterInstalled` | The next start runs `$event->version`. Tell the user, or [restart](app.md) when it suits them: `$app->restart()`. |
-| `UpdaterFailed` | `$event->version` was not installed: `$event->message` says why, a download that failed, a signature that does not match, an executable that is not the one announced. The executable is the same as before. |
+| `UpdaterFailed` | `$event->version` was not installed. `$event->message` says why: a download that failed, a signature that does not match, an executable that is not the one announced. The executable is the same as before. |
 
-As DOM events, `nativella:updater.installed` and `nativella:updater.failed`, with the same properties in `detail`.
+The DOM events are `nativella:updater.installed` and `nativella:updater.failed`, with the same properties in `detail`.
 
 ## Where it works
 
-The new executable is downloaded next to the running one, then takes its name: the running application keeps the file it started from. So the directory of the executable has to be writable by the user. An executable installed by a package manager, as the [Debian package](building.md#debian-packages) in `/usr/bin`, updates with its package manager instead: `install()` throws and says so.
+The new executable is downloaded next to the running one, then takes its name, and the running application keeps the file it started from. So the executable's directory has to be writable by the user. An executable installed by a package manager, like the [Debian package](building.md#debian-packages) in `/usr/bin`, updates with its package manager instead, and `install()` throws and says so.
 
-The previous executable stays next to the new one, as `<name>.old` (`notes.old`, `notes.exe.old`), until the next update: to go back to it by hand, rename it.
+The previous executable stays next to the new one, as `<name>.old` (`notes.old`, `notes.exe.old`), until the next update. To go back to it by hand, rename it.
 
 Tested on Linux. macOS and Windows go through the same code, untested. Phones update through their store.
