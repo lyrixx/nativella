@@ -54,7 +54,7 @@ $paths = $dialog->openFiles('Import pictures', filters: [
 ]);
 ```
 
-The paths are local files, readable by PHP right away, with no upload. That is the main difference with an `<input type="file">`, which hands PHP a copy of the file in `$_FILES` rather than its path. Uploads go through PHP like any other request body, but they are untested so far.
+The paths are local files, readable by PHP right away, with no upload. That is the main difference with an `<input type="file">`, which hands PHP a copy of the file in `$_FILES` rather than its path. Uploads go through PHP like any other request body. They are tested on Linux only, where a file made by a script [crashes the application](limitations.md#the-web-layer).
 
 ## Dialogs from a native event
 
