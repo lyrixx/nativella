@@ -3224,6 +3224,7 @@ dependencies = [
  "keepawake",
  "keyring",
  "libc",
+ "mac-notification-sys",
  "md-5",
  "minisign-verify",
  "nativella-runtime",

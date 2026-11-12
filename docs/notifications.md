@@ -34,7 +34,7 @@ public function onClick(NotificationClicked $event): void
 
 This is a Symfony listener. [Lifecycle and events](lifecycle.md#handling-events) says how the other integrations route events.
 
-Clicks are reported on Linux only, for now. macOS and Windows show the notification, but do not report the click.
+Clicks are reported on Linux and macOS, for now. Windows shows the notification, but does not report the click. On macOS, a notification is the app's, with its name and its icon, and macOS asks the user whether to allow them on the first one. Under `nativella run`, which runs no app, it is the Terminal's.
 
 On Linux, notifications go through the desktop's notification service (`org.freedesktop.Notifications`, on D-Bus), which every mainstream desktop provides.
 
