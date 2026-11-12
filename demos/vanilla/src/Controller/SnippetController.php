@@ -110,7 +110,7 @@ final readonly class SnippetController
 
         $list = self::listUrl($request->form('q'));
         $question = \sprintf(self::DELETE_QUESTION, $snippet->title);
-        if (Runtime::isNative() && !$this->deleteConfirmation->confirm($question)) {
+        if (Runtime::isAvailable() && !$this->deleteConfirmation->confirm($question)) {
             return Response::redirect($list);
         }
 

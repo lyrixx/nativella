@@ -52,7 +52,7 @@ $projectDir = dirname(__DIR__);
 $databasePath = Database::path($projectDir);
 $connection = Database::connect($databasePath);
 // Calls nothing until used: outside Nativella, the pages only use it after
-// checking Runtime::isNative().
+// checking Runtime::isAvailable().
 $native = Nativella::create();
 $repository = new SnippetRepository($connection);
 $schema = new SnippetSchema($connection);
@@ -95,10 +95,10 @@ $router->get('/snippets/{id}/download', $snippets->download(...));
 $router->get('/system', $system->show(...));
 // The clipboard and the file dialog only exist in Nativella. On phones, the
 // file dialog picks a content URI, not a file PHP can read: no import there.
-if (Runtime::isNative()) {
+if (Runtime::isAvailable()) {
     $router->post('/snippets/{id}/copy', $snippets->copy(...));
 }
-if (Runtime::isNative() && !Runtime::isMobile()) {
+if (Runtime::isAvailable() && !Runtime::isMobile()) {
     $router->post('/snippets/import', $snippets->import(...));
 }
 

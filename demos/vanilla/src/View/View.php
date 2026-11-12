@@ -31,7 +31,7 @@ final readonly class View
     public function page(string $title, string $template, array $parameters = [], int $status = 200): Response
     {
         $parameters['isMobile'] = Runtime::isMobile();
-        $parameters['isNative'] = Runtime::isNative();
+        $parameters['isNative'] = Runtime::isAvailable();
 
         return Response::html($this->render('layout', [
             'content' => $this->render($template, $parameters),

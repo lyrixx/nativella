@@ -15,7 +15,7 @@ final readonly class ExtensionClient implements Client
 {
     public function call(string $method, array $payload = []): array
     {
-        if (!Runtime::isNative()) {
+        if (!Runtime::isAvailable()) {
             throw new RuntimeUnavailableException(\sprintf('Cannot call "%s": the application does not run in Nativella.', $method));
         }
 
@@ -42,6 +42,6 @@ final readonly class ExtensionClient implements Client
 
     public function isNative(): bool
     {
-        return Runtime::isNative();
+        return Runtime::isAvailable();
     }
 }
