@@ -3,12 +3,14 @@
 namespace App\Native;
 
 use Nativella\Dialog\MessageKind;
+use Nativella\Exception\NativeCallException;
 use Nativella\Nativella;
 use Nativella\Runtime;
 
 /**
- * Asks before a snippet is deleted: on a phone with a fingerprint or a face
- * enrolled, the user proves who they are; elsewhere, a dialog asks them.
+ * Asks before a snippet is deleted: on a phone, the user proves who they are,
+ * with their fingerprint, their face or the PIN of the phone; elsewhere, a
+ * dialog asks them.
  */
 final readonly class DeleteConfirmation
 {
@@ -21,8 +23,15 @@ final readonly class DeleteConfirmation
 
     public function confirm(string $question): bool
     {
-        if (Runtime::isMobile() && $this->native->biometrics->isAvailable()) {
-            return $this->native->biometrics->authenticate($question, self::TITLE);
+        if (Runtime::isMobile()) {
+            try {
+                // Whatever Biometrics::isAvailable() says: without a fingerprint
+                // or a face enrolled, the phone asks for its PIN.
+                return $this->native->biometrics->authenticate($question, self::TITLE);
+            } catch (NativeCallException $e) {
+                // The phone has no lock at all: nobody to tell from its owner.
+                error_log(\sprintf('Warning: the phone cannot tell who holds it, a dialog asks instead. %s', $e->getMessage()));
+            }
         }
 
         return $this->native->dialog->confirm($question, self::TITLE, MessageKind::Warning, 'Delete', 'Cancel');
