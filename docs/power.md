@@ -40,6 +40,6 @@ The user can still put the computer to sleep, or close its lid. On Linux, Native
 | `PowerSourceChanged` | The computer went on battery, or back on mains: `$event->onBattery`. |
 | `PowerResumed` | The computer woke from sleep, so data fetched before may be stale, and a connection may be dead. |
 
-Nativella looks every 5 seconds, and reports sleeps of 15 seconds or more. On Linux, it reads how long the computer slept from the system. Elsewhere, it compares the wall clock to the monotonic one. Setting the clock forward looks like a sleep, and Windows, whose monotonic clock runs during sleep, never reports one.
+Nativella looks every 5 seconds, and reports sleeps of more than 15 seconds. On Linux, it reads how long the computer slept from the system. Elsewhere, it compares the wall clock to the monotonic one. Setting the clock forward looks like a sleep, and Windows, whose monotonic clock runs during sleep, never reports one.
 
 `Power` is desktop only. On a phone, it throws a `NativeCallException`.
