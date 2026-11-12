@@ -82,6 +82,10 @@ jobs:
             - name: "Set up the Docker stack"
               uses: ./.github/actions/stack
 
+            # The version of the workspace, in every file that repeats it
+            - name: "Check the versions"
+              run: "castor qa:versions"
+
             - name: "Build the builder"
               run: "castor docker:build --service=builder"
 

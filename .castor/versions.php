@@ -1,0 +1,168 @@
+<?php
+
+namespace versions;
+
+use Castor\Attribute\AsOption;
+use Castor\Attribute\AsTask;
+
+use function Castor\finder;
+use function Castor\io;
+use function Castor\variable;
+use function notices\workspace_package;
+
+/**
+ * The tag of a release: vX.Y.Z, with an optional -alphaN, -betaN or -rcN.
+ * Keep in sync with the origins of .gitsplit.yml, and with the tags of
+ * .github/workflows/release.yml and gitsplit.yml.
+ */
+const TAG = '/^v(\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\d+)?)$/';
+
+/**
+ * The crates, the PHP packages and the nativella command share one version,
+ * the one of the workspace in the root Cargo.toml: every file that repeats it
+ * must agree, and so must the tag of a release, which is immutable once
+ * published. The Composer the workflows install on the runners is the one of
+ * the builder too, which Dependabot updates in the Dockerfile only.
+ */
+#[AsTask(namespace: 'qa', name: 'versions', description: 'Checks that the version of the workspace is the one of every file that repeats it, and of a release tag')]
+function check(
+    #[AsOption(description: 'The tag of a release, e.g. v0.6.0, which must be the version of the workspace')]
+    ?string $tag = null,
+): int {
+    $version = workspace_package('version');
+    io()->section("Checking the versions against {$version}, the one of the workspace...");
+
+    $mismatches = [
+        ...tag($tag, $version),
+        ...crates($version),
+        ...composer_projects($version),
+        ...workflows_composer(),
+    ];
+
+    if ([] === $mismatches) {
+        io()->writeln('<info>✔</info> Every version agrees.');
+
+        return 0;
+    }
+
+    foreach ($mismatches as $mismatch) {
+        io()->writeln("<error>✘</error> {$mismatch}");
+    }
+
+    return 1;
+}
+
+/**
+ * @return list<string>
+ */
+function tag(?string $tag, string $version): array
+{
+    if (null === $tag) {
+        return [];
+    }
+
+    if (!preg_match(TAG, $tag, $matches)) {
+        return [\sprintf('The tag %s is not vX.Y.Z, with an optional -alphaN, -betaN or -rcN.', $tag)];
+    }
+
+    return same("The tag {$tag}", $matches[1], $version);
+}
+
+/**
+ * @return list<string>
+ */
+function crates(string $version): array
+{
+    $root = variable('root_dir');
+
+    $tauri = json_decode((string) file_get_contents("{$root}/crates/nativella/tauri.conf.json"), true, flags: \JSON_THROW_ON_ERROR);
+    $mismatches = same('crates/nativella/tauri.conf.json: version', $tauri['version'] ?? null, $version);
+
+    // The crates of the workspace have no source: the ones of crates.io do
+    preg_match_all('{^name = "([^"]+)"\nversion = "([^"]+)"\n(?!source = )}m', (string) file_get_contents("{$root}/Cargo.lock"), $packages, \PREG_SET_ORDER);
+    if ([] === $packages) {
+        $mismatches[] = 'Cargo.lock lists no crate of the workspace.';
+    }
+    foreach ($packages as [, $name, $locked]) {
+        array_push($mismatches, ...same("Cargo.lock: {$name}", $locked, $version));
+    }
+
+    return $mismatches;
+}
+
+/**
+ * The packages and the demos: before 1.0, a caret constraint stays on its
+ * minor version, which the branch alias of main and the path repositories
+ * name too.
+ *
+ * @return list<string>
+ */
+function composer_projects(string $version): array
+{
+    [$major, $minor] = explode('.', $version);
+    $alias = "{$major}.{$minor}.x-dev";
+    $constraint = "^{$major}.{$minor}";
+
+    $mismatches = [];
+    foreach (\project\all() as $project) {
+        if (!$project->isPackage() && !$project->isDemo()) {
+            continue;
+        }
+
+        $file = "{$project->path}/composer.json";
+        $composer = json_decode((string) file_get_contents($project->directory().'/composer.json'), true, flags: \JSON_THROW_ON_ERROR);
+
+        if ($project->isPackage()) {
+            array_push($mismatches, ...same("{$file}: extra.branch-alias.dev-main", $composer['extra']['branch-alias']['dev-main'] ?? null, $alias));
+        }
+
+        foreach ($composer['require'] ?? [] as $package => $required) {
+            if (str_starts_with($package, 'nativella/')) {
+                array_push($mismatches, ...same("{$file}: require.{$package}", $required, $project->isDemo() ? "{$constraint}@dev" : $constraint));
+            }
+        }
+
+        foreach ($composer['repositories'] ?? [] as $repository) {
+            foreach ($repository['options']['versions'] ?? [] as $package => $pathVersion) {
+                array_push($mismatches, ...same("{$file}: the version of {$package} in its path repository", $pathVersion, $alias));
+            }
+        }
+    }
+
+    return $mismatches;
+}
+
+/**
+ * @return list<string>
+ */
+function workflows_composer(): array
+{
+    $root = variable('root_dir');
+    $dockerfile = 'infrastructure/docker/services/php/Dockerfile';
+
+    if (!preg_match('{^FROM composer/composer:([^@\s]+)}m', (string) file_get_contents("{$root}/{$dockerfile}"), $matches)) {
+        return ["{$dockerfile} has no composer/composer image."];
+    }
+
+    $mismatches = [];
+    foreach (finder()->in("{$root}/.github/workflows")->files()->name('*.yml')->sortByName() as $workflow) {
+        preg_match_all('{^\s*tools: composer:([^@\s]+)}m', $workflow->getContents(), $tools);
+        foreach ($tools[1] as $composer) {
+            array_push($mismatches, ...same(".github/workflows/{$workflow->getFilename()}: the Composer of setup-php", $composer, $matches[1]));
+        }
+    }
+
+    return $mismatches;
+}
+
+/**
+ * @return list<string> what to say when $actual is not $expected
+ */
+function same(string $what, mixed $actual, string $expected): array
+{
+    if ($actual === $expected) {
+        return [];
+    }
+
+    return [\sprintf('%s is %s, not %s.', $what, \is_string($actual) ? $actual : 'missing', $expected)];
+}

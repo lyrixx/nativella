@@ -33,8 +33,33 @@ env:
     REGISTRY: "ghcr.io/lyrixx/nativella"
 
 jobs:
+    # First: once published, a release is immutable, and its tag cannot move
+    versions:
+        name: Check the versions
+        runs-on: ubuntu-26.04
+        timeout-minutes: 5
+        env:
+            # Castor reads the files itself: no image to build
+            CASTOR_CONTEXT: host
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false
+
+            - name: "Set up Castor"
+              uses: ./.github/actions/castor
+
+            - name: "Check the versions"
+              if: github.ref_type != 'tag'
+              run: "castor qa:versions"
+
+            - name: "Check the versions against the tag"
+              if: github.ref_type == 'tag'
+              run: castor qa:versions --tag="${GITHUB_REF_NAME}"
+
     linux:
         name: Build for Linux x86_64
+        needs: versions
         runs-on: ubuntu-26.04
         timeout-minutes: 60
         steps:
@@ -114,6 +139,7 @@ jobs:
 
     macos:
         name: Build for macOS arm64
+        needs: versions
         runs-on: macos-26
         timeout-minutes: 90
         env:
@@ -169,6 +195,7 @@ jobs:
 
     android:
         name: Build the template APK for Android arm64
+        needs: versions
         runs-on: ubuntu-26.04
         timeout-minutes: 90
         steps:
@@ -242,6 +269,7 @@ jobs:
     # Both on one runner, for one SHA256SUMS-ios
     ios:
         name: Build the template apps for iOS arm64 (experimental)
+        needs: versions
         runs-on: macos-26
         # PHP for iOS, when it builds again, takes half an hour
         timeout-minutes: 150

@@ -34,6 +34,7 @@ function all(
     #[AsOption(description: 'Only report coding standard violations, do not fix them')]
     bool $dryRun = false,
 ): int {
+    $versions = \versions\check();
     $securityAudit = securityAudit();
     $cs = cs($dryRun);
     $twigCs = twigCs($dryRun);
@@ -42,7 +43,7 @@ function all(
     $phpunitLowest = phpunit_lowest();
     $rust = rust();
 
-    return max($securityAudit, $cs, $twigCs, $phpstan, $phpunit, $phpunitLowest, $rust);
+    return max($versions, $securityAudit, $cs, $twigCs, $phpstan, $phpunit, $phpunitLowest, $rust);
 }
 
 #[AsTask(description: 'Installs tooling')]
