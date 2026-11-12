@@ -55,15 +55,12 @@ pub(crate) fn nativella_store_body(
         .decode(body)
         .map_err(|error| format!("The body is not base64: {error}."))?;
 
-    let mut bodies = lock(&bodies.0);
-    let now = Instant::now();
-    bodies.retain(|_, body| now.duration_since(body.stored) < LIFETIME);
-    bodies.insert(
+    lock(&bodies.0).insert(
         key,
         Body {
             content_type,
             bytes,
-            stored: now,
+            stored: Instant::now(),
         },
     );
 
@@ -77,7 +74,13 @@ pub(crate) fn is_script(request: &Request<Vec<u8>>) -> bool {
 }
 
 /// Gives `request` the body its page stored for it, if any.
+///
+/// Every request of a page passes here: the bodies nobody claimed, an
+/// upload whose request never came, are dropped on the way.
 pub(crate) fn restore<R: Runtime>(app: &impl Manager<R>, request: &mut Request<Vec<u8>>) {
+    let now = Instant::now();
+    lock(&app.state::<Bodies>().0).retain(|_, body| now.duration_since(body.stored) < LIFETIME);
+
     let key = match request.headers_mut().remove(KEY_HEADER) {
         Some(key) => key.to_str().unwrap_or_default().to_owned(),
         // A form: the key is in the URL.
