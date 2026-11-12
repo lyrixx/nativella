@@ -7,7 +7,7 @@ name: Static PHP
 # A pull request runs it on the changes of the Rust workflow: a demo can need
 # an extension that the static PHP lacks. And on mobile/php/php, which
 # describes the static PHP to ext-php-rs. Weekly too. The static image has
-# the Rust stable of the day it was built, as in rust.yml.
+# the Rust its Dockerfile pins, as the builder.
 #
 # A pull request does not build the executables (3 minutes): main builds
 # them once merged, as the release does, and the smoke test links the

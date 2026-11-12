@@ -126,15 +126,28 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
 
-# Rust, for every user: the container runs as the host's raw UID. The stable
-# of the day this layer is built, which the build cache keeps until a layer
-# above it changes: the workflows key their cargo caches on its version
-ARG RUST_VERSION=stable
+# Rust, for every user: the container runs as the host's raw UID. A pinned
+# release, installed by a pinned rustup-init, checked against the SHA-256 of
+# https://static.rust-lang.org/rustup/archive/<version>/<target>/rustup-init.sha256:
+# `castor qa:outdated` says when a newer stable is out. Keep in sync with the
+# static stage below. The workflows key their cargo caches on its version
+ARG RUST_VERSION=1.99.1
+ARG RUSTUP_VERSION=1.29.3
+ARG RUSTUP_SHA256_AMD64=b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55
+ARG RUSTUP_SHA256_ARM64=9f608c142e0e38a78957d0661ba1dfaf0b6fb37184cfaa4b9a0aa57af6184282
 ENV RUSTUP_HOME=/usr/local/rustup
 ENV PATH="/usr/local/cargo/bin:$PATH"
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-    | CARGO_HOME=/usr/local/cargo sh -s -- -y --no-modify-path --profile minimal \
+RUN case "$(dpkg --print-architecture)" in \
+        amd64) target=x86_64-unknown-linux-gnu; sha256="${RUSTUP_SHA256_AMD64}" ;; \
+        arm64) target=aarch64-unknown-linux-gnu; sha256="${RUSTUP_SHA256_ARM64}" ;; \
+        *) echo "No rustup-init for $(dpkg --print-architecture)." >&2; exit 1 ;; \
+    esac \
+    && curl --proto '=https' --tlsv1.2 -sSfLo /tmp/rustup-init "https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/${target}/rustup-init" \
+    && echo "${sha256}  /tmp/rustup-init" | sha256sum -c - \
+    && chmod +x /tmp/rustup-init \
+    && CARGO_HOME=/usr/local/cargo /tmp/rustup-init -y --no-modify-path --profile minimal \
         --default-toolchain "${RUST_VERSION}" --component clippy,rustfmt \
+    && rm /tmp/rustup-init \
     && rustc --version
 
 # The cargo registry lives in the mounted home (.home/), to survive the
@@ -293,13 +306,25 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
 
-# Rust, for every user: the container runs as the host's raw UID
-ARG RUST_VERSION=stable
+# Rust, for every user: the container runs as the host's raw UID. Keep in
+# sync with the builder stage above
+ARG RUST_VERSION=1.99.1
+ARG RUSTUP_VERSION=1.29.3
+ARG RUSTUP_SHA256_AMD64=b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55
+ARG RUSTUP_SHA256_ARM64=9f608c142e0e38a78957d0661ba1dfaf0b6fb37184cfaa4b9a0aa57af6184282
 ENV RUSTUP_HOME=/usr/local/rustup
 ENV PATH="/usr/local/cargo/bin:$PATH"
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-    | CARGO_HOME=/usr/local/cargo sh -s -- -y --no-modify-path --profile minimal \
+RUN case "$(dpkg --print-architecture)" in \
+        amd64) target=x86_64-unknown-linux-gnu; sha256="${RUSTUP_SHA256_AMD64}" ;; \
+        arm64) target=aarch64-unknown-linux-gnu; sha256="${RUSTUP_SHA256_ARM64}" ;; \
+        *) echo "No rustup-init for $(dpkg --print-architecture)." >&2; exit 1 ;; \
+    esac \
+    && curl --proto '=https' --tlsv1.2 -sSfLo /tmp/rustup-init "https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/${target}/rustup-init" \
+    && echo "${sha256}  /tmp/rustup-init" | sha256sum -c - \
+    && chmod +x /tmp/rustup-init \
+    && CARGO_HOME=/usr/local/cargo /tmp/rustup-init -y --no-modify-path --profile minimal \
         --default-toolchain "${RUST_VERSION}" --component clippy,rustfmt \
+    && rm /tmp/rustup-init \
     && rustc --version
 
 # As in the builder: the cargo registry in the mounted home (.home/), the
