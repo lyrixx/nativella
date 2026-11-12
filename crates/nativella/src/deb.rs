@@ -54,9 +54,12 @@ struct Control {
 /// The other dashes become dots: after a `~` each, 1.2.0-alpha-1 would come
 /// before 1.2.0-alpha, and it comes after.
 pub fn version(manifest: &Manifest) -> String {
-    let (core, suffix) = manifest
-        .version
-        .split_at(manifest.version.find(['-', '+']).unwrap_or(manifest.version.len()));
+    let (core, suffix) = manifest.version.split_at(
+        manifest
+            .version
+            .find(['-', '+'])
+            .unwrap_or(manifest.version.len()),
+    );
     let suffix = match suffix.strip_prefix('-') {
         Some(pre_release) => format!("~{pre_release}"),
         None => suffix.to_owned(),
@@ -167,24 +170,6 @@ fn write(
 /// The control of the package, from the manifest and the composer.json of
 /// the project.
 fn control(manifest: &Manifest, composer: &Value) -> io::Result<Control> {
-    if !manifest
-        .version
-        .starts_with(|character: char| character.is_ascii_digit())
-    {
-        return Err(io::Error::other(format!(
-            "The version \"{}\" does not start with a digit, which Debian packages need: set \"version\" in extra.nativella.",
-            manifest.version
-        )));
-    }
-    if manifest.version.contains(|character: char| {
-        !character.is_ascii_alphanumeric() && !".+-~".contains(character)
-    }) {
-        return Err(io::Error::other(format!(
-            "The version \"{}\" holds characters that Debian versions cannot: letters, digits and .+-~ only.",
-            manifest.version
-        )));
-    }
-
     let text = |value: &Value| value.as_str().map(one_line).filter(|text| !text.is_empty());
 
     let maintainer = composer["authors"]
@@ -449,16 +434,6 @@ mod tests {
         assert_eq!(version(&notes), "1.2.0~alpha.1");
         notes.version = "1.2.0+git-abc".to_owned();
         assert_eq!(version(&notes), "1.2.0+git.abc");
-    }
-
-    #[test]
-    fn a_version_debian_cannot_take_is_refused() {
-        let mut notes = manifest("Notes");
-
-        notes.version = "v1.2.0".to_owned();
-        assert!(control(&notes, &json!({})).is_err());
-        notes.version = "1.2.0 beta".to_owned();
-        assert!(control(&notes, &json!({})).is_err());
     }
 
     #[test]

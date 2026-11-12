@@ -35,6 +35,7 @@ use std::io::{self, BufWriter, Write};
 use std::path::{Component, Path, PathBuf};
 
 use plist::{Dictionary, Value};
+use semver::Version;
 
 use self::certificate::Certificate;
 use self::profile::Profile;
@@ -458,29 +459,21 @@ fn usage_description(permission: Permission, name: &str) -> Option<(&'static str
 /// project as three integers, which Apple requires, without its pre-release
 /// or build suffix.
 fn bundle_version(version: &str) -> io::Result<String> {
-    let invalid_version = || {
+    let Version {
+        major,
+        minor,
+        patch,
+        ..
+    } = Version::parse(version).map_err(|_| {
         io::Error::new(
             io::ErrorKind::InvalidData,
             format!(
                 "The version \"{version}\" cannot number an iOS app, which takes three integers: major.minor.patch."
             ),
         )
-    };
+    })?;
 
-    // Without its pre-release or build suffix: 1.2.3-beta.1+abc.
-    let core = version.split(['-', '+']).next().unwrap_or(version);
-    let parts = core
-        .split('.')
-        .map(str::parse)
-        .collect::<Result<Vec<u64>, _>>()
-        .map_err(|_| invalid_version())?;
-
-    match parts[..] {
-        [major] => Ok(format!("{major}.0.0")),
-        [major, minor] => Ok(format!("{major}.{minor}.0")),
-        [major, minor, patch] => Ok(format!("{major}.{minor}.{patch}")),
-        _ => Err(invalid_version()),
-    }
+    Ok(format!("{major}.{minor}.{patch}"))
 }
 
 /// Moves the app made in `app_dir` to `output`, in place of a previous one.
@@ -912,10 +905,8 @@ mod tests {
     fn bundle_versions() {
         assert_eq!(bundle_version("1.2.3").unwrap(), "1.2.3");
         assert_eq!(bundle_version("2.3.4-beta.1+abc").unwrap(), "2.3.4");
-        assert_eq!(bundle_version("3").unwrap(), "3.0.0");
-        assert_eq!(bundle_version("3.1").unwrap(), "3.1.0");
 
-        for version in ["", "1.x", "1.2.3.4", "v1.0.0"] {
+        for version in ["", "1.2", "1.2.3.4", "v1.0.0"] {
             assert!(bundle_version(version).is_err(), "{version}");
         }
     }

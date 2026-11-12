@@ -31,6 +31,8 @@ use std::fs::File;
 use std::io;
 use std::path::Path;
 
+use semver::Version;
+
 use self::icon::Icon;
 pub use self::signing::{KEY_PASSWORD, Key};
 use crate::embedded::{self, LeftOut, PACKAGED_BUNDLE};
@@ -321,19 +323,13 @@ fn version_code(version: &str) -> io::Result<u32> {
         )
     };
 
-    // Without its pre-release or build suffix: 1.2.3-beta.1+abc.
-    let core = version.split(['-', '+']).next().unwrap_or(version);
-    let parts = core
-        .split('.')
-        .map(str::parse)
-        .collect::<Result<Vec<u32>, _>>()
-        .map_err(|_| invalid("it is not major.minor.patch"))?;
-    let (major, minor, patch) = match parts[..] {
-        [major] => (major, 0, 0),
-        [major, minor] => (major, minor, 0),
-        [major, minor, patch] => (major, minor, patch),
-        _ => return Err(invalid("it is not major.minor.patch")),
-    };
+    // Its pre-release and its build suffix do not count: 1.2.3-beta.1+abc.
+    let Version {
+        major,
+        minor,
+        patch,
+        ..
+    } = Version::parse(version).map_err(|_| invalid("it is not major.minor.patch"))?;
     if minor >= 1000 || patch >= 1000 {
         return Err(invalid(
             "the minor version and the patch must stay under 1000",
@@ -343,6 +339,7 @@ fn version_code(version: &str) -> io::Result<u32> {
     major
         .checked_mul(1_000_000)
         .and_then(|code| code.checked_add(minor * 1000 + patch))
+        .and_then(|code| u32::try_from(code).ok())
         .filter(|&code| code <= MAX_VERSION_CODE)
         .ok_or_else(|| {
             invalid("Google Play accepts 2,100,000,000 at most, a major version of 2100")
@@ -383,10 +380,9 @@ mod tests {
     fn version_codes() {
         assert_eq!(version_code("0.1.1").unwrap(), 1001);
         assert_eq!(version_code("2.3.4-beta.1+abc").unwrap(), 2_003_004);
-        assert_eq!(version_code("3").unwrap(), 3_000_000);
         assert_eq!(version_code("2100.0.0").unwrap(), MAX_VERSION_CODE);
 
-        for version in ["", "1.x", "1.2.3.4", "v1.0.0"] {
+        for version in ["", "1.2", "1.2.3.4", "v1.0.0"] {
             let error = version_code(version).unwrap_err().to_string();
             assert!(
                 error.contains("not major.minor.patch"),
