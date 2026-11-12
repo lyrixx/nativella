@@ -25,6 +25,8 @@ use function static_php\stamped_sources;
 use const static_php\EXTENSIONS;
 use const static_php\PHP_RELEASE;
 use const static_php\SPC_VERSION;
+use const static_php\SQLITE_OPTIONS;
+use const static_php\SQLITE_RELEASE;
 
 /**
  * How PHP's configure enables each extension of the desktop
@@ -135,8 +137,9 @@ function ios(
 /**
  * Builds PHP for $target, unless it is built already from the same versions,
  * extensions, toolchain and recipes. static-php-cli downloads the latest
- * release of each library: the stamp of the build records them, and with
- * $updateLibraries, it builds again when one of them has a newer one.
+ * release of each library, but SQLite, which SQLITE_RELEASE pins: the stamp
+ * of the build records them, and with $updateLibraries, it builds again when
+ * one of them has a newer one.
  *
  * @return string the buildroot, from the root of the repository: lib/ with
  *                libphp.a and the libraries it needs, include/php/,
@@ -151,7 +154,7 @@ function build(Target $target, bool $force = false, bool $updateLibraries = fals
 
     $toolchain = toolchain($target);
     // The recipes too, which are these, not static-php-cli's
-    $identity = implode(' ', [SPC_VERSION, PHP_RELEASE, $target->name, $toolchain->version, EXTENSIONS, hash_file('xxh128', __FILE__)]);
+    $identity = implode(' ', [SPC_VERSION, PHP_RELEASE, 'sqlite-'.SQLITE_RELEASE, $target->name, $toolchain->version, EXTENSIONS, hash_file('xxh128', __FILE__)]);
 
     $libraries = libraries();
     $recorded = stamped_sources($stamp);
@@ -291,9 +294,7 @@ function build_library(Build $build, string $library, string $archive): void
             '-DLIBXML2_WITH_ICU=OFF',
             '-DLIBXML2_WITH_PYTHON=OFF', '-DLIBXML2_WITH_PROGRAMS=OFF', '-DLIBXML2_WITH_TESTS=OFF',
         ]),
-        // The library only: its shell runs commands with system(), which iOS
-        // does not have
-        'sqlite' => $build->autoconf($source, [], ['install-libLTLIBRARIES', 'install-includeHEADERS', 'install-pkgconfigDATA']),
+        'sqlite' => $build->sqlite($source, SQLITE_OPTIONS),
         'libsodium' => $build->autoconf($source),
         'libzip' => $build->cmake($source, [
             '-DENABLE_OPENSSL=ON', '-DENABLE_GNUTLS=OFF', '-DENABLE_MBEDTLS=OFF',
@@ -750,6 +751,20 @@ final readonly class Build
     {
         $this->run(['./configure', '--static', '--prefix='.$this->path($this->buildroot)], $dir, $this->environment());
         $this->make($dir, ['install']);
+    }
+
+    /**
+     * SQLite, with the configure script of autosetup, which takes the
+     * platforms as the one of autoconf does, but stops at its other options:
+     * static only. The library only: its shell runs commands with system(),
+     * which iOS does not have.
+     *
+     * @param list<string> $options
+     */
+    public function sqlite(string $dir, array $options): void
+    {
+        $this->configure($dir, ['--prefix='.$this->path($this->buildroot), '--disable-shared', ...$options]);
+        $this->make($dir, ['install-lib', 'install-headers', 'install-pc']);
     }
 
     /**

@@ -56,6 +56,30 @@ const PHP_RELEASE = '8.5.12';
 const PHP_RELEASE_SHA256 = '08bc2eba2a588654ade1357174aa646b761556c862dda0678345ee29ed481209';
 
 /**
+ * The release of SQLite: static-php-cli pins 3.45.2, from 2024, so every
+ * platform builds this one instead, and builds again when it changes. Raise
+ * it with each release of SQLite, with the two constants below: see
+ * docs/development.md#the-version-of-sqlite.
+ */
+const SQLITE_RELEASE = '3.54.1';
+
+/** The year of SQLITE_RELEASE: the directory of its archive on sqlite.org. */
+const SQLITE_RELEASE_YEAR = '2026';
+
+/**
+ * The SHA3-256 of the archive of SQLITE_RELEASE (sqlite_archive()), as
+ * https://www.sqlite.org/download.html gives it.
+ */
+const SQLITE_RELEASE_SHA3_256 = 'b6ced585c750916b1052667239a12c25a7ff34e7f06e1e6e01ecb0427657d9c4';
+
+/**
+ * The extensions of SQLite that the configure script of 3.45.2 enabled by
+ * itself, and that the one of SQLITE_RELEASE leaves out unless asked: on the
+ * desktop and on the phones.
+ */
+const SQLITE_OPTIONS = ['--enable-fts4', '--enable-fts5', '--enable-geopoly', '--enable-rtree'];
+
+/**
  * The service that builds the static PHP and links it: Ubuntu 22.04, for an
  * old glibc.
  */
@@ -84,10 +108,11 @@ const GLIBCXX_VERSION = '3.4.30';
  * machine. In the static service, or on the host in the host context, as on
  * macOS.
  *
- * About 5 minutes, then nothing until the version or the extensions change.
- * static-php-cli downloads the latest release of each library PHP links: the
- * stamp of the build records them, and --update-libraries builds again when
- * one of them has a newer one, as the CI asks on main and for a release.
+ * About 5 minutes, then nothing until the versions or the extensions change.
+ * static-php-cli downloads the latest release of each library PHP links, but
+ * SQLite, which SQLITE_RELEASE pins: the stamp of the build records them, and
+ * --update-libraries builds again when one of them has a newer one, as the CI
+ * asks on main and for a release.
  */
 #[AsTask(namespace: 'static-php', description: 'Builds PHP as a static library, for executables that need no PHP on the machine')]
 function build(
@@ -101,7 +126,7 @@ function build(
     // In the build, not in the cache of Castor: the CI caches the build
     $buildroot = variable('root_dir').'/static-php/buildroot';
     $stamp = "{$buildroot}/.nativella-build";
-    $build = SPC_VERSION.' '.PHP_RELEASE.' '.builder_platform().' '.EXTENSIONS;
+    $build = SPC_VERSION.' '.PHP_RELEASE.' sqlite-'.SQLITE_RELEASE.' '.builder_platform().' '.EXTENSIONS;
     if ([] !== spc_environment()) {
         $build .= ' gcc glibc '.GLIBC_VERSION;
     }
@@ -234,10 +259,42 @@ function build_php(): void
     prepare();
     run_in_builder(['./spc', 'doctor', '--auto-fix'], $workDir, $environment, SERVICE);
     download_for_extensions();
+    if (downloaded_sqlite()) {
+        configure_sqlite($workDir, $environment);
+    }
     // It dumps the licenses of PHP and of the libraries it builds into
     // buildroot/license/, for the third-party notices (notices\desktop())
     run_in_builder(['./spc', 'build', EXTENSIONS, '--build-embed'], $workDir, $environment, SERVICE);
     \notices\copy_php_src_licenses('static-php/source/php-src', 'static-php/buildroot/license/php-src');
+}
+
+/**
+ * static-php-cli configures SQLite as it does the 3.45.2 it pins, whose
+ * configure script came from autoconf. The one of SQLITE_RELEASE is another
+ * tool, autosetup: it stops at the options it does not know, --with-pic and
+ * --enable-pic, and builds without the extensions of SQLITE_OPTIONS. It also
+ * finds the math functions in the LIBS of static-php-cli, so it links its
+ * shell, which make builds too, without libm: with an empty LIBS, it looks
+ * for the library itself. It is a wrapper, which hands its arguments over:
+ * it now adds these ones.
+ *
+ * static-php-cli keeps a source it finds extracted from the archive of its
+ * lock, so the build that follows configures this one.
+ *
+ * @param array<string, string> $environment
+ */
+function configure_sqlite(string $workDir, array $environment): void
+{
+    run_in_builder(['./spc', 'extract', 'sqlite', '--source-only'], $workDir, $environment, SERVICE);
+
+    $configure = variable('root_dir').'/static-php/source/sqlite/configure';
+    $contents = (string) file_get_contents($configure);
+    $arguments = ' "$@"';
+    if (1 !== substr_count($contents, $arguments)) {
+        throw new \RuntimeException(\sprintf('%s does not hand its arguments over with %s any more: the configure script of SQLite changed, check how to give it %s.', $configure, trim($arguments), implode(' ', SQLITE_OPTIONS)));
+    }
+
+    fs()->dumpFile($configure, str_replace($arguments, $arguments.' --disable-option-checking LIBS= '.implode(' ', SQLITE_OPTIONS), $contents));
 }
 
 /**
@@ -360,12 +417,13 @@ function linked_sources(string $licenses): array
 }
 
 /**
- * Runs `spc download`, for the sources of PHP_RELEASE, into
- * static-php/downloads/. static-php-cli keeps the sources it downloaded
- * already, whatever the version asked: those of another version are
- * downloaded again.
+ * Runs `spc download`, for the sources of PHP_RELEASE and of SQLITE_RELEASE,
+ * into static-php/downloads/. static-php-cli keeps the sources it downloaded
+ * already, whatever the version asked: those of another version of PHP are
+ * downloaded again, and SQLite, from a URL of ours, each time it is among the
+ * sources.
  *
- * @param list<string>          $command     spc download and its arguments, but --with-php
+ * @param list<string>          $command     spc download and its arguments, but --with-php and --custom-url
  * @param array<string, string> $environment
  * @param list<string>          $refresh     the sources to download again, in their latest release
  */
@@ -374,7 +432,8 @@ function download(array $command, string $workDir, array $environment = [], ?str
     $source = 'php-'.PHP_RELEASE.'.tar.xz';
 
     $command[] = '--with-php='.PHP_RELEASE;
-    if (null !== downloaded_php_source() && $source !== downloaded_php_source()) {
+    $command[] = \sprintf('--custom-url=sqlite:https://www.sqlite.org/%s/%s', SQLITE_RELEASE_YEAR, sqlite_archive());
+    if (null !== downloaded_archive('php-src') && $source !== downloaded_archive('php-src')) {
         $refresh[] = 'php-src';
     }
     if ([] !== $refresh) {
@@ -390,28 +449,53 @@ function download(array $command, string $workDir, array $environment = [], ?str
 
     run_in_builder($command, $workDir, $environment, $service);
 
-    if ($source !== downloaded_php_source()) {
-        throw new \RuntimeException(\sprintf('static-php-cli downloaded %s, not %s: see static-php/downloads/.lock.json.', downloaded_php_source() ?? 'no PHP', $source));
+    if ($source !== downloaded_archive('php-src')) {
+        throw new \RuntimeException(\sprintf('static-php-cli downloaded %s, not %s: see static-php/downloads/.lock.json.', downloaded_archive('php-src') ?? 'no PHP', $source));
     }
 
     $sha256 = hash_file('sha256', variable('root_dir')."/static-php/downloads/{$source}");
     if (PHP_RELEASE_SHA256 !== $sha256) {
         throw new \RuntimeException(\sprintf('static-php/downloads/%s has the SHA-256 %s, not the %s of PHP_RELEASE_SHA256.', $source, $sha256, PHP_RELEASE_SHA256));
     }
+
+    if (downloaded_sqlite()) {
+        $sha3 = hash_file('sha3-256', variable('root_dir').'/static-php/downloads/'.sqlite_archive());
+        if (SQLITE_RELEASE_SHA3_256 !== $sha3) {
+            throw new \RuntimeException(\sprintf('static-php/downloads/%s has the SHA3-256 %s, not the %s of SQLITE_RELEASE_SHA3_256.', sqlite_archive(), $sha3, SQLITE_RELEASE_SHA3_256));
+        }
+    }
 }
 
 /**
- * The archive of PHP that static-php-cli downloaded, from its lock: php.net
- * names it after the version, php-8.5.12.tar.xz.
+ * The archive of SQLITE_RELEASE, as sqlite.org names it:
+ * sqlite-autoconf-3540100.tar.gz for 3.54.1.
  */
-function downloaded_php_source(): ?string
+function sqlite_archive(): string
+{
+    return vsprintf('sqlite-autoconf-%d%02d%02d00.tar.gz', explode('.', SQLITE_RELEASE));
+}
+
+/**
+ * Whether static-php-cli downloaded SQLITE_RELEASE, from its lock: only when
+ * an extension of EXTENSIONS needs SQLite.
+ */
+function downloaded_sqlite(): bool
+{
+    return sqlite_archive() === downloaded_archive('sqlite');
+}
+
+/**
+ * The archive of $source that static-php-cli downloaded last, from its lock:
+ * php.net names the one of PHP after its version, php-8.5.12.tar.xz.
+ */
+function downloaded_archive(string $source): ?string
 {
     $lock = variable('root_dir').'/static-php/downloads/.lock.json';
     if (!is_file($lock)) {
         return null;
     }
 
-    return json_decode((string) file_get_contents($lock), true, flags: \JSON_THROW_ON_ERROR)['php-src']['filename'] ?? null;
+    return json_decode((string) file_get_contents($lock), true, flags: \JSON_THROW_ON_ERROR)[$source]['filename'] ?? null;
 }
 
 /**

@@ -185,7 +185,7 @@ Before building, `nativella:build` gathers the platform's [third-party notices](
 castor static-php:build
 ```
 
-This builds PHP as a static library with [static-php-cli](https://github.com/crazywhalecc/static-php-cli), with the embed SAPI and the extensions listed in `.castor/static-php.php`, into `static-php/buildroot/` (ignored by Git). It takes about 5 minutes, then does nothing until the PHP version, its extensions, static-php-cli or the glibc change; `--force` builds it again anyway. The task downloads static-php-cli from its release, and checks it against the SHA-256 in `SPC_SHA256`, next to its version.
+This builds PHP as a static library with [static-php-cli](https://github.com/crazywhalecc/static-php-cli), with the embed SAPI and the extensions listed in `.castor/static-php.php`, into `static-php/buildroot/` (ignored by Git). It takes about 5 minutes, then does nothing until the PHP version, the SQLite version, its extensions, static-php-cli or the glibc change; `--force` builds it again anyway. The task downloads static-php-cli from its release, and checks it against the SHA-256 in `SPC_SHA256`, next to its version.
 
 On Linux, it builds in the `static` image, which the task builds first: Ubuntu 22.04, with Rust and the Tauri libraries but no PHP. An executable needs the glibc it was built with, or a newer one. Built on Debian 13, like the builder, it would need glibc 2.41, which not even Ubuntu 24.04 has. Built in that image, it runs on Ubuntu 22.04 and later, Debian 12 and later. static-php-cli builds PHP there with gcc rather than zig, its default. That builds it against that glibc, as WebKitGTK is linked against it too, and for the architecture's baseline. Built for the build machine's processor, it would stop with an illegal instruction on an older one. gcc builds intl and ICU, which are C++, against the libstdc++ that WebKitGTK loads too; zig would build them against a libc++ of its own, which cargo's linker does not have.
 
@@ -205,7 +205,7 @@ The tasks give cargo that PHP through its environment. A cargo command run by ha
 
 #### The libraries PHP links
 
-`PHP_RELEASE` pins PHP, and `SPC_VERSION` static-php-cli, but static-php-cli downloads the latest release of most libraries PHP links (OpenSSL, curl, ICU, libxml2…), into `static-php/downloads/`, and keeps what it downloaded. The stamp of a build, `buildroot/.nativella-build`, records the archive of each one and its hash, and the [third-party notices](building.md#licenses) name them.
+`PHP_RELEASE` pins PHP, `SPC_VERSION` static-php-cli and `SQLITE_RELEASE` [SQLite](#the-version-of-sqlite), but static-php-cli downloads the latest release of the other libraries PHP links (OpenSSL, curl, ICU, libxml2…), into `static-php/downloads/`, and keeps what it downloaded. The stamp of a build, `buildroot/.nativella-build`, records the archive of each one and its hash, and the [third-party notices](building.md#licenses) name them.
 
 A build never downloads a library again by itself, so a `static-php/downloads/` kept for months builds old ones. `--update-libraries` downloads them again, and builds PHP again only if one changed. `static-php:build`, `static-php:android`, `static-php:ios`, `mobile:android-template` and `mobile:ios-template` take it. The CI passes it on `main` and for a release, never on a pull request, which builds with what the cache of `main` holds.
 
@@ -214,6 +214,14 @@ A build never downloads a library again by itself, so a `static-php/downloads/` 
 `PHP_RELEASE`, in `.castor/static-php.php`, pins the PHP version, to its patch release, for the desktop and the phones, on every machine and in every CI job. `PHP_RELEASE_SHA256`, next to it, is the SHA-256 of its archive, `php-<version>.tar.xz`, which the download is checked against. Each buildroot's stamp holds the version. When it changes, each platform builds the new PHP, whatever its [cache](#caches) holds.
 
 Moving to a new PHP release, security releases above all, is a change of these two lines, in a pull request of its own, whose workflows build the new PHP on Linux, macOS, Android and iOS. php.net gives the latest release of a branch and the SHA-256 of its archives, `https://www.php.net/releases/index.php?json&version=8.5`; static-php-cli downloads it from there, into `static-php/downloads/`, and again when the version changes. `castor qa:outdated` fails when php.net has a newer 8.5 release, and `php.yml` runs it every week.
+
+#### The version of SQLite
+
+static-php-cli takes most libraries in their latest release, but pins SQLite to 3.45.2, from 2024. `SQLITE_RELEASE`, in `.castor/static-php.php`, pins another one, for the desktop and the phones: the tasks hand static-php-cli the URL of its archive on sqlite.org, `sqlite-autoconf-<version>.tar.gz`, in the directory of `SQLITE_RELEASE_YEAR`, and check the download against `SQLITE_RELEASE_SHA3_256`. Each buildroot's stamp holds the version. When it changes, each platform builds PHP again.
+
+Moving to a new SQLite release is a change of these three constants, in a pull request of its own. <https://www.sqlite.org/download.html> gives the version, the year and the SHA3-256 of the archive.
+
+Since SQLite 3.49, the `configure` script of that archive is not autoconf's any more. It stops at options static-php-cli gives every library (`--with-pic`), and no longer enables FTS4, FTS5, R-Tree and Geopoly by itself. `static-php:build` extracts the source before static-php-cli builds it, and makes the script ignore the options it does not know and enable those extensions, `SQLITE_OPTIONS`; the phones have a recipe of their own, with the same options. A newer static-php-cli that builds this SQLite by itself makes all of this useless.
 
 ### PHP for the phones
 
@@ -226,7 +234,7 @@ This builds the same PHP for phones: PHP 8.5, embed SAPI, without thread safety,
 
 `static-php:android` builds in the `android` image, which it builds first, with its NDK's clang, for the template's API level (the `minSdkVersion` of `crates/nativella/tauri.android.conf.json`), into `static-php/android-arm64/buildroot/`, or `android-x86_64/` for emulators on x86_64 computers. It takes a few minutes, starting with ICU and OpenSSL. `static-php:ios` builds on the Mac itself, with Xcode, CMake and pkg-config, for Tauri's default iOS version (15.0), into `static-php/ios-arm64/` and `static-php/ios-simulator-arm64/`. `mobile:android-template` and `mobile:ios` build what they need first.
 
-Each buildroot has a stamp, like the desktop's. The build starts again only when static-php-cli, the PHP version, the extensions, the NDK or Xcode, or `.castor/static-php-mobile.php` change. `--force` starts it again anyway, and `--update-libraries` when [a library](#the-libraries-php-links) has a newer release. The sources are extracted in the `source/` next to it, which a successful build removes.
+Each buildroot has a stamp, like the desktop's. The build starts again only when static-php-cli, the PHP version, the SQLite version, the extensions, the NDK or Xcode, or `.castor/static-php-mobile.php` change. `--force` starts it again anyway, and `--update-libraries` when [a library](#the-libraries-php-links) has a newer release. The sources are extracted in the `source/` next to it, which a successful build removes.
 
 ### The PHP of the system
 
