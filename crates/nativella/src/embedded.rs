@@ -62,6 +62,12 @@ const EMPTIED: &[&str] = &[
     "var",
 ];
 
+/// What a directory behind a symbolic link leaves out when it is a Composer
+/// package, linked from a path repository: its repository, and what its own
+/// development installed and tests it with. The project has the dependencies
+/// it runs with in its own `vendor`.
+const LINKED_PACKAGE_EXCLUDED: &[&str] = &[".git", "node_modules", "tests", "vendor"];
+
 /// The ends of the names of the files that hold credentials, in lower case:
 /// keystores and PKCS #12 files, with their private keys, and provisioning
 /// profiles.
@@ -430,6 +436,7 @@ pub(crate) fn write_bundle(
             .transpose()?,
         icon_ships: false,
         left_out: LeftOut::default(),
+        walked: vec![project.dir.canonicalize()?],
     };
 
     let mut archive = Digested {
@@ -443,7 +450,7 @@ pub(crate) fn write_bundle(
     // Neither the dates nor the owners of the files of this computer: the
     // same files make the same archive. The extraction dates them anew.
     builder.mode(tar::HeaderMode::Deterministic);
-    append_dir(&mut builder, &project.dir, Path::new(""), &mut walk)?;
+    append_dir(&mut builder, &project.dir, Path::new(""), EXCLUDED, &mut walk)?;
     builder.into_inner()?.finish()?;
     // The windows of a standalone executable take it from the extracted
     // project.
@@ -511,6 +518,10 @@ struct Walk {
     icon: Option<String>,
     icon_ships: bool,
     left_out: LeftOut,
+    /// The project, then the directories behind the symbolic links that lead
+    /// to the directory being walked, canonical: a link to one of them, or to
+    /// what holds one, would be followed forever.
+    walked: Vec<PathBuf>,
 }
 
 /// The icon `icon` of a manifest, relative to the project, with `/`.
@@ -535,10 +546,13 @@ fn icon_path(icon: &Path) -> io::Result<String> {
     Ok(parts.join("/"))
 }
 
+/// Appends the directory `relative` of `root` to the archive, but its entries
+/// named in `excluded`.
 fn append_dir<W: Write>(
     archive: &mut tar::Builder<W>,
     root: &Path,
     relative: &Path,
+    excluded: &[&str],
     walk: &mut Walk,
 ) -> io::Result<()> {
     let mut entries = fs::read_dir(root.join(relative))?.collect::<Result<Vec<_>, _>>()?;
@@ -552,7 +566,7 @@ fn append_dir<W: Write>(
             walk.left_out.local_overrides.push(normalized);
             continue;
         }
-        if EXCLUDED.contains(&normalized.as_str())
+        if excluded.contains(&entry.file_name().to_string_lossy().as_ref())
             || entry
                 .path()
                 .canonicalize()
@@ -568,7 +582,11 @@ fn append_dir<W: Write>(
                 archive.append_dir(&path, entry.path())?;
             }
         } else if metadata.is_dir() {
-            append_dir(archive, root, &path, walk)?;
+            if entry.file_type()?.is_symlink() {
+                append_linked_dir(archive, root, &path, walk)?;
+            } else {
+                append_dir(archive, root, &path, &[], walk)?;
+            }
         } else if is_credential(&normalized, &entry.path())? {
             walk.left_out.credentials.push(normalized);
         } else if is_database(&normalized) {
@@ -578,6 +596,59 @@ fn append_dir<W: Write>(
             archive.append_path_with_name(entry.path(), &path)?;
         }
     }
+
+    Ok(())
+}
+
+/// Appends the directory behind the symbolic link `relative` of `root`, as
+/// what it leads to ships: not at all, or empty, when it is a directory of
+/// the project that does (the `public/storage` of Laravel leads to
+/// `storage/app/public`); without its own development when it is a Composer
+/// package.
+fn append_linked_dir<W: Write>(
+    archive: &mut tar::Builder<W>,
+    root: &Path,
+    relative: &Path,
+    walk: &mut Walk,
+) -> io::Result<()> {
+    let link = root.join(relative);
+    let target = link.canonicalize()?;
+    if walk.walked.iter().any(|walked| walked.starts_with(&target)) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "The symbolic link {} leads to {}, which holds it: following it would never end. Remove it, or leave it out of the project.",
+                link.display(),
+                target.display()
+            ),
+        ));
+    }
+
+    if let Ok(inside) = target.strip_prefix(&walk.walked[0]) {
+        let inside = inside.to_string_lossy().replace('\\', "/");
+        let is_under = |directories: &[&str]| {
+            directories.iter().any(|directory| {
+                inside
+                    .strip_prefix(directory)
+                    .is_some_and(|rest| rest.is_empty() || rest.starts_with('/'))
+            })
+        };
+        if is_under(EXCLUDED) {
+            return Ok(());
+        }
+        if is_under(EMPTIED) {
+            return archive.append_dir(relative, &link);
+        }
+    }
+
+    let excluded = if target.join("composer.json").is_file() {
+        LINKED_PACKAGE_EXCLUDED
+    } else {
+        &[]
+    };
+    walk.walked.push(target);
+    append_dir(archive, root, relative, excluded, walk)?;
+    walk.walked.pop();
 
     Ok(())
 }
@@ -835,6 +906,72 @@ mod tests {
 
         let builds = root.join("cache/dev.nativella.project");
         assert_eq!(fs::read_dir(builds).unwrap().count(), 0);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn what_a_symbolic_link_leads_to_ships_as_it_does_in_the_project() {
+        use std::os::unix::fs::symlink;
+
+        let root = Path::new(env!("OUT_DIR")).join(format!("links-test-{}", std::process::id()));
+        let project_dir = root.join("project");
+        fs::create_dir_all(project_dir.join("public")).unwrap();
+        fs::write(project_dir.join("public/index.php"), "<?php").unwrap();
+        // The public disk of Laravel, as `php artisan storage:link` links it.
+        fs::create_dir_all(project_dir.join("storage/app/public")).unwrap();
+        fs::write(project_dir.join("storage/app/public/upload.jpg"), "JPEG").unwrap();
+        symlink("../storage/app/public", project_dir.join("public/storage")).unwrap();
+        fs::create_dir_all(project_dir.join("tests/fixtures")).unwrap();
+        fs::write(project_dir.join("tests/fixtures/note.md"), "A note").unwrap();
+        symlink("tests/fixtures", project_dir.join("fixtures")).unwrap();
+        // A package of a Composer path repository, with its own development.
+        let package = root.join("packages/lib");
+        for (file, content) in [
+            ("composer.json", "{}"),
+            ("src/Lib.php", "<?php"),
+            ("src/vendor/bundled.js", "A directory of its sources"),
+            ("tests/LibTest.php", "<?php"),
+            ("vendor/phpunit/phpunit", "<?php"),
+        ] {
+            fs::create_dir_all(package.join(file).parent().unwrap()).unwrap();
+            fs::write(package.join(file), content).unwrap();
+        }
+        fs::create_dir_all(project_dir.join("vendor/acme")).unwrap();
+        symlink("../../../packages/lib", project_dir.join("vendor/acme/lib")).unwrap();
+        let project = Project::load(&project_dir).unwrap();
+
+        let mut bytes = Vec::new();
+        write_bundle(&project, &mut bytes, &[]).unwrap();
+
+        let mut archive = tar::Archive::new(GzDecoder::new(&bytes[..]));
+        let paths: Vec<_> = archive
+            .entries()
+            .unwrap()
+            .map(|entry| {
+                let entry = entry.unwrap();
+                let path = entry.path().unwrap().to_string_lossy().into_owned();
+                (path, entry.header().entry_type().is_dir())
+            })
+            .collect();
+        assert_eq!(
+            paths,
+            [
+                ("public/index.php".to_owned(), false),
+                ("public/storage".to_owned(), true),
+                ("storage/app".to_owned(), true),
+                ("vendor/acme/lib/composer.json".to_owned(), false),
+                ("vendor/acme/lib/src/Lib.php".to_owned(), false),
+                ("vendor/acme/lib/src/vendor/bundled.js".to_owned(), false),
+            ]
+        );
+
+        // A link to what holds it.
+        symlink("..", project_dir.join("public/project")).unwrap();
+        let error = write_bundle(&project, &mut Vec::new(), &[]).unwrap_err();
+        assert!(error.to_string().contains("public/project"), "{error}");
+        assert!(error.to_string().contains("would never end"), "{error}");
+
         fs::remove_dir_all(root).unwrap();
     }
 
