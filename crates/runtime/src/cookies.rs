@@ -297,6 +297,25 @@ mod tests {
     }
 
     #[test]
+    fn keeps_a_cookie_that_never_expires() {
+        let file =
+            Path::new(env!("OUT_DIR")).join(format!("cookies-forever-{}", std::process::id()));
+        let _ = fs::remove_file(&file);
+
+        CookieJar::load(file.clone()).store(
+            "/",
+            &response(&["remember=1; path=/; max-age=999999999999999"]),
+        );
+
+        assert_eq!(
+            cookie_header(&CookieJar::load(file.clone()), "/").as_deref(),
+            Some("remember=1")
+        );
+
+        fs::remove_file(file).unwrap();
+    }
+
+    #[test]
     fn honors_paths() {
         let mut jar = CookieJar::default();
         jar.store("/admin/users", &response(&["admin=1", "api=1; path=/api"]));

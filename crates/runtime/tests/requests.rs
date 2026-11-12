@@ -84,6 +84,23 @@ switch ($_GET['case'] ?? '') {
     case 'loop':
         header('Location: /?case=loop');
         break;
+    case 'ini':
+        echo ini_get('user_agent');
+        break;
+    case 'login':
+        setcookie('session', 'abc');
+        header('Location: /?case=session');
+        break;
+    case 'session':
+        echo $_COOKIE['session'] ?? 'none';
+        break;
+    case 'native':
+        try {
+            echo nativella_call($_GET['method'], $_GET['payload'] ?? '{}');
+        } catch (Throwable $error) {
+            echo $error::class, ': ', $error->getMessage();
+        }
+        break;
     case 'form':
         $note = $_FILES['note'] ?? null;
         echo json_encode([
@@ -95,6 +112,9 @@ switch ($_GET['case'] ?? '') {
         echo 'Hello';
 }
 "#;
+
+/// What a php.ini reads otherwise between double quotes.
+const INI_VALUE: &str = r#"\\server\share "quoted" ${HOME} \"#;
 
 fn runtime() -> &'static PhpRuntime {
     static RUNTIME: OnceLock<PhpRuntime> = OnceLock::new();
@@ -117,8 +137,13 @@ fn runtime() -> &'static PhpRuntime {
         PhpRuntime::start(
             PhpApp::from_project_dir(&project)
                 .unwrap()
-                .with_ini("upload_tmp_dir", uploads.to_string_lossy()),
-            Box::new(|_| Ok(json!({}))),
+                .with_ini("upload_tmp_dir", uploads.to_string_lossy())
+                .with_ini("user_agent", INI_VALUE),
+            Box::new(|call| match call.method {
+                "fail" => Err("It failed.".to_owned()),
+                "panic" => panic!("It panicked."),
+                _ => Ok(json!({ "window": call.window })),
+            }),
         )
     })
 }
@@ -246,6 +271,39 @@ fn a_window_gives_up_on_a_page_that_redirects_to_itself() {
     }
     assert_eq!(navigate().status(), 508);
     assert_eq!(navigate().status(), 200, "The window may try again.");
+}
+
+#[test]
+fn a_setting_reaches_php_as_it_is() {
+    assert_eq!(text(&get("/?case=ini")), INI_VALUE);
+}
+
+#[test]
+fn the_cookie_of_a_redirect_reaches_its_target() {
+    assert_eq!(text(&get("/?case=login")), "abc");
+}
+
+#[test]
+fn a_native_call_answers_or_throws() {
+    assert_eq!(
+        text(&get("/?case=native&method=window.get")),
+        r#"{"window":"main"}"#
+    );
+    assert_eq!(
+        text(&get("/?case=native&method=fail")),
+        "RuntimeException: It failed."
+    );
+    assert!(
+        text(&get("/?case=native&method=window.get&payload=%7B"))
+            .starts_with(r#"RuntimeException: The payload of "window.get" is not valid JSON: "#)
+    );
+
+    let panicked = text(&get("/?case=native&method=panic"));
+    assert!(
+        panicked.starts_with("Error: ") && panicked.contains("It panicked."),
+        "{panicked}"
+    );
+    assert_eq!(text(&get("/")), "Hello");
 }
 
 #[test]

@@ -370,10 +370,7 @@ mod tests {
         chains.navigate("main", &home);
         assert!(!chains.redirect("main", login.clone()));
 
-        assert!(
-            chains.redirect("main", login),
-            "The window may try again."
-        );
+        assert!(chains.redirect("main", login), "The window may try again.");
     }
 
     #[test]
