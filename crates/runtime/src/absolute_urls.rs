@@ -130,9 +130,14 @@ enum Place {
     /// In the content of one of `TEXT_ELEMENTS`, until its end tag.
     TextElement(&'static [u8]),
     /// In a tag, between its attributes.
-    Tag { start: usize },
+    Tag {
+        start: usize,
+    },
     /// In the value of an attribute, after the quote at `quote`.
-    Value { tag: usize, quote: usize },
+    Value {
+        tag: usize,
+        quote: usize,
+    },
 }
 
 impl Place {
@@ -194,7 +199,8 @@ impl Place {
                 let (attribute, value) = (&before[..quote], &before[quote + 1..]);
 
                 value.is_empty() && is_attribute(attribute, URL_ATTRIBUTES)
-                    || value.trim_ascii_end().ends_with(b",") && is_attribute(attribute, &[b"srcset"])
+                    || value.trim_ascii_end().ends_with(b",")
+                        && is_attribute(attribute, &[b"srcset"])
                     || ends_with_url_function(value) && is_attribute(attribute, &[b"style"])
             }
             Self::TextElement(name) => name == b"style" && ends_with_url_function(before),
