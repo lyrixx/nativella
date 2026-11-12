@@ -66,11 +66,11 @@ Ids are yours to choose. They come back in `MenuItemClicked::$id`, so keep them 
 |---|---|---|
 | `Undo`, `Redo`, `Cut`, `Copy`, `Paste`, `SelectAll` | The system | Nativella, on the focused page. The page keeps its own keyboard shortcuts. |
 | `Minimize`, `Maximize`, `Fullscreen`, `CloseWindow` | The system | Nativella, on the focused window. `Maximize` and `Fullscreen` (F11) toggle. `CloseWindow` is `CmdOrCtrl+W`. |
-| `Quit` | The system | Nativella (`CmdOrCtrl+Q`). It asks the pages with [unsaved changes](javascript.md#unsaved-changes) first, then [waits for PHP](lifecycle.md#closing-and-quitting). |
+| `Quit` | Nativella (`Cmd+Q`), "Quit" and the application's name, in the default menu too | Nativella (`CmdOrCtrl+Q`) |
 | `About` | The system | The system, with the application's name, version and icon |
 | `Hide`, `HideOthers`, `ShowAll`, `Services` | The system | Left out |
 
-GTK, the Linux toolkit, implements few of these entries, so Nativella does it itself there. Windows is untested; the menu library Tauri uses does not implement `Fullscreen`, `HideOthers`, `ShowAll` and `Services` on Windows, and shows them disabled.
+Nativella's `Quit` asks the pages with [unsaved changes](javascript.md#unsaved-changes) first, then [waits for PHP](lifecycle.md#closing-and-quitting); the system's quits at once. GTK, the Linux toolkit, implements few of these entries, so Nativella does it itself there. Windows is untested; the menu library Tauri uses does not implement `Fullscreen`, `HideOthers`, `ShowAll` and `Services` on Windows, and shows them disabled.
 
 On macOS, keep an Edit menu holding `Copy` and `Paste` (`MenuItem::editMenu()`). Without it, the usual keyboard shortcuts may not reach text fields.
 

@@ -3,8 +3,8 @@
 //! unless the user confirms. WebKit runs `beforeunload` for a navigation,
 //! not for a window that closes.
 //!
-//! On Linux, where Nativella makes the Quit item of the menu, quitting asks
-//! every window the same way.
+//! On Linux and macOS, where Nativella makes the Quit item of the menu,
+//! quitting asks every window the same way.
 
 use std::collections::BTreeSet;
 use std::sync::{Mutex, PoisonError, mpsc};
@@ -54,7 +54,7 @@ pub(crate) fn close(window: WebviewWindow) {
 
 /// Quits, once the pages of every window let them go or the user confirms,
 /// and PHP has answered what they sent before.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 pub(crate) fn quit(app: &tauri::AppHandle) {
     use std::time::Instant;
     use tauri::Manager;

@@ -336,10 +336,53 @@ fn build_items(
         .collect()
 }
 
+/// The id of the Quit item Nativella makes, on Linux and macOS: it asks the
+/// pages, then lets PHP answer what it has, before quitting.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+const QUIT_ID: &str = "nativella:role:quit";
+
 /// The entry of a system role, `None` when the platform has no such thing.
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 fn role_item(app: &AppHandle, role: Role) -> tauri::Result<Option<Box<dyn IsMenuItem<Wry>>>> {
     Ok(Some(Box::new(predefined(app, role)?)))
+}
+
+/// The entry of a system role: the system's, but Quit, whose item of the
+/// system quits at once, even in the middle of a request.
+#[cfg(target_os = "macos")]
+fn role_item(app: &AppHandle, role: Role) -> tauri::Result<Option<Box<dyn IsMenuItem<Wry>>>> {
+    if role == Role::Quit {
+        return Ok(Some(Box::new(quit_item(app)?)));
+    }
+
+    Ok(Some(Box::new(predefined(app, role)?)))
+}
+
+/// Nativella's Quit item, as macOS names it: "Quit Notes", Cmd+Q.
+#[cfg(target_os = "macos")]
+fn quit_item(app: &AppHandle) -> tauri::Result<MenuItem<Wry>> {
+    MenuItem::with_id(
+        app,
+        QUIT_ID,
+        format!("Quit {}", app.package_info().name),
+        true,
+        Some("CmdOrCtrl+Q"),
+    )
+}
+
+/// The menu of an application that sets none: Tauri's, with Nativella's
+/// Quit item in place of the system's, the last of the application menu.
+#[cfg(target_os = "macos")]
+pub(crate) fn default_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
+    let menu = Menu::default(app)?;
+    if let Some(MenuItemKind::Submenu(application)) = menu.items()?.first() {
+        if let Some(quit) = application.items()?.last() {
+            application.remove(quit)?;
+        }
+        application.append(&quit_item(app)?)?;
+    }
+
+    Ok(menu)
 }
 
 /// GTK implements few roles (muda greys the others out), and its clipboard
@@ -390,6 +433,12 @@ pub(crate) fn on_menu_event(app: &AppHandle, event: MenuEvent) {
 
     #[cfg(target_os = "linux")]
     if linux_roles::handle(app, id) {
+        return;
+    }
+    #[cfg(target_os = "macos")]
+    if id == QUIT_ID {
+        crate::before_unload::quit(app);
+
         return;
     }
 
@@ -467,14 +516,14 @@ mod linux_roles {
 
     /// Runs the role `id` names, false if it names none.
     pub(super) fn handle(app: &AppHandle, id: &str) -> bool {
-        let Some(name) = id.strip_prefix(PREFIX) else {
-            return false;
-        };
-        if name == "quit" {
+        if id == super::QUIT_ID {
             crate::before_unload::quit(app);
 
             return true;
         }
+        let Some(name) = id.strip_prefix(PREFIX) else {
+            return false;
+        };
 
         let windows = app.webview_windows();
         let Some(window) = windows

@@ -137,4 +137,4 @@ Before a window closes, its page is asked, as a browser asks before closing a ta
 
 `App::quit()` and `App::restart()` act once the current request has been answered, so the response still reaches the page. See [App](app.md).
 
-When the user quits, PHP may be in the middle of a request, saving a form for instance. On Linux, the Quit menu item lets PHP answer the requests it already has, for 5 seconds at most, then quits. So do Ctrl+C, a closed terminal and `kill` (`SIGINT`, `SIGHUP`, `SIGTERM`) on Linux and macOS, where a second signal quits at once. The Quit menu item of macOS and Windows does not wait.
+When the user quits, PHP may be in the middle of a request, saving a form for instance. On Linux and macOS, the Quit menu item, and its `CmdOrCtrl+Q`, let PHP answer the requests it already has, for 5 seconds at most, then quit. So do Ctrl+C, a closed terminal and `kill` (`SIGINT`, `SIGHUP`, `SIGTERM`), where a second signal quits at once. On macOS, quitting from the Dock, or as the user logs out, does not wait, and neither does the Quit menu item of Windows.
