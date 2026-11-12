@@ -5,6 +5,7 @@ namespace App\Tests;
 use App\Entity\Note;
 use App\Repository\NoteRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Nativella\Client\ExtensionClient;
 use Nativella\Client\FakeClient;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -25,6 +26,16 @@ abstract class NotesTestCase extends WebTestCase
     protected function fakeClient(): FakeClient
     {
         return $this->service(FakeClient::class);
+    }
+
+    /**
+     * Runs the application as a browser does, outside Nativella: the client
+     * of the runtime, which has no runtime to call, takes the place of the
+     * fake. Call it before the first request.
+     */
+    protected function leaveNativella(): void
+    {
+        static::getContainer()->set(FakeClient::class, new ExtensionClient());
     }
 
     protected function notes(): NoteRepository

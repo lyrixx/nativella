@@ -1,7 +1,8 @@
 // The context menu of a note is a native one, opened by PHP.
 document.addEventListener('contextmenu', (event) => {
     const link = event.target.closest('[data-context-menu]');
-    if (!link || !document.documentElement.dataset.native) {
+    // Phones have no context menu.
+    if (!link || !document.documentElement.dataset.native || document.documentElement.dataset.mobile) {
         return;
     }
 

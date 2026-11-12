@@ -221,6 +221,10 @@ final class NoteController extends AbstractController
     #[IsCsrfTokenValid('submit')]
     public function copy(Note $note, Clipboard $clipboard, #[Autowire(service: 'twig.markdown.default')] MarkdownInterface $markdown, Request $request): Response
     {
+        if (!$this->nativella->isNative()) {
+            throw $this->createNotFoundException('Only Nativella has a clipboard.');
+        }
+
         if ('html' === $request->getPayload()->getString('format')) {
             $clipboard->writeHtml($markdown->convert($note->getBody()), $note->getBody());
             $this->addFlash('success', 'Copied as rich text: paste it in a mail or a document.');
@@ -236,6 +240,10 @@ final class NoteController extends AbstractController
     #[IsCsrfTokenValid('submit')]
     public function export(Note $note): Response
     {
+        if (!$this->nativella->isNative() || Runtime::isMobile()) {
+            throw $this->createNotFoundException('Only computers have a dialog to save a file.');
+        }
+
         try {
             $path = $this->actions->export($note);
         } catch (ExportFailed $e) {
@@ -255,6 +263,10 @@ final class NoteController extends AbstractController
     #[IsCsrfTokenValid('submit')]
     public function import(): Response
     {
+        if (!$this->nativella->isNative()) {
+            throw $this->createNotFoundException('Only Nativella has a dialog to pick files.');
+        }
+
         $result = $this->actions->importWithDialog();
         $this->entityManager->flush();
 
@@ -279,6 +291,10 @@ final class NoteController extends AbstractController
     #[Route('/notes/{id}/context-menu', name: 'note_context_menu', requirements: ['id' => Requirement::DIGITS], methods: ['POST'])]
     public function contextMenu(Note $note, Menu $menu): Response
     {
+        if (!$this->nativella->isNative() || Runtime::isMobile()) {
+            throw $this->createNotFoundException('Only computers have context menus.');
+        }
+
         $id = $note->getId();
 
         $menu->popup(

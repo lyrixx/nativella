@@ -413,6 +413,20 @@ final class NoteControllerTest extends NotesTestCase
         $this->assertSelectorTextContains('.flash', 'Skipped latin1.txt');
     }
 
+    public function testPhonesHaveNoExportNorContextMenu(): void
+    {
+        $_SERVER['NATIVELLA_PLATFORM'] = 'android';
+        $note = $this->createNote();
+
+        $this->post("/notes/{$note->getId()}/export");
+        $this->assertResponseStatusCodeSame(404);
+
+        $this->post("/notes/{$note->getId()}/context-menu");
+        $this->assertResponseStatusCodeSame(404);
+
+        $this->assertSame([], $this->nativeMethods());
+    }
+
     public function testTheContextMenuIsNative(): void
     {
         $note = $this->createNote();
