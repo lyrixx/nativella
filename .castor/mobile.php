@@ -53,6 +53,15 @@ const PHONE_APIS = ['barcode-scanner', 'biometrics', 'geolocation', 'haptics', '
 const TAURI_CLI_VERSION = '2.12.2';
 
 /**
+ * The SHA-256 of the Gradle distributions the Android project of Tauri asks
+ * for, as https://services.gradle.org/distributions/gradle-<version>-bin.zip.sha256
+ * gives them: its wrapper downloads Gradle, and checks nothing by itself.
+ */
+const GRADLE_SHA256 = [
+    '9.6.1' => '9c0f7faeeb306cb14e4279a3e084ca6b596894089a0638e68a07c945a32c9e14',
+];
+
+/**
  * The archive of the Tauri command for each platform, and its SHA-256, as its
  * release gives them: `gh release view tauri-cli-v<TAURI_CLI_VERSION> --repo
  * tauri-apps/tauri --json assets --jq '.assets[] | .name + " " + .digest'`.
@@ -153,6 +162,7 @@ function android_template(
         run_in_builder(['cargo', 'tauri', 'android', 'init', '--ci'], $workDir, $environment, $service);
         fs()->dumpFile("{$root}/crates/nativella/gen/android/.nativella-generation", $generation);
     }
+    android_gradle_checksum("{$root}/crates/nativella/gen/android/gradle/wrapper/gradle-wrapper.properties");
     android_page_permissions("{$root}/crates/nativella/gen/android/app/src/main/AndroidManifest.xml");
     android_bundled_barcode_model("{$root}/crates/nativella/gen/android/app/build.gradle.kts");
     android_libraries_compile_sdk("{$root}/crates/nativella/gen/android/build.gradle.kts");
@@ -801,6 +811,24 @@ function cargo_env(array $environment): string
     }
 
     return $toml;
+}
+
+/**
+ * Makes the wrapper of the generated Android project check the Gradle it
+ * downloads against GRADLE_SHA256. Does nothing when it does already.
+ */
+function android_gradle_checksum(string $properties): void
+{
+    $content = (string) file_get_contents($properties);
+    if (str_contains($content, 'distributionSha256Sum=')) {
+        return;
+    }
+    if (!preg_match('{^distributionUrl=.*/gradle-([\d.]+)-bin\.zip$}m', $content, $matches)) {
+        throw new \RuntimeException(\sprintf('%s has no distributionUrl of a Gradle distribution: Tauri changed its template.', $properties));
+    }
+
+    $sha256 = GRADLE_SHA256[$matches[1]] ?? throw new \RuntimeException(\sprintf('The Android project of Tauri asks for Gradle %s: add its SHA-256 to GRADLE_SHA256 in %s.', $matches[1], __FILE__));
+    fs()->dumpFile($properties, rtrim($content)."\ndistributionSha256Sum={$sha256}\n");
 }
 
 /**
