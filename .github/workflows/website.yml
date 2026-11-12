@@ -77,7 +77,7 @@ jobs:
                   php-version: "8.5"
                   # The Composer of the builder: keep in sync with the
                   # Dockerfile of infrastructure/docker/services/php/
-                  tools: composer:2.10.0@sha256:a346538851988ead111d11e3cbd7d372eeba44abd0af412e09890d3c21ea6c31
+                  tools: composer:2.10.3@sha256:7a2d379d5b8ffdaa028580ef26494c36d2feef4b178d3dd1473a4dbc5e17c8d6
 
             # Fails on a broken link of the documentation
             - name: "Build the website"
