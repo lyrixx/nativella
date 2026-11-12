@@ -386,6 +386,10 @@ fn start(
             // has its own, and phones have no /tmp. Opcache locks its shared
             // memory with a file there, without thread safety.
             let cache_dir = app.path().app_cache_dir()?;
+            // The files picked in dialogs during the previous run: see
+            // native/dialog.rs.
+            #[cfg(mobile)]
+            native::dialog::forget_picked(&cache_dir);
             let session_dir = cache_dir.join("sessions");
             fs::create_dir_all(&session_dir)?;
             let mut php_app = php_app.with_ini("session.save_path", session_dir.to_string_lossy());

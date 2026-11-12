@@ -183,8 +183,24 @@ fn picked(_call: &Call<'_>, path: tauri_plugin_dialog::FilePath) -> Result<Strin
     into_path(path)
 }
 
+/// Where the copies of the picked files are, in the cache directory.
+#[cfg(mobile)]
+const PICKED: &str = "picked";
+
+/// Removes the copies of the files picked during the previous run: nothing
+/// else does, and PHP has read them, or moved them, since.
+#[cfg(mobile)]
+pub(crate) fn forget_picked(cache_dir: &std::path::Path) {
+    if let Err(error) = std::fs::remove_dir_all(cache_dir.join(PICKED))
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        eprintln!("[dialog] The files picked earlier are left behind: {error}.");
+    }
+}
+
 /// Phones answer a `content://` URI, which only the system can read: the
-/// file is copied to the cache directory of the application first.
+/// file is copied to the cache directory of the application first, until
+/// its next start.
 #[cfg(mobile)]
 fn picked(call: &Call<'_>, path: tauri_plugin_dialog::FilePath) -> Result<String, String> {
     use tauri::Manager;
@@ -210,7 +226,7 @@ fn picked(call: &Call<'_>, path: tauri_plugin_dialog::FilePath) -> Result<String
         .path()
         .app_cache_dir()
         .map_err(failed)?
-        .join("picked")
+        .join(PICKED)
         .join(format!(
             "{:x}",
             std::time::SystemTime::now()
