@@ -33,7 +33,7 @@ Labels are made of letters, digits, `-`, `/`, `:` and `_`.
 
 `open(string $window, ?WindowOptions $options = null): WindowInfo` opens the window labelled `$window` and returns its [`WindowInfo`](#window-info). If a window with that label is already open, `open()` focuses it instead, and ignores the options.
 
-The `main` window starts from the [`window`](configuration.md#window) options in `composer.json`, and the options you pass complete them. `$window->open('main')` opens it again exactly as at startup.
+The `main` window starts from the [`window`](configuration.md#window) options in `composer.json`, and the options you pass complete them. `$window->open('main')` opens it again with them, [where the user left it](#what-a-window-remembers).
 
 The new window's first request waits for the current one to finish, since one PHP thread serves them all.
 
@@ -58,6 +58,12 @@ The new window's first request waits for the current one to finish, since one PH
 | `focused` | `?bool` | `true` | Whether the window takes the focus when it opens. |
 | `visible` | `?bool` | `true` | `false` opens it hidden, until `show()`. |
 | `skipTaskbar` | `?bool` | `false` | Leaves the window out of the taskbar. |
+
+### What a window remembers
+
+On computers, a window opens again where the user left it. For each label, Nativella keeps the window's size, its position, whether it was maximized or in full screen, and whether it had decorations. It applies them when a window with that label opens again, in the same run or at the next start. They win over `width`, `height`, `x`, `y`, `center`, `maximized`, `fullscreen` and `decorations`, in `WindowOptions` and in `composer.json`, so these options only count the first time a label opens. The position is restored only when its display is still there.
+
+The state is written when the application quits, to `.window-state.json` in the application's configuration directory, [`Directory::AppConfig`](app.md#directories): `~/.config/<identifier>` on Linux. Delete the file to open the windows from their options again.
 
 ## Driving windows
 

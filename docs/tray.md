@@ -43,7 +43,7 @@ A click on the icon dispatches `Nativella\Event\TrayClicked`, whose `button` is 
 use Nativella\Event\TrayClicked;
 
 if ($event instanceof TrayClicked && 'left' === $event->button) {
-    // Focuses the main window, or opens it again, as composer.json describes it.
+    // Focuses the main window, or opens it again.
     $window->open('main');
 }
 ```
@@ -77,4 +77,4 @@ if ($event instanceof MenuItemClicked) {
 }
 ```
 
-Opened again, the main window starts from the [`window`](configuration.md#window) options in `composer.json`. Starting the application a second time brings it back too. See [A second launch](lifecycle.md#a-second-launch).
+Opened again, the main window starts from the [`window`](configuration.md#window) options in `composer.json`, at the size and the position [the user left it](windows.md#what-a-window-remembers). Starting the application a second time brings it back too. See [A second launch](lifecycle.md#a-second-launch).
