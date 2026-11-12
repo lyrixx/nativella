@@ -135,6 +135,30 @@ final class NoteControllerTest extends NotesTestCase
         $this->assertSelectorTextContains('.note-link', 'Holidays');
     }
 
+    public function testSearchTakesWildcardsLiterally(): void
+    {
+        $this->createNote('Sales', '50% off');
+        $this->createNote('Code', 'my_var');
+        $this->createNote('Other', '500 myXvar');
+
+        $this->client->request('GET', '/notes', ['q' => '50%']);
+        $this->assertSelectorCount(1, '.note-link');
+        $this->assertSelectorTextContains('.note-link', 'Sales');
+
+        $this->client->request('GET', '/notes', ['q' => 'my_var']);
+        $this->assertSelectorCount(1, '.note-link');
+        $this->assertSelectorTextContains('.note-link', 'Code');
+    }
+
+    public function testSearchFindsAccentedCapitals(): void
+    {
+        $this->createNote('École', 'Rentrée');
+
+        $this->client->request('GET', '/notes', ['q' => 'École']);
+
+        $this->assertSelectorCount(1, '.note-link');
+    }
+
     public function testCopyAsRichText(): void
     {
         $note = $this->createNote('Title', 'Some *emphasis*');

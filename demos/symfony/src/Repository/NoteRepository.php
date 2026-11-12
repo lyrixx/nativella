@@ -27,7 +27,10 @@ class NoteRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return list<Note> pinned notes first, then the most recently updated
+     * Pinned notes first, then the most recently updated. As SQLite's LIKE,
+     * the search ignores the case of ASCII letters only.
+     *
+     * @return list<Note>
      */
     public function findForSidebar(?string $search = null): array
     {
@@ -37,8 +40,9 @@ class NoteRepository extends ServiceEntityRepository
 
         if (null !== $search && '' !== trim($search)) {
             $query
-                ->andWhere('LOWER(note.title) LIKE :search OR LOWER(note.body) LIKE :search')
-                ->setParameter('search', '%'.addcslashes(mb_strtolower(trim($search)), '%_').'%');
+                // LIKE has no escape character unless told: "%" and "_" of the search are meant literally.
+                ->andWhere("note.title LIKE :search ESCAPE '\\' OR note.body LIKE :search ESCAPE '\\'")
+                ->setParameter('search', '%'.addcslashes(trim($search), '%_\\').'%');
         }
 
         return $query->getQuery()->getResult();
