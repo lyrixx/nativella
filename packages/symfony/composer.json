@@ -17,7 +17,7 @@
     },
     "require": {
         "php": ">=8.4",
-        "nativella/nativella": "^0.5",
+        "nativella/nativella": "^0.6",
         "psr/log": "^1.0|^2.0|^3.0",
         "symfony/config": "^7.4|^8.0",
         "symfony/dependency-injection": "^7.4|^8.0",
@@ -51,7 +51,7 @@
             "url": "../nativella",
             "options": {
                 "versions": {
-                    "nativella/nativella": "0.5.x-dev"
+                    "nativella/nativella": "0.6.x-dev"
                 }
             }
         }
@@ -63,7 +63,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.5.x-dev"
+            "dev-main": "0.6.x-dev"
         }
     }
 }
