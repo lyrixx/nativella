@@ -6,6 +6,7 @@ use App\Entity\Note;
 use App\Form\NoteData;
 use App\Form\NoteType;
 use App\Native\Desktop;
+use App\Note\Exception\ExportFailed;
 use App\Note\NoteActions;
 use App\Repository\NoteRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -20,6 +21,7 @@ use Nativella\Nativella;
 use Nativella\Runtime;
 use Nativella\Share;
 use Nativella\Window;
+use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
@@ -36,6 +38,7 @@ final class NoteController extends AbstractController
         private readonly NoteActions $actions,
         private readonly Desktop $desktop,
         private readonly EntityManagerInterface $entityManager,
+        private readonly LoggerInterface $logger,
         private readonly Nativella $nativella,
         private readonly NoteRepository $notes,
     ) {
@@ -237,7 +240,14 @@ final class NoteController extends AbstractController
     #[IsCsrfTokenValid('submit')]
     public function export(Note $note): Response
     {
-        $path = $this->actions->export($note);
+        try {
+            $path = $this->actions->export($note);
+        } catch (ExportFailed $e) {
+            $this->logger->warning('The note could not be exported.', ['exception' => $e]);
+            $this->addFlash('error', $e->getMessage());
+
+            return $this->redirectToRoute('note_show', ['id' => $note->getId()]);
+        }
         if (null !== $path) {
             $this->addFlash('success', \sprintf('Exported to %s.', $path));
         }

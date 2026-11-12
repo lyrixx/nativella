@@ -3,12 +3,14 @@
 namespace App\Note;
 
 use App\Entity\Note;
+use App\Note\Exception\ExportFailed;
 use App\Repository\NoteRepository;
 use Nativella\Dialog;
 use Nativella\Dialog\FileFilter;
 use Nativella\Dialog\MessageKind;
 use Nativella\Notification;
 use Nativella\Page;
+use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\String\Slugger\SluggerInterface;
 
@@ -45,6 +47,8 @@ final readonly class NoteActions
 
     /**
      * @return string|null where the note was saved, null if the user cancelled
+     *
+     * @throws ExportFailed when the file cannot be written
      */
     public function export(Note $note): ?string
     {
@@ -58,7 +62,11 @@ final readonly class NoteActions
             return null;
         }
 
-        $this->filesystem->dumpFile($path, $note->toMarkdown());
+        try {
+            $this->filesystem->dumpFile($path, $note->toMarkdown());
+        } catch (IOException $e) {
+            throw new ExportFailed($path, $e);
+        }
         $this->notification->send('Note exported', \sprintf('"%s" was saved to %s.', $note->getTitle(), $path));
 
         return $path;

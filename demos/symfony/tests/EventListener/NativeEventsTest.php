@@ -79,6 +79,17 @@ final class NativeEventsTest extends NotesTestCase
         $this->assertSame([], $this->fakeClient()->calls('page.dispatch'));
     }
 
+    public function testAnExportFromTheContextMenuThatCannotBeWrittenIsShown(): void
+    {
+        $note = $this->createNote();
+        $this->fakeClient()->respond('dialog.saveFile', ['path' => __FILE__.'/groceries.md']);
+
+        $this->sendNativeEvent('menu.itemClicked', ['id' => "note.export:{$note->getId()}", 'checked' => null]);
+
+        $this->assertSame('error', $this->fakeClient()->calls('dialog.message')[0]->payload['kind']);
+        $this->assertSame([], $this->fakeClient()->calls('notification.send'));
+    }
+
     public function testDeveloperToolsThatDoNotExistAreExplained(): void
     {
         $this->fakeClient()->respond('window.openDevtools', new NativeCallException('window.openDevtools', new \RuntimeException('Developer tools only exist in debug builds.')));

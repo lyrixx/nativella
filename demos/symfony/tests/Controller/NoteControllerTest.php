@@ -352,6 +352,20 @@ final class NoteControllerTest extends NotesTestCase
         $this->assertSame(['dialog.saveFile', 'notification.send'], $this->nativeMethods());
     }
 
+    public function testAnExportThatCannotBeWrittenIsReported(): void
+    {
+        $note = $this->createNote();
+        // A file stands where the directory should be.
+        $path = __FILE__.'/groceries.md';
+        $this->fakeClient()->respond('dialog.saveFile', ['path' => $path]);
+
+        $this->post("/notes/{$note->getId()}/export");
+        $this->client->followRedirect();
+
+        $this->assertSelectorTextContains('.flash.error', "The note could not be written to \"{$path}\".");
+        $this->assertSame(['dialog.saveFile', 'window.setTitle'], $this->nativeMethods());
+    }
+
     public function testACancelledExportWritesNothing(): void
     {
         $note = $this->createNote();
