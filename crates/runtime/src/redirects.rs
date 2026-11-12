@@ -85,7 +85,8 @@ pub(crate) fn next(
     ) && !matches!(*request.method(), Method::GET | Method::HEAD);
 
     if navigation && !sends_the_body_again {
-        let mut href = path_and_query(&target);
+        // The whole URL: "//docs" alone would name another host.
+        let mut href = webview_uri(request.uri(), &path_and_query(&target)).to_string();
         if let Some(fragment) = target.fragment() {
             href.push('#');
             href.push_str(fragment);
@@ -278,7 +279,24 @@ mod tests {
         assert!(
             String::from_utf8(response.into_body())
                 .unwrap()
-                .contains(r#"location.replace("/?q=x#note-5")"#)
+                .contains(r#"location.replace("php://localhost/?q=x#note-5")"#)
+        );
+    }
+
+    #[test]
+    fn a_navigation_to_a_path_of_two_slashes_stays_in_the_application() {
+        let Next::Respond(response) = next(
+            post("php://localhost/notes"),
+            redirect(302, "http://localhost//docs"),
+            true,
+        ) else {
+            panic!("A navigation is never followed by the runtime.");
+        };
+
+        assert!(
+            String::from_utf8(response.into_body())
+                .unwrap()
+                .contains(r#"location.replace("php://localhost//docs")"#)
         );
     }
 
@@ -375,7 +393,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             String::from_utf8(response.into_body()).unwrap(),
-            r#"<!DOCTYPE html><meta charset="UTF-8"><script>location.replace("/?from=post");</script>"#
+            r#"<!DOCTYPE html><meta charset="UTF-8"><script>location.replace("php://localhost/?from=post");</script>"#
         );
     }
 }
