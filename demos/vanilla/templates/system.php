@@ -32,7 +32,7 @@ $unknown = '<span class="muted">Unknown</span>';
         <section class="card">
             <h2>Operating system</h2>
             <dl class="facts">
-                <dt>System</dt><dd><?= $this->e($system->os) ?> <?= $this->e($system->version) ?> (<?= $this->e($system->family) ?>)</dd>
+                <dt>System</dt><dd><?= $this->e($system->platform) ?> <?= $this->e($system->version) ?> (<?= $this->e($system->family) ?>)</dd>
                 <dt>Architecture</dt><dd><?= $this->e($system->arch) ?></dd>
                 <dt>Host name</dt><dd><?= null === $system->hostname ? $unknown : $this->e($system->hostname) ?></dd>
                 <dt>Locale</dt><dd><?= null === $system->locale ? $unknown : $this->e($system->locale) ?></dd>

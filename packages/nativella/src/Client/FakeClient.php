@@ -43,7 +43,7 @@ final class FakeClient implements Client
         'secrets.get' => ['value' => null],
         'settings.all' => ['settings' => []],
         'settings.has' => ['has' => false],
-        'system.info' => ['os' => 'linux', 'family' => 'unix', 'arch' => 'x86_64', 'version' => '1.0.0', 'hostname' => 'localhost', 'locale' => 'en-US'],
+        'system.info' => ['platform' => 'linux', 'family' => 'unix', 'arch' => 'x86_64', 'version' => '1.0.0', 'hostname' => 'localhost', 'locale' => 'en-US'],
         'system.theme' => ['theme' => 'light'],
         'updater.check' => ['update' => null],
         'updater.install' => ['version' => null],

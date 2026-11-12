@@ -15,7 +15,7 @@ struct Target {
 pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     Some(match method {
         "info" => Ok(json!({
-            "os": tauri_plugin_os::platform(),
+            "platform": tauri_plugin_os::platform(),
             "family": tauri_plugin_os::family(),
             "arch": tauri_plugin_os::arch(),
             "version": tauri_plugin_os::version().to_string(),
