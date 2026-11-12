@@ -19,6 +19,10 @@ final readonly class System
         return SystemInfo::fromArray($this->client->call('system.info'));
     }
 
+    /**
+     * The theme of the window. While the application has no window, as on
+     * Event\AppBooted, the theme of the system on Linux, and light elsewhere.
+     */
     public function theme(?string $window = null): Theme
     {
         $theme = $this->client->call('system.theme', ['window' => $window])['theme'];
