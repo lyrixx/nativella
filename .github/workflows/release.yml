@@ -86,6 +86,12 @@ jobs:
             - name: "Build the builder"
               run: "castor docker:build --service=builder"
 
+            # Before the builds: the executables of the demos carry their
+            # dependencies. It installs the projects, not the QA tools, which
+            # the release has no use for: staging installs what it ships
+            - name: "Check Security issues"
+              run: "castor qa:security-audit"
+
             - name: "Build the static image"
               run: "castor docker:build --service=static"
 
@@ -118,11 +124,6 @@ jobs:
               run: "castor static-php:build"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            # Staging copies the .env of a Laravel demo, which castor install
-            # creates (with its key)
-            - name: "Install the projects"
-              run: "castor install"
 
             - name: "Build the executables"
               run: "castor nativella:build"
