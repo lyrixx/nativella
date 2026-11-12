@@ -104,6 +104,7 @@ impl Executable {
                     let name = &command[8..24];
                     let file_offset = u64_at(command, 40);
                     let file_size = u64_at(command, 48);
+                    let file_end = file_offset.checked_add(file_size).ok_or_else(corrupted)?;
                     let sections = u32_at(command, 64) as usize;
                     for section in 0..sections {
                         let start = SEGMENT_COMMAND_LENGTH + section * SECTION_LENGTH;
@@ -118,12 +119,12 @@ impl Executable {
                     }
 
                     if name == b"__LINKEDIT\0\0\0\0\0\0" {
-                        linkedit = Some((offset, file_offset, file_size));
+                        linkedit = Some((offset, file_offset, file_end));
                     } else {
                         if name == b"__TEXT\0\0\0\0\0\0\0\0\0\0" {
-                            text = Some((file_offset, file_offset + file_size));
+                            text = Some((file_offset, file_end));
                         }
-                        other_segments_end = other_segments_end.max(file_offset + file_size);
+                        other_segments_end = other_segments_end.max(file_end);
                     }
                 }
                 LC_CODE_SIGNATURE if size >= LINKEDIT_DATA_COMMAND_LENGTH => {
@@ -138,10 +139,9 @@ impl Executable {
         }
 
         let text = text.ok_or_else(|| invalid("The executable of the template has no __TEXT."))?;
-        let (linkedit_command, linkedit_offset, linkedit_size) =
+        let (linkedit_command, linkedit_offset, linkedit_end) =
             linkedit.ok_or_else(|| invalid("The executable of the template has no __LINKEDIT."))?;
         // The signature grows __LINKEDIT, at the end of the file.
-        let linkedit_end = linkedit_offset + linkedit_size;
         if other_segments_end > linkedit_offset || linkedit_end != length {
             return Err(invalid(
                 "__LINKEDIT is not the last data of the executable of the template: it cannot be signed.",
@@ -416,11 +416,15 @@ pub(crate) mod tests {
         library[12] = 6;
         let mut trailing = executable(true);
         trailing.push(0);
+        // The size of __TEXT in the file, in its load command, the first one.
+        let mut endless = executable(true);
+        endless[HEADER_LENGTH + 48..HEADER_LENGTH + 56].fill(0xff);
 
         for (bytes, name) in [
             (universal, "universal"),
             (library, "library"),
             (trailing, "trailing"),
+            (endless, "endless"),
             (b"#!/bin/sh".to_vec(), "script"),
         ] {
             let path = Path::new(env!("OUT_DIR"))

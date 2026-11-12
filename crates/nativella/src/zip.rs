@@ -119,6 +119,12 @@ pub fn entries(file: &mut File) -> io::Result<Vec<Entry>> {
         ));
     }
 
+    // Before making room for it: the record may say anything.
+    if u64::from(central_directory_offset) + u64::from(central_directory_size) > length {
+        return Err(invalid(
+            "The central directory of the template is corrupted.",
+        ));
+    }
     file.seek(SeekFrom::Start(central_directory_offset.into()))?;
     let mut central_directory = vec![0; central_directory_size as usize];
     file.read_exact(&mut central_directory)?;
@@ -161,30 +167,33 @@ pub fn entries(file: &mut File) -> io::Result<Vec<Entry>> {
 
 /// The content of `entry`, uncompressed.
 pub fn read(file: &mut File, entry: &Entry) -> io::Result<Vec<u8>> {
-    let mut data = Vec::with_capacity(entry.size as usize);
-    let compressed = data_of(file, entry)?;
-
-    match entry.method {
-        STORED => compressed.take(entry.size.into()).read_to_end(&mut data)?,
-        DEFLATED => DeflateDecoder::new(compressed).read_to_end(&mut data)?,
-        method => return Err(unknown_method(entry, method)),
-    };
+    let mut data = Vec::new();
+    extract(file, entry, &mut data)?;
 
     Ok(data)
 }
 
-/// Writes the content of `entry`, uncompressed, to `out`, as it goes.
+/// Writes the content of `entry`, uncompressed, to `out`, as it goes: no
+/// more than the size the entry gives, which its CRC must match.
 pub fn extract(file: &mut File, entry: &Entry, out: &mut dyn Write) -> io::Result<()> {
     let compressed = data_of(file, entry)?;
+    let mut out = Hashed {
+        inner: out,
+        crc: flate2::Crc::new(),
+        length: 0,
+    };
+    // One byte more tells the data that goes beyond its size: a few bytes
+    // may inflate to any length.
+    let limit = u64::from(entry.size) + 1;
 
-    let extracted = match entry.method {
-        STORED => io::copy(&mut compressed.take(entry.size.into()), out)?,
-        DEFLATED => io::copy(&mut DeflateDecoder::new(compressed), out)?,
+    match entry.method {
+        STORED => io::copy(&mut compressed.take(limit), &mut out)?,
+        DEFLATED => io::copy(&mut DeflateDecoder::new(compressed).take(limit), &mut out)?,
         method => return Err(unknown_method(entry, method)),
     };
-    if extracted != u64::from(entry.size) {
+    if out.length != u64::from(entry.size) || out.crc.sum() != entry.crc32 {
         return Err(invalid(&format!(
-            "The data of {} is truncated.",
+            "The data of {} is corrupted.",
             entry.name
         )));
     }
@@ -771,6 +780,58 @@ mod tests {
         );
 
         std::fs::remove_file(template_path).unwrap();
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn data_that_does_not_match_its_entry_is_refused() {
+        let path = Path::new(env!("OUT_DIR")).join(format!("zip-test-{}.data", std::process::id()));
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .unwrap();
+        let mut writer = Writer::new(&mut file);
+        writer.add_deflated("deflated", &[7; 5000]).unwrap();
+        writer
+            .add_stored_with("stored", |out| out.write_all(b"stored"))
+            .unwrap();
+        let unfinished = writer.finish().unwrap();
+        close(&mut file, &unfinished).unwrap();
+
+        for index in 0..2 {
+            let mut entries = entries(&mut file).unwrap();
+            assert!(read(&mut file, &entries[index]).is_ok());
+
+            // More data than the entry says, then other data.
+            entries[index].size -= 1;
+            let error = read(&mut file, &entries[index]).unwrap_err();
+            assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+            entries[index].size += 1;
+            entries[index].crc32 ^= 1;
+            let error = read(&mut file, &entries[index]).unwrap_err();
+            assert!(error.to_string().contains("corrupted"), "{error}");
+        }
+
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn a_central_directory_beyond_the_file_is_corrupted() {
+        let path = Path::new(env!("OUT_DIR")).join(format!("zip-test-{}.end", std::process::id()));
+        let mut end = END_OF_CENTRAL_DIRECTORY.to_le_bytes().to_vec();
+        end.extend([0; 4]);
+        end.extend([1, 0, 1, 0]);
+        // 4 GB of central directory, in a file of 22 bytes.
+        end.extend(0xffff_0000_u32.to_le_bytes());
+        end.extend([0; 4 + 2]);
+        std::fs::write(&path, end).unwrap();
+
+        let error = entries(&mut File::open(&path).unwrap()).err().unwrap();
+
+        assert!(error.to_string().contains("central directory"), "{error}");
         std::fs::remove_file(path).unwrap();
     }
 

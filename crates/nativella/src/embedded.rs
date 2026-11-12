@@ -250,8 +250,9 @@ impl<R: Read + Seek> Bundle<R> {
             )
         };
 
-        let manifest_offset = length
-            .checked_sub(TRAILER_LENGTH + manifest_length)
+        let manifest_offset = TRAILER_LENGTH
+            .checked_add(manifest_length)
+            .and_then(|end| length.checked_sub(end))
             .ok_or_else(corrupted)?;
         let archive_offset = manifest_offset
             .checked_sub(archive_length)
@@ -1044,6 +1045,20 @@ mod tests {
         assert!(error.to_string().contains("would never end"), "{error}");
 
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_trailer_with_lengths_beyond_the_file_is_corrupted() {
+        for lengths in [[u64::MAX, 0], [0, u64::MAX], [0, u64::MAX - 8], [1 << 40, 2]] {
+            let mut bytes = b"What comes before the trailer".to_vec();
+            bytes.extend(lengths[0].to_le_bytes());
+            bytes.extend(lengths[1].to_le_bytes());
+            bytes.extend(MAGIC);
+
+            let error = Bundle::read(Cursor::new(bytes)).err().unwrap();
+
+            assert_eq!(error.kind(), io::ErrorKind::InvalidData, "{lengths:?}");
+        }
     }
 
     #[test]
