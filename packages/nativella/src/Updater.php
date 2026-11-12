@@ -21,6 +21,7 @@ final readonly class Updater
     /**
      * The endpoint's release, when it is newer than this version.
      *
+     * @throws Exception\NativeCallException         when the application has no "updates" in extra.nativella, or the endpoint fails
      * @throws Exception\UnexpectedResponseException when its "pub_date" is not an RFC 3339 date
      */
     public function check(): ?Update

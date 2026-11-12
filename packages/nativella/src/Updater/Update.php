@@ -21,7 +21,7 @@ final readonly class Update
     /**
      * @param array{version: string, notes: ?string, date: ?string} $data
      *
-     * @throws UnexpectedResponseException when the date is not an RFC 3339 one, as Tauri's updater would
+     * @throws UnexpectedResponseException when the date is not an RFC 3339 one, or is no day or time of the calendar
      */
     public static function fromArray(array $data): self
     {
@@ -30,11 +30,24 @@ final readonly class Update
 
     private static function date(string $date): \DateTimeImmutable
     {
+        $message = \sprintf('The "pub_date" of the release, "%s", is not an RFC 3339 date, as "2026-10-27T10:00:00Z".', $date);
         if (1 !== preg_match(self::DATE_PATTERN, $date)) {
-            throw new UnexpectedResponseException(\sprintf('The "pub_date" of the release, "%s", is not an RFC 3339 date, as "2026-10-27T10:00:00Z".', $date));
+            throw new UnexpectedResponseException($message);
         }
 
-        // Down to the microsecond: PHP drops the digits after.
-        return new \DateTimeImmutable($date);
+        try {
+            // Down to the microsecond: PHP drops the digits after.
+            $parsed = new \DateTimeImmutable($date);
+        } catch (\DateMalformedStringException $e) {
+            throw new UnexpectedResponseException($message, previous: $e);
+        }
+
+        // PHP reads February 30th as March 2nd, and says so here only.
+        $errors = \DateTimeImmutable::getLastErrors();
+        if (false !== $errors && 0 < $errors['warning_count']) {
+            throw new UnexpectedResponseException($message);
+        }
+
+        return $parsed;
     }
 }
