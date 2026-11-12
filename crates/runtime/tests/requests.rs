@@ -108,6 +108,12 @@ fn runtime() -> &'static PhpRuntime {
         fs::write(project.join("public/avatar.png"), "PNG").unwrap();
         fs::write(project.join("feed.php"), "<?xml version=\"1.0\"?><feed/>").unwrap();
 
+        // SAFETY: before PHP starts, and no other thread reads the environment.
+        unsafe {
+            std::env::set_var("NATIVELLA_INTERNAL", "1");
+            std::env::set_var("NATIVELLA_WINDOW", "forged");
+        }
+
         PhpRuntime::start(
             PhpApp::from_project_dir(&project)
                 .unwrap()

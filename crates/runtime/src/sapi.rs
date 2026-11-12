@@ -31,6 +31,9 @@ unsafe extern "C" {
 /// `SG(request_info).proto_num` for HTTP/1.1, encoded the way PHP's own SAPIs do.
 const HTTP_1_1: c_int = 1001;
 
+/// The server variables that tell PHP who sent a request (`RequestOrigin`).
+const ORIGIN_VARIABLES: [&str; 2] = ["NATIVELLA_INTERNAL", "NATIVELLA_WINDOW"];
+
 /// The php.ini of Nativella, which PHP reads before the settings of the
 /// application.
 const PHP_INI: &str = include_str!("../php.ini");
@@ -281,6 +284,10 @@ impl RequestContext {
         // Like the CLI and php-fpm without clear_env, $_SERVER starts with the
         // process environment: that is where APP_ENV and friends come from.
         let mut server_variables: Vec<(String, String)> = env::vars_os()
+            // Only the runtime says who sent the request: an application
+            // started with one of them in its environment would take every
+            // page for the runtime, or for another window.
+            .filter(|(name, _)| !ORIGIN_VARIABLES.iter().any(|variable| name == variable))
             .filter_map(|(name, value)| {
                 if let (Some(name), Some(value)) = (name.to_str(), value.to_str()) {
                     return Some((name.to_owned(), value.to_owned()));

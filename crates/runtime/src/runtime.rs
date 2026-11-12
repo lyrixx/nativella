@@ -95,8 +95,10 @@ impl PhpApp {
 
 /// Who sent a request.
 ///
-/// PHP sees it in server variables, which a webview request cannot forge:
-/// headers only ever become `HTTP_*` variables.
+/// PHP sees it in server variables, which neither a webview request nor the
+/// environment of the application can forge: headers only ever become
+/// `HTTP_*` variables, and the runtime leaves these two out of the
+/// environment it copies.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequestOrigin {
     /// A page, form or asset loaded by a webview. PHP sees the label of its
