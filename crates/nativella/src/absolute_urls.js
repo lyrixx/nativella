@@ -26,8 +26,30 @@
         }
 
         const url = toApp(input.url);
+        if (url === input.url) {
+            return fetch.call(this, input, init);
+        }
+        // Not `new Request(url, input)`: it hands over the body as a stream,
+        // which WebKit does not upload.
+        const moved = (body) => new Request(url, {
+            body,
+            cache: input.cache,
+            credentials: input.credentials,
+            headers: input.headers,
+            integrity: input.integrity,
+            keepalive: input.keepalive,
+            method: input.method,
+            mode: input.mode,
+            redirect: input.redirect,
+            referrer: input.referrer,
+            referrerPolicy: input.referrerPolicy,
+            signal: input.signal,
+        });
+        if (['GET', 'HEAD'].includes(input.method)) {
+            return fetch.call(this, moved(undefined), init);
+        }
 
-        return fetch.call(this, url === input.url ? input : new Request(url, input), init);
+        return input.clone().arrayBuffer().then((body) => fetch.call(this, moved(body), init));
     };
 
     const { open } = XMLHttpRequest.prototype;
