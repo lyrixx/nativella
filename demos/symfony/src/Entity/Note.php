@@ -47,7 +47,7 @@ class Note
     {
         $content = str_replace("\r\n", "\n", $content);
 
-        if (preg_match('/\A\s*#\s+(?<title>[^\n]+)\n?(?<body>.*)\z/s', $content, $matches)) {
+        if (preg_match('/\A\s*#[ \t]+(?<title>\S[^\n]*)\n?(?<body>.*)\z/s', $content, $matches)) {
             return new self(self::truncate(trim($matches['title'])), trim($matches['body']));
         }
 
