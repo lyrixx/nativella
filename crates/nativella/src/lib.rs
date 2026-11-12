@@ -62,6 +62,11 @@ pub(crate) const APP_URL: &str = "http://php.localhost/";
 /// The label of the window opened when PHP opens none at boot.
 pub(crate) const MAIN_WINDOW: &str = "main";
 
+/// How long the user who quits waits for the requests PHP still has: a save
+/// goes through, a request that hangs does not hold the application.
+#[cfg(all(desktop, unix))]
+const QUIT_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// Whether Nativella set `NO_AT_BRIDGE` for itself, see [`start`].
 #[cfg(target_os = "linux")]
 static SETS_NO_AT_BRIDGE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -524,6 +529,39 @@ pub(crate) fn quit_unless_shown(app: &AppHandle) {
     });
 }
 
+/// Quits as the user asks, from a menu or with a signal: once PHP has
+/// answered the requests it has, a form being saved for one, or after
+/// [`QUIT_GRACE`].
+#[cfg(all(desktop, unix))]
+pub(crate) fn quit(app: &AppHandle) {
+    use std::sync::mpsc::{self, RecvTimeoutError};
+
+    // A signal may come before PHP starts.
+    let Some(runtime) = app.try_state::<PhpRuntime>() else {
+        app.exit(0);
+        return;
+    };
+    let (answered, waiting) = mpsc::channel::<()>();
+    runtime.after_queued(move || drop(answered));
+
+    let handle = app.clone();
+    let spawned = std::thread::Builder::new()
+        .name("quit".to_owned())
+        .spawn(move || {
+            if waiting.recv_timeout(QUIT_GRACE) == Err(RecvTimeoutError::Timeout) {
+                eprintln!(
+                    "[nativella] PHP is still busy after {} seconds: quitting anyway.",
+                    QUIT_GRACE.as_secs()
+                );
+            }
+            handle.exit(0);
+        });
+    if let Err(error) = spawned {
+        eprintln!("[nativella] Quitting without waiting for PHP: {error}.");
+        app.exit(0);
+    }
+}
+
 /// Tauri hands Android requests as `php://localhost/…` while the page lives
 /// at `http://php.localhost/…`: PHP must see the page's origin, to build its
 /// URLs and to check the `Origin` of forms (CSRF protections).
@@ -617,7 +655,7 @@ fn quit_on_signals(app: &AppHandle) {
                 }
                 eprintln!("[nativella] Signal {signal}: quitting.");
                 quitting = true;
-                app.exit(0);
+                quit(&app);
             }
         });
     if let Err(error) = spawned {
