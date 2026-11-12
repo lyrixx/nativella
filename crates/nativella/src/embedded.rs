@@ -69,14 +69,27 @@ const EMPTIED: &[&str] = &[
 const LINKED_PACKAGE_EXCLUDED: &[&str] = &[".git", "node_modules", "tests", "vendor"];
 
 /// The ends of the names of the files that hold credentials, in lower case:
-/// keystores and PKCS #12 files, with their private keys, and provisioning
-/// profiles.
-const CREDENTIALS: &[&str] = &[".jks", ".keystore", ".mobileprovision", ".p12", ".pfx"];
+/// keystores, PKCS #12 files and the keys of PuTTY, with their private keys,
+/// and provisioning profiles.
+const CREDENTIALS: &[&str] = &[
+    ".jks",
+    ".keystore",
+    ".mobileprovision",
+    ".p12",
+    ".pfx",
+    ".ppk",
+];
 
 /// The ends of the names of the files that may hold a private key, in PEM:
 /// credentials when they do. Not the others: `composer/ca-bundle` ships the
 /// certificates of the authorities in a `.pem` file, which HTTPS needs.
 const PEM_FILES: &[&str] = &[".key", ".p8", ".pem"];
+
+/// The longest of the other files that are read for a private key: the JSON
+/// ones, as the key of a Google service account is, and those without an
+/// extension, as OpenSSH names its keys (`id_ed25519`). A key file is a few
+/// KiB; a project has too many of the others to read them whole.
+const KEY_FILE_MAX_LENGTH: u64 = 64 * 1024;
 
 /// The credentials of Composer, at the root of the project.
 const COMPOSER_AUTH: &str = "auth.json";
@@ -605,7 +618,9 @@ fn append_dir<W: Write>(
             } else {
                 append_dir(archive, root, &path, &[], walk)?;
             }
-        } else if is_credential(&normalized, &source).map_err(|error| at(&source, error))? {
+        } else if is_credential(&normalized, &source, metadata.len())
+            .map_err(|error| at(&source, error))?
+        {
             walk.left_out.credentials.push(normalized);
         } else if is_database(&normalized) {
             walk.left_out.databases.push(normalized);
@@ -681,13 +696,18 @@ fn at(path: &Path, error: io::Error) -> io::Error {
     io::Error::new(error.kind(), format!("{}: {error}", path.display()))
 }
 
-/// Whether the file `path`, `normalized` in the project, holds credentials.
-fn is_credential(normalized: &str, path: &Path) -> io::Result<bool> {
+/// Whether the file `path`, `normalized` in the project, of `length` bytes,
+/// holds credentials.
+fn is_credential(normalized: &str, path: &Path, length: u64) -> io::Result<bool> {
     let name = normalized.to_lowercase();
     if name == COMPOSER_AUTH || CREDENTIALS.iter().any(|end| name.ends_with(end)) {
         return Ok(true);
     }
-    if !PEM_FILES.iter().any(|end| name.ends_with(end)) {
+    let file_name = name.rsplit('/').next().unwrap_or(&name);
+    let may_hold_a_key = PEM_FILES.iter().any(|end| name.ends_with(end))
+        || ((name.ends_with(".json") || !file_name.contains('.'))
+            && length <= KEY_FILE_MAX_LENGTH);
+    if !may_hold_a_key {
         return Ok(false);
     }
 
@@ -819,6 +839,19 @@ mod tests {
             "-----BEGIN RSA PRIVATE KEY-----\n",
         )
         .unwrap();
+        fs::create_dir_all(project_dir.join("config")).unwrap();
+        fs::write(
+            project_dir.join("config/firebase.json"),
+            r#"{"private_key": "-----BEGIN PRIVATE KEY-----\nMIIE"}"#,
+        )
+        .unwrap();
+        fs::write(project_dir.join("config/app.json"), r#"{"name": "Notes"}"#).unwrap();
+        fs::write(
+            project_dir.join("id_ed25519"),
+            "-----BEGIN OPENSSH PRIVATE KEY-----\n",
+        )
+        .unwrap();
+        fs::write(project_dir.join("deploy.ppk"), "PuTTY-User-Key-File-3").unwrap();
         fs::create_dir_all(project_dir.join("vendor/composer/ca-bundle/res")).unwrap();
         fs::write(
             project_dir.join("vendor/composer/ca-bundle/res/cacert.pem"),
@@ -834,6 +867,9 @@ mod tests {
                 local_overrides: vec![".env.local".to_owned()],
                 credentials: vec![
                     "auth.json".to_owned(),
+                    "config/firebase.json".to_owned(),
+                    "deploy.ppk".to_owned(),
+                    "id_ed25519".to_owned(),
                     "release.p12".to_owned(),
                     "storage/oauth-private.key".to_owned(),
                 ],
@@ -866,6 +902,7 @@ mod tests {
         assert!(extracted.dir.join("storage/app").is_dir());
         assert!(!extracted.dir.join("storage/app/private").exists());
         assert!(!extracted.dir.join(".env.local").exists());
+        assert!(extracted.dir.join("config/app.json").is_file());
         assert!(
             extracted
                 .dir
