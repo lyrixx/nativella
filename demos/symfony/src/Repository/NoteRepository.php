@@ -3,6 +3,8 @@
 namespace App\Repository;
 
 use App\Entity\Note;
+use App\Note\NoteList;
+use App\Note\NoteSummary;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -11,6 +13,9 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 class NoteRepository extends ServiceEntityRepository
 {
+    /** The sidebar lists this many notes at most: a search finds the others. */
+    public const int LIST_LIMIT = 100;
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Note::class);
@@ -27,16 +32,18 @@ class NoteRepository extends ServiceEntityRepository
     }
 
     /**
-     * Pinned notes first, then the most recently updated. As SQLite's LIKE,
-     * the search ignores the case of ASCII letters only.
-     *
-     * @return list<Note>
+     * Pinned notes first, then the most recently updated, LIST_LIMIT at most.
+     * As SQLite's LIKE, the search ignores the case of ASCII letters only.
      */
-    public function findForSidebar(?string $search = null): array
+    public function findForSidebar(?string $search = null): NoteList
     {
         $query = $this->createQueryBuilder('note')
+            ->select(\sprintf('NEW %s(note.id, note.title, note.pinned, note.updatedAt)', NoteSummary::class))
             ->orderBy('note.pinned', 'DESC')
-            ->addOrderBy('note.updatedAt', 'DESC');
+            ->addOrderBy('note.updatedAt', 'DESC')
+            ->addOrderBy('note.id', 'DESC')
+            // One more than listed tells whether there are more.
+            ->setMaxResults(self::LIST_LIMIT + 1);
 
         if (null !== $search && '' !== trim($search)) {
             $query
@@ -45,7 +52,10 @@ class NoteRepository extends ServiceEntityRepository
                 ->setParameter('search', '%'.addcslashes(trim($search), '%_\\').'%');
         }
 
-        return $query->getQuery()->getResult();
+        /** @var list<NoteSummary> $summaries */
+        $summaries = $query->getQuery()->getResult();
+
+        return new NoteList(\array_slice($summaries, 0, self::LIST_LIMIT), \count($summaries) > self::LIST_LIMIT);
     }
 
     public function findLatest(): ?Note

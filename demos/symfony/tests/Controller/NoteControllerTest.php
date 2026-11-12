@@ -2,6 +2,8 @@
 
 namespace App\Tests\Controller;
 
+use App\Entity\Note;
+use App\Repository\NoteRepository;
 use App\Tests\NotesTestCase;
 use Nativella\Client\Call;
 use Nativella\Exception\NativeCallException;
@@ -157,6 +159,35 @@ final class NoteControllerTest extends NotesTestCase
         $this->client->request('GET', '/notes', ['q' => 'École']);
 
         $this->assertSelectorCount(1, '.note-link');
+    }
+
+    public function testTheSidebarListsTheMostRecentNotesOnly(): void
+    {
+        for ($i = 0; $i <= NoteRepository::LIST_LIMIT; ++$i) {
+            $this->notes()->add(new Note("Note $i", 'Body'));
+        }
+        $this->entityManager()->flush();
+
+        $this->client->request('GET', '/notes/new');
+
+        $this->assertSelectorCount(NoteRepository::LIST_LIMIT, '.note-link');
+        $this->assertSelectorTextContains('.sidebar nav', 'Only the 100 most recent notes are listed');
+
+        $this->client->request('GET', '/notes', ['q' => 'Note']);
+
+        $this->assertSelectorTextContains('h1', 'More than 100 notes match');
+    }
+
+    public function testTheSidebarShowsPinnedNotesFirst(): void
+    {
+        $pinned = $this->createNote('Pinned');
+        $pinned->pin();
+        $this->entityManager()->flush();
+        $this->createNote('Recent');
+
+        $crawler = $this->client->request('GET', '/notes/new');
+
+        $this->assertSame(['● Pinned', 'Recent'], $crawler->filter('.note-title')->each(static fn ($title) => trim($title->text())));
     }
 
     public function testCopyAsRichText(): void

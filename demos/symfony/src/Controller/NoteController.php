@@ -49,7 +49,7 @@ final class NoteController extends AbstractController
             return $this->redirectToRoute('note_show', ['id' => $latest->getId()]);
         }
 
-        return $this->render('note/empty.html.twig', ['notes' => []]);
+        return $this->render('note/empty.html.twig', ['notes' => $this->notes->findForSidebar()]);
     }
 
     #[Route('/notes', name: 'note_search', methods: ['GET'])]

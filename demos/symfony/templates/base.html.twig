@@ -25,6 +25,9 @@
                 {% else %}
                     <p class="muted empty-list">No note.</p>
                 {% endfor %}
+                {% if notes.hasMore %}
+                    <p class="muted empty-list">Only the {{ notes|length }} most recent notes are listed: search to find the others.</p>
+                {% endif %}
             </nav>
             <footer class="sidebar-actions">
                 <a class="button primary" href="{{ path('note_new') }}">New note</a>
