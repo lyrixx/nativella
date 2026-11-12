@@ -42,7 +42,7 @@ const PHP_INI: &str = include_str!("../php.ini");
 pub(crate) struct Engine {
     module: *mut SapiModule,
     /// `module.ini_entries`, which PHP reads at startup and never frees.
-    ini_entries: Option<CString>,
+    _ini_entries: CString,
 }
 
 impl Engine {
@@ -72,12 +72,10 @@ impl Engine {
         // which override it
         let entries: String = ini
             .iter()
-            .map(|(name, value)| format!("{name}=\"{}\"\n", value.replace('"', "")))
+            .map(|(name, value)| format!("{name}=\"{}\"\n", ini_escaped(value)))
             .collect();
-        let ini_entries = Some(
-            CString::new(format!("{PHP_INI}\n{entries}"))
-                .expect("INI settings contain no NUL byte."),
-        );
+        let ini_entries = CString::new(format!("{PHP_INI}\n{entries}"))
+            .expect("INI settings contain no NUL byte.");
         let module = Box::into_raw(Box::new(module));
 
         unsafe {
@@ -85,9 +83,7 @@ impl Engine {
             sapi_startup(module);
             // sapi_startup() resets them: php_module_startup() reads them,
             // after php.ini, as the embed SAPI does.
-            if let Some(entries) = &ini_entries {
-                (*module).ini_entries = entries.as_ptr();
-            }
+            (*module).ini_entries = ini_entries.as_ptr();
         }
 
         // PHP 8 starts in the C locale, as its functions expect, whatever the
@@ -103,7 +99,7 @@ impl Engine {
 
         Self {
             module,
-            ini_entries,
+            _ini_entries: ini_entries,
         }
     }
 
@@ -167,7 +163,6 @@ impl Drop for Engine {
             cleanup_sapi_allocations(self.module);
             drop(Box::from_raw(self.module));
         }
-        drop(self.ini_entries.take());
     }
 }
 
@@ -533,6 +528,21 @@ extern "C" fn read_cookies() -> *mut c_char {
     unsafe { context.as_ref() }
         .and_then(|context| context.cookie.as_ref())
         .map_or(ptr::null_mut(), |cookie| cookie.as_ptr().cast_mut())
+}
+
+/// `value` as it goes between the double quotes of a php.ini, where PHP
+/// reads these three as the end of the string, an escape and a variable: a
+/// path of Windows ("\\server\share") would lose a backslash.
+fn ini_escaped(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        if matches!(character, '"' | '\\' | '$') {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+
+    escaped
 }
 
 fn as_ptr(value: &Option<CString>) -> *const c_char {
