@@ -166,9 +166,10 @@
             "dist": {
                 "type": "path",
                 "url": "../../packages/nativella",
-                "reference": "10978b5f394de91529fd1e4dc1689c541c44fc7a"
+                "reference": "066b7b8ec3f14f8289ad6a2fa5cf62f8be988336"
             },
             "require": {
+                "composer-runtime-api": "^2.0",
                 "ext-mbstring": "*",
                 "php": ">=8.4"
             },
@@ -194,13 +195,24 @@
             "license": [
                 "MIT"
             ],
+            "authors": [
+                {
+                    "name": "Grégoire Pineau"
+                }
+            ],
             "description": "The native APIs of Nativella for PHP, on the desktop and on phones: windows, menus, dialogs, notifications, clipboard, tray…",
+            "homepage": "https://lyrixx.github.io/nativella/",
             "keywords": [
                 "desktop",
                 "native",
                 "nativella",
                 "tauri"
             ],
+            "support": {
+                "docs": "https://lyrixx.github.io/nativella/docs/",
+                "issues": "https://github.com/lyrixx/nativella/issues",
+                "source": "https://github.com/lyrixx/nativella"
+            },
             "transport-options": {
                 "relative": true
             }

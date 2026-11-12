@@ -1394,9 +1394,10 @@
             "dist": {
                 "type": "path",
                 "url": "../../packages/nativella",
-                "reference": "d5935b3fd777513f7ab288e66195cf55b43bf094"
+                "reference": "20113391cf4cad0a91032ed20f43cbd77ee52051"
             },
             "require": {
+                "composer-runtime-api": "^2.0",
                 "ext-mbstring": "*",
                 "php": ">=8.4"
             },
@@ -1422,13 +1423,24 @@
             "license": [
                 "MIT"
             ],
+            "authors": [
+                {
+                    "name": "Grégoire Pineau"
+                }
+            ],
             "description": "The native APIs of Nativella for PHP, on the desktop and on phones: windows, menus, dialogs, notifications, clipboard, tray…",
+            "homepage": "https://lyrixx.github.io/nativella/",
             "keywords": [
                 "desktop",
                 "native",
                 "nativella",
                 "tauri"
             ],
+            "support": {
+                "docs": "https://lyrixx.github.io/nativella/docs/",
+                "issues": "https://github.com/lyrixx/nativella/issues",
+                "source": "https://github.com/lyrixx/nativella"
+            },
             "transport-options": {
                 "relative": true
             }
@@ -1439,7 +1451,7 @@
             "dist": {
                 "type": "path",
                 "url": "../../packages/symfony",
-                "reference": "137fcc6c202d77e599e3199dad5d272d4463bfd2"
+                "reference": "eaefa70c981bbfd027073cb348aa11cae1cc7f93"
             },
             "require": {
                 "nativella/nativella": "^0.5",
@@ -1480,13 +1492,24 @@
             "license": [
                 "MIT"
             ],
+            "authors": [
+                {
+                    "name": "Grégoire Pineau"
+                }
+            ],
             "description": "Runs Symfony applications as desktop and mobile applications with Nativella.",
+            "homepage": "https://lyrixx.github.io/nativella/",
             "keywords": [
                 "desktop",
                 "native",
                 "nativella",
                 "symfony"
             ],
+            "support": {
+                "docs": "https://lyrixx.github.io/nativella/docs/symfony/",
+                "issues": "https://github.com/lyrixx/nativella/issues",
+                "source": "https://github.com/lyrixx/nativella"
+            },
             "transport-options": {
                 "relative": true
             }
