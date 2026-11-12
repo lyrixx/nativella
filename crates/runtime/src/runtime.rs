@@ -11,7 +11,7 @@ use http::{Request, Response, StatusCode};
 use crate::absolute_urls;
 use crate::bridge::{self, NativeHandler};
 use crate::cookies::CookieJar;
-use crate::redirects::{self, Next};
+use crate::redirects::{self, Chains, Next};
 use crate::sapi::Engine;
 use crate::static_files;
 
@@ -244,6 +244,7 @@ fn run(app: &PhpApp, queue: &mpsc::Receiver<Job>, pending: &AtomicUsize) {
         .cookie_file
         .clone()
         .map_or_else(CookieJar::default, CookieJar::load);
+    let mut chains = Chains::default();
 
     for job in queue {
         match job {
@@ -256,7 +257,7 @@ fn run(app: &PhpApp, queue: &mpsc::Receiver<Job>, pending: &AtomicUsize) {
                 // One response that breaks the runtime must not stop the
                 // thread: every later request would get no answer.
                 let response = panic::catch_unwind(AssertUnwindSafe(|| {
-                    serve(&engine, app, &mut cookies, request, origin)
+                    serve(&engine, app, &mut cookies, &mut chains, request, origin)
                 }))
                 .unwrap_or_else(|_| {
                     log!("[php] The runtime failed on a request: answering 500.");
@@ -277,10 +278,16 @@ fn serve(
     engine: &Engine,
     app: &PhpApp,
     cookies: &mut CookieJar,
+    chains: &mut Chains,
     mut request: Request<Vec<u8>>,
     origin: RequestOrigin,
 ) -> Response<Vec<u8>> {
     let navigation = redirects::is_navigation(&request);
+    // The host navigates no page: its chain stays empty.
+    let window = origin.window().unwrap_or_default();
+    if navigation {
+        chains.navigate(window, request.uri());
+    }
 
     for _ in 0..=redirects::MAX_REDIRECTS {
         cookies.add_to(&mut request);
@@ -302,9 +309,19 @@ fn serve(
 
         match redirects::next(request, response, navigation) {
             Next::Respond(mut response) => {
+                if navigation {
+                    chains.arrive(window);
+                }
                 absolute_urls::rewrite(&uri, &mut response);
 
                 return deliverable(response);
+            }
+            Next::Replace { page, target } => {
+                if !chains.redirect(window, target) {
+                    break;
+                }
+
+                return page;
             }
             Next::Follow(target) => {
                 // The target of a redirect may be a file of public/ too.

@@ -81,6 +81,9 @@ switch ($_GET['case'] ?? '') {
     case 'feed':
         require __DIR__.'/../feed.php';
         break;
+    case 'loop':
+        header('Location: /?case=loop');
+        break;
     case 'form':
         $note = $_FILES['note'] ?? null;
         echo json_encode([
@@ -209,6 +212,34 @@ fn an_xml_declaration_is_not_php() {
     let response = get("/?case=feed");
 
     assert_eq!(text(&response), r#"<?xml version="1.0"?><feed/>"#);
+}
+
+#[test]
+fn a_fetch_gives_up_on_a_page_that_redirects_to_itself() {
+    assert_eq!(get("/?case=loop").status(), 508);
+}
+
+#[test]
+fn a_window_gives_up_on_a_page_that_redirects_to_itself() {
+    let navigate = || {
+        runtime().dispatch_blocking(
+            Request::get("php://localhost/?case=loop")
+                .header("Upgrade-Insecure-Requests", "1")
+                .body(Vec::new())
+                .unwrap(),
+            RequestOrigin::Webview {
+                window: "loop".to_owned(),
+            },
+        )
+    };
+
+    for _ in 0..20 {
+        let page = navigate();
+        assert_eq!(page.status(), 200);
+        assert!(text(&page).contains("location.replace"), "{}", text(&page));
+    }
+    assert_eq!(navigate().status(), 508);
+    assert_eq!(navigate().status(), 200, "The window may try again.");
 }
 
 #[test]

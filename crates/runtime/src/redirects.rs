@@ -7,18 +7,69 @@
 //!   sees `redirected: false` and the original URL: a known limitation. So
 //!   does a form sent to a 307 or a 308, which sends its body again.
 
+use std::collections::HashMap;
+
 use http::header::{CONTENT_LENGTH, CONTENT_TYPE, COOKIE, LOCATION};
 use http::{Method, Request, Response, StatusCode, Uri};
 use url::Url;
 
-/// Redirects followed for one `fetch()` before giving up, as browsers do.
+/// Redirects followed in a row before giving up, as browsers do: by the
+/// runtime for one `fetch()`, by a window from page to page ([`Chains`]).
 pub(crate) const MAX_REDIRECTS: usize = 20;
 
 pub(crate) enum Next {
     /// Send this response to the webview.
     Respond(Response<Vec<u8>>),
+    /// Send this page to the webview, which replaces itself with `target`.
+    Replace {
+        page: Response<Vec<u8>>,
+        target: Uri,
+    },
     /// Serve this request instead: the target of a redirect.
     Follow(Request<Vec<u8>>),
+}
+
+/// The redirects each window is following from page to page. The webview
+/// sees as many pages, not a chain of redirects it would give up on: two
+/// pages that redirect to each other would load forever.
+#[derive(Default)]
+pub(crate) struct Chains {
+    /// By window: where its last page sent it, and after how many redirects.
+    chains: HashMap<String, (Uri, usize)>,
+}
+
+impl Chains {
+    /// `window` asks for `uri`. Unless its last page sent it there, its
+    /// chain is over: the user went elsewhere, or the target was a file of
+    /// public/, which the runtime never saw.
+    pub(crate) fn navigate(&mut self, window: &str, uri: &Uri) {
+        if self
+            .chains
+            .get(window)
+            .is_some_and(|(target, _)| target != uri)
+        {
+            self.chains.remove(window);
+        }
+    }
+
+    /// A page sends `window` to `target`. `false` after too many in a row.
+    pub(crate) fn redirect(&mut self, window: &str, target: Uri) -> bool {
+        let followed = self.chains.get(window).map_or(0, |(_, followed)| *followed);
+        if followed == MAX_REDIRECTS {
+            self.chains.remove(window);
+
+            return false;
+        }
+        self.chains
+            .insert(window.to_owned(), (target, followed + 1));
+
+        true
+    }
+
+    /// `window` got a page that stays.
+    pub(crate) fn arrive(&mut self, window: &str) {
+        self.chains.remove(window);
+    }
 }
 
 /// WebKit sends no `Sec-Fetch-Mode` to a custom scheme, but navigations carry
@@ -86,7 +137,8 @@ pub(crate) fn next(
 
     if navigation && !sends_the_body_again {
         // The whole URL: "//docs" alone would name another host.
-        let mut href = webview_uri(request.uri(), &path_and_query(&target)).to_string();
+        let uri = webview_uri(request.uri(), &path_and_query(&target));
+        let mut href = uri.to_string();
         if let Some(fragment) = target.fragment() {
             href.push('#');
             href.push_str(fragment);
@@ -96,7 +148,10 @@ pub(crate) fn next(
             response.status().as_u16()
         );
 
-        return Next::Respond(navigate_to(&href));
+        return Next::Replace {
+            page: navigate_to(&href),
+            target: uri,
+        };
     }
 
     // Another origin is not served by PHP: the page gets the redirect itself.
@@ -268,7 +323,7 @@ mod tests {
 
     #[test]
     fn a_navigation_keeps_the_fragment() {
-        let Next::Respond(response) = next(
+        let Next::Replace { page: response, .. } = next(
             post("php://localhost/notes"),
             redirect(303, "/?q=x#note-5"),
             true,
@@ -285,7 +340,7 @@ mod tests {
 
     #[test]
     fn a_navigation_to_a_path_of_two_slashes_stays_in_the_application() {
-        let Next::Respond(response) = next(
+        let Next::Replace { page: response, .. } = next(
             post("php://localhost/notes"),
             redirect(302, "http://localhost//docs"),
             true,
@@ -298,6 +353,51 @@ mod tests {
                 .unwrap()
                 .contains(r#"location.replace("php://localhost//docs")"#)
         );
+    }
+
+    #[test]
+    fn a_window_gives_up_on_pages_that_redirect_to_each_other() {
+        let login: Uri = "php://localhost/login".parse().unwrap();
+        let home: Uri = "php://localhost/".parse().unwrap();
+        let mut chains = Chains::default();
+
+        for _ in 0..MAX_REDIRECTS / 2 {
+            chains.navigate("main", &home);
+            assert!(chains.redirect("main", login.clone()));
+            chains.navigate("main", &login);
+            assert!(chains.redirect("main", home.clone()));
+        }
+        chains.navigate("main", &home);
+        assert!(!chains.redirect("main", login.clone()));
+
+        assert!(
+            chains.redirect("main", login),
+            "The window may try again."
+        );
+    }
+
+    #[test]
+    fn a_chain_ends_where_the_window_stays_or_goes_elsewhere() {
+        let home: Uri = "php://localhost/".parse().unwrap();
+        let page: Uri = "php://localhost/index.html".parse().unwrap();
+        let mut chains = Chains::default();
+
+        // A file of public/ answers the target: the runtime only sees the
+        // next visit of the home page.
+        for _ in 0..=MAX_REDIRECTS {
+            chains.navigate("main", &home);
+            assert!(chains.redirect("main", page.clone()));
+        }
+
+        for _ in 0..=MAX_REDIRECTS {
+            chains.navigate("main", &home);
+            assert!(chains.redirect("main", home.clone()));
+            chains.navigate("main", &home);
+            chains.arrive("main");
+        }
+
+        chains.navigate("settings", &home);
+        assert!(chains.redirect("settings", home));
     }
 
     #[test]
@@ -382,14 +482,19 @@ mod tests {
 
     #[test]
     fn a_navigation_replaces_itself_with_the_target() {
-        let Next::Respond(response) = next(
+        let Next::Replace {
+            page: response,
+            target,
+        } = next(
             post("php://localhost/native/title"),
             redirect(302, "/?from=post"),
             true,
-        ) else {
+        )
+        else {
             panic!("A navigation is never followed by the runtime.");
         };
 
+        assert_eq!(target, "php://localhost/?from=post");
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             String::from_utf8(response.into_body()).unwrap(),
