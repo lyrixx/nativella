@@ -137,7 +137,7 @@ final readonly class Window
 
     /**
      * Shows no dialog. @media print styles apply, as when printing. Linux
-     * only, for now.
+     * and macOS only, for now.
      *
      * @param string $path absolute
      */

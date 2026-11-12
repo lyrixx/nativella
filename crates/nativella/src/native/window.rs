@@ -106,8 +106,8 @@ struct SetProgress {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(
-    not(target_os = "linux"),
-    expect(dead_code, reason = "Only Linux prints to PDF yet.")
+    not(any(target_os = "linux", target_os = "macos")),
+    expect(dead_code, reason = "Only Linux and macOS print to PDF yet.")
 )]
 struct PrintToPdf {
     window: Option<String>,
@@ -193,15 +193,15 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, Native
         // The system print dialog, for the page of the window.
         #[cfg(desktop)]
         "print" => with_target(call, |window| window.print()),
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
         "printToPdf" => call.payload::<PrintToPdf>().and_then(|payload| {
             let window = call.target_window(payload.window.as_deref())?;
             super::pdf::print(&window, &payload.path)?;
             Ok(json!({}))
         }),
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
         "printToPdf" => Err(super::unavailable(
-            "Printing to PDF only works on Linux, for now.",
+            "Printing to PDF only works on Linux and macOS, for now.",
         )),
         "navigate" => call.payload::<Navigate>().and_then(|payload| {
             let window = call.target_window(payload.window.as_deref())?;
