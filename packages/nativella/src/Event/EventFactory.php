@@ -6,6 +6,7 @@ use Nativella\ChildProcess\Stream;
 use Nativella\Exception\UnexpectedResponseException;
 use Nativella\Runtime;
 use Nativella\System\Theme;
+use Nativella\Tray\MouseButton;
 
 /**
  * Names and payloads: keep in sync with the callers of events::send() in
@@ -34,7 +35,7 @@ final class EventFactory
             'power.resumed' => new PowerResumed(),
             'power.sourceChanged' => new PowerSourceChanged($payload['onBattery']),
             'timer.fired' => new TimerFired($payload['name']),
-            'tray.clicked' => new TrayClicked($payload['button']),
+            'tray.clicked' => new TrayClicked(MouseButton::tryFrom($payload['button']) ?? throw UnexpectedResponseException::unknownValue('mouse button', $payload['button'])),
             'updater.failed' => new UpdaterFailed($payload['version'], $payload['message']),
             'updater.installed' => new UpdaterInstalled($payload['version']),
             'window.blurred' => new WindowBlurred($payload['window']),

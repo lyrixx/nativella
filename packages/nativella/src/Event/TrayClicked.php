@@ -2,11 +2,12 @@
 
 namespace Nativella\Event;
 
+use Nativella\Tray\MouseButton;
+
 final readonly class TrayClicked
 {
     public function __construct(
-        /** "left", "right" or "middle". */
-        public string $button,
+        public MouseButton $button,
     ) {
     }
 }

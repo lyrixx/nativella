@@ -9,6 +9,7 @@ use Nativella\Event\TrayClicked;
 use Nativella\Menu\MenuItem;
 use Nativella\Menu\Role;
 use Nativella\Tray;
+use Nativella\Tray\MouseButton;
 use PHPUnit\Framework\TestCase;
 
 final class TrayTest extends TestCase
@@ -46,6 +47,6 @@ final class TrayTest extends TestCase
 
     public function testAClick(): void
     {
-        $this->assertEquals(new TrayClicked('left'), EventFactory::create('tray.clicked', ['button' => 'left']));
+        $this->assertEquals(new TrayClicked(MouseButton::Left), EventFactory::create('tray.clicked', ['button' => 'left']));
     }
 }
