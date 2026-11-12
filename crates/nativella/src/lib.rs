@@ -248,7 +248,16 @@ fn start(
                 .with_handler(native::global_shortcut::on_shortcut)
                 .build(),
         )
-        .plugin(tauri_plugin_window_state::Builder::new().build())
+        // Without VISIBLE: the plugin would show and focus every window it has
+        // no state for, and so the ones PHP opens hidden or unfocused.
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::all()
+                        - tauri_plugin_window_state::StateFlags::VISIBLE,
+                )
+                .build(),
+        )
         .on_menu_event(native::menu::on_menu_event)
         .manage(downloads::Pending::default());
 
