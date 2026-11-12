@@ -403,8 +403,11 @@ function java_section(array $libraries, bool $apacheTextAbove): array
     foreach ($libraries as $library) {
         [$group, $artifact, $version] = explode(':', $library, 3);
         $licenses = pom_licenses($cache, $group, $artifact, $version);
+        if ([] === $licenses) {
+            throw new \RuntimeException(\sprintf('%s declares no license in its POM, nor in its parent POM, in %s: the notices cannot say under which one the template ships it.', $library, $cache));
+        }
 
-        $text .= "{$library}: ".([] === $licenses ? 'no license in its POM' : implode('; ', $licenses))."\n";
+        $text .= "{$library}: ".implode('; ', $licenses)."\n";
     }
 
     return ['title' => 'The Java and Kotlin libraries', 'text' => $text];
