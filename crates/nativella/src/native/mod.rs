@@ -253,6 +253,11 @@ pub(crate) fn call(app: &AppHandle, call: NativeCall<'_>) -> Result<Value, Strin
                 "\"{full_method}\" is not available on mobile: check Nativella\\Runtime::isMobile() first."
             )))
         }
+        // A phone API this build lacks is not available, which is an answer.
+        // Keep in sync with the isAvailable() of packages/nativella/src/.
+        _ if matches!(full_method, "biometrics.isAvailable" | "nfc.isAvailable") => {
+            Some(Ok(serde_json::json!({ "available": false })))
+        }
         // The APIs of phones this build lacks. A guard, not a pattern: the
         // arms above take the ones it has.
         _ if PHONE_DOMAINS.contains(&domain) => Some(Err(if cfg!(mobile) {
