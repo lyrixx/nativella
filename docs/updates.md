@@ -47,7 +47,7 @@ The endpoint serves a JSON document in the format of [Tauri's updater](https://v
 }
 ```
 
-`version` may start with a `v`. `notes` and `pub_date` are optional; `pub_date` is an RFC 3339 date, with or without a fraction of a second, or `Updater::check()` throws. Each platform, `linux-x86_64`, `linux-aarch64`, `darwin-aarch64`, `windows-x86_64`, gives the URL of its `nativella build` executable, and its signature. A platform the document leaves out gets no update.
+`version` may start with a `v`. `notes` and `pub_date` are optional; `pub_date` is an RFC 3339 date, with or without a fraction of a second, or `Updater::check()` throws an `UnexpectedResponseException`. Each platform, `linux-x86_64`, `linux-aarch64`, `darwin-aarch64`, `windows-x86_64`, gives the URL of its `nativella build` executable, 1 GiB at most, and its signature. A platform the document leaves out gets no update.
 
 The executable says what it is. The application keeps it only if it has its `identifier`, the `version` of the document, newer than the running one, and runs on the machine. Build each release with the `version` of composer.json raised to the one you announce, so that a release announced as `99.0.0` cannot bring back an older build, signed or not.
 
@@ -60,11 +60,16 @@ The keys and the signatures are [minisign](https://jedisct1.github.io/minisign/)
 ```bash
 minisign -G -p notes.pub -s notes.key           # once: keep notes.key secret, and safe
 minisign -S -s notes.key -m dist/notes          # each release: writes dist/notes.minisig
-base64 -w0 dist/notes.minisig                   # the "signature" of the document
-base64 -w0 notes.pub                            # the "publicKey" of composer.json
+base64 < dist/notes.minisig | tr -d '\n'        # the "signature" of the document
+base64 < notes.pub | tr -d '\n'                 # the "publicKey" of composer.json
 ```
 
+The application takes the signatures minisign 0.10 and later make by default, of a hash of the file. With an older minisign, sign with `-H`.
+
 Tauri's signer (`npx @tauri-apps/cli signer generate`, then `signer sign`) makes the same keys and signatures, already base64-encoded.
+
+> [!WARNING]
+> An application has one public key, the one it was built with, and no way to change it. Without the secret key you cannot sign a release that the installed applications accept, so they never update again. With it, anyone who also controls the endpoint can. Keep a backup of the key and of its password, away from the server that publishes the releases.
 
 ## Checking and installing
 
@@ -85,14 +90,14 @@ if (null !== $update) {
 
 Once an update is being installed, or installed, both compare the endpoint to its version rather than to the running one, so they do not offer it again before the next start.
 
-Both throw a `NativeCallException` when the endpoint fails or answers a document they cannot read, and `install()` outside a standalone executable (`nativella run` runs the project as it is), or while another update is being installed.
+Both throw a `NativeCallException` when the application has no `updates` in its configuration, when the endpoint fails or answers a document they cannot read, and `install()` outside a standalone executable (`nativella run` runs the project as it is), or while another update is being installed.
 
 Once the executable is in place, PHP and the pages get an event:
 
 | Event | |
 |---|---|
 | `UpdaterInstalled` | The next start runs `$event->version`. Tell the user, or [restart](app.md) when it suits them: `$app->restart()`. |
-| `UpdaterFailed` | `$event->version` was not installed. `$event->message` says why: a download that failed, a signature that does not match, an executable that is not the one announced. The executable is the same as before. |
+| `UpdaterFailed` | `$event->version` was not installed. `$event->message` says why: a download that failed, a signature that does not match, an executable that is not the one announced or that is over 1 GiB. The executable is the same as before. |
 
 The DOM events are `nativella:updater.installed` and `nativella:updater.failed`, with the same properties in `detail`.
 
@@ -102,4 +107,6 @@ The new executable is downloaded next to the running one, then takes its name, a
 
 The previous executable stays next to the new one, as `<name>.old` (`notes.old`, `notes.exe.old`), until the next update. To go back to it by hand, rename it.
 
-Tested on Linux. macOS and Windows go through the same code, untested. Phones update through their store.
+While it downloads, the new executable is a hidden file next to the running one, `.<name>.update-…`. An application that quits before the end leaves it there, removes it at its next start, and the next `install()` downloads from the beginning.
+
+Tested on Linux. macOS and Windows go through the same code, untested. On Windows, a second update in the same run fails, because the previous executable is still running: restart the application first. Phones update through their store.
