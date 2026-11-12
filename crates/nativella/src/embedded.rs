@@ -98,6 +98,8 @@ pub struct LeftOut {
     /// SQLite databases: the ones of the computer that built the
     /// application.
     pub databases: Vec<String>,
+    /// Symbolic links to a file or a directory that does not exist.
+    pub broken_links: Vec<String>,
 }
 
 /// What the trailer says about the bundled project.
@@ -555,45 +557,63 @@ fn append_dir<W: Write>(
     excluded: &[&str],
     walk: &mut Walk,
 ) -> io::Result<()> {
-    let mut entries = fs::read_dir(root.join(relative))?.collect::<Result<Vec<_>, _>>()?;
+    let directory = root.join(relative);
+    let mut entries = fs::read_dir(&directory)
+        .and_then(Iterator::collect::<Result<Vec<_>, _>>)
+        .map_err(|error| at(&directory, error))?;
     // Reproducible order.
     entries.sort_by_key(fs::DirEntry::file_name);
 
     for entry in entries {
         let path = relative.join(entry.file_name());
+        let source = entry.path();
         let normalized = path.to_string_lossy().replace('\\', "/");
         if normalized.ends_with(".local") {
             walk.left_out.local_overrides.push(normalized);
             continue;
         }
         if excluded.contains(&entry.file_name().to_string_lossy().as_ref())
-            || entry
-                .path()
+            || source
                 .canonicalize()
                 .is_ok_and(|path| walk.excluded.contains(&path))
         {
             continue;
         }
 
+        let is_link = entry
+            .file_type()
+            .map_err(|error| at(&source, error))?
+            .is_symlink();
         // Follows symlinks, as the archive does.
-        let metadata = fs::metadata(entry.path())?;
+        let metadata = match fs::metadata(&source) {
+            Ok(metadata) => metadata,
+            Err(error) if is_link && error.kind() == io::ErrorKind::NotFound => {
+                walk.left_out.broken_links.push(normalized);
+                continue;
+            }
+            Err(error) => return Err(at(&source, error)),
+        };
         if EMPTIED.contains(&normalized.as_str()) {
             if metadata.is_dir() {
-                archive.append_dir(&path, entry.path())?;
+                archive
+                    .append_dir(&path, &source)
+                    .map_err(|error| at(&source, error))?;
             }
         } else if metadata.is_dir() {
-            if entry.file_type()?.is_symlink() {
+            if is_link {
                 append_linked_dir(archive, root, &path, walk)?;
             } else {
                 append_dir(archive, root, &path, &[], walk)?;
             }
-        } else if is_credential(&normalized, &entry.path())? {
+        } else if is_credential(&normalized, &source).map_err(|error| at(&source, error))? {
             walk.left_out.credentials.push(normalized);
         } else if is_database(&normalized) {
             walk.left_out.databases.push(normalized);
         } else {
             walk.icon_ships |= walk.icon.as_ref() == Some(&normalized);
-            archive.append_path_with_name(entry.path(), &path)?;
+            archive
+                .append_path_with_name(&source, &path)
+                .map_err(|error| at(&source, error))?;
         }
     }
 
@@ -612,7 +632,7 @@ fn append_linked_dir<W: Write>(
     walk: &mut Walk,
 ) -> io::Result<()> {
     let link = root.join(relative);
-    let target = link.canonicalize()?;
+    let target = link.canonicalize().map_err(|error| at(&link, error))?;
     if walk.walked.iter().any(|walked| walked.starts_with(&target)) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -637,7 +657,9 @@ fn append_linked_dir<W: Write>(
             return Ok(());
         }
         if is_under(EMPTIED) {
-            return archive.append_dir(relative, &link);
+            return archive
+                .append_dir(relative, &link)
+                .map_err(|error| at(&link, error));
         }
     }
 
@@ -651,6 +673,12 @@ fn append_linked_dir<W: Write>(
     walk.walked.pop();
 
     Ok(())
+}
+
+/// `error`, with the file or the directory of the project it is about: the
+/// errors of the system do not name it.
+fn at(path: &Path, error: io::Error) -> io::Error {
+    io::Error::new(error.kind(), format!("{}: {error}", path.display()))
 }
 
 /// Whether the file `path`, `normalized` in the project, holds credentials.
@@ -813,6 +841,7 @@ mod tests {
                     "database/app.sqlite".to_owned(),
                     "database/app.sqlite-wal".to_owned(),
                 ],
+                broken_links: Vec::new(),
             }
         );
         let found = Bundle::read(Cursor::new(bytes)).unwrap().unwrap();
@@ -965,6 +994,11 @@ mod tests {
                 ("vendor/acme/lib/src/vendor/bundled.js".to_owned(), false),
             ]
         );
+
+        // A link to nothing.
+        symlink("missing", project_dir.join("public/broken")).unwrap();
+        let left_out = write_bundle(&project, &mut Vec::new(), &[]).unwrap();
+        assert_eq!(left_out.broken_links, ["public/broken"]);
 
         // A link to what holds it.
         symlink("..", project_dir.join("public/project")).unwrap();

@@ -181,6 +181,12 @@ fn report(left_out: &LeftOut) {
             left_out.databases.join(", ")
         );
     }
+    if !left_out.broken_links.is_empty() {
+        eprintln!(
+            "Left out {}: symbolic links to a file or a directory that does not exist.",
+            left_out.broken_links.join(", ")
+        );
+    }
 }
 
 /// `notes_1.2.0_amd64.deb`, as Debian names its packages.
