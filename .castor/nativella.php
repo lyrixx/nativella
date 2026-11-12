@@ -113,7 +113,7 @@ function build_demos(
 
     io()->title('Building the nativella command');
 
-    run_in_builder(['cargo', 'build', '-p', 'nativella', '--release'], environment: $environment, service: $service);
+    run_in_builder(['cargo', 'build', '-p', 'nativella', '--release', '--locked'], environment: $environment, service: $service);
     fs()->copy(target_dir($environment).'/release/nativella', variable('root_dir').'/dist/nativella', overwriteNewerFiles: true);
 
     foreach ($projects as $project) {
@@ -121,7 +121,7 @@ function build_demos(
 
         // Staged in the builder, which has PHP and Composer
         $stage = stage($project);
-        run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--release', '--', 'build', $stage, '-o', "dist/{$project->name()}"], environment: $environment, service: $service);
+        run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--release', '--locked', '--', 'build', $stage, '-o', "dist/{$project->name()}"], environment: $environment, service: $service);
     }
 
     io()->success('The executables are in dist/.');

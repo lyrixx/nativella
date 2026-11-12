@@ -82,7 +82,7 @@ function android(
     io()->title("Making the APK of {$project->path}");
 
     $apk = android_apk($demo, $abi);
-    run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--', 'android', stage($project), '--template', builder_path($template), '-o', builder_path($apk)]);
+    run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--locked', '--', 'android', stage($project), '--template', builder_path($template), '-o', builder_path($apk)]);
 
     io()->success("The APK: {$apk}");
 }
@@ -156,6 +156,10 @@ function android_template(
     android_page_permissions("{$root}/crates/nativella/gen/android/app/src/main/AndroidManifest.xml");
     android_bundled_barcode_model("{$root}/crates/nativella/gen/android/app/build.gradle.kts");
     android_libraries_compile_sdk("{$root}/crates/nativella/gen/android/build.gradle.kts");
+
+    // The Tauri command has no --locked to hand to cargo: the template is
+    // built from Cargo.lock as it is committed, or not at all
+    run_in_builder(['cargo', 'fetch', '--locked']);
 
     $variant = $release ? 'release' : 'debug';
     $build = static fn () => run_in_builder([
@@ -299,7 +303,7 @@ function ios(
     io()->title("Making the iOS app of {$project->path}");
 
     $app = ios_app($demo);
-    run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--', 'ios', stage($project), '--template', builder_path($template), '-o', builder_path($app)]);
+    run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--locked', '--', 'ios', stage($project), '--template', builder_path($template), '-o', builder_path($app)]);
 
     io()->success("The app: {$app}");
 }
