@@ -55,15 +55,16 @@ function check(
 
 /**
  * What no Dependabot ecosystem follows, and a release ships: the PHP that
- * every platform builds (static_php\PHP_RELEASE), and the Rust of the images
- * (RUST_VERSION in their Dockerfile). The weekly run of the PHP workflow fails
- * here when php.net or the stable channel of Rust has a newer one: a security
- * release of PHP, above all.
+ * every platform builds (static_php\PHP_RELEASE), the Rust of the images
+ * (RUST_VERSION in their Dockerfile), and the SQLite that PHP links
+ * (static_php\SQLITE_RELEASE). The weekly run of the PHP workflow fails here
+ * when php.net, the stable channel of Rust or sqlite.org has a newer one: a
+ * security release of PHP, above all.
  */
-#[AsTask(namespace: 'qa', name: 'outdated', description: 'Checks that the pinned PHP and Rust are the latest releases of PHP 8.5 and of Rust stable')]
+#[AsTask(namespace: 'qa', name: 'outdated', description: 'Checks that the pinned PHP, Rust and SQLite are the latest releases of PHP 8.5, of Rust stable and of SQLite')]
 function outdated(): int
 {
-    io()->section('Checking the pinned PHP and Rust against their latest releases...');
+    io()->section('Checking the pinned PHP, Rust and SQLite against their latest releases...');
 
     $branch = implode('.', \array_slice(explode('.', \static_php\PHP_RELEASE), 0, 2));
     $php = json_decode(fetch("https://www.php.net/releases/index.php?json&version={$branch}"), true, flags: \JSON_THROW_ON_ERROR)['version']
@@ -78,6 +79,12 @@ function outdated(): int
         throw new \RuntimeException('The stable channel of Rust names no version of Rust.');
     }
 
+    // The page lists its archives for scripts, in a comment:
+    // PRODUCT,<version>,<year>/<archive>,<size>,<SHA3-256>
+    if (!preg_match('{^PRODUCT,([\d.]+),\d+/sqlite-autoconf-\d+\.tar\.gz,}m', fetch('https://www.sqlite.org/download.html'), $sqlite)) {
+        throw new \RuntimeException('sqlite.org names no release of SQLite.');
+    }
+
     $outdated = [];
     if (version_compare(\static_php\PHP_RELEASE, $php, '<')) {
         $outdated[] = \sprintf('PHP %s is out: PHP_RELEASE is %s, in .castor/static-php.php (see docs/development.md#the-version-of-php).', $php, \static_php\PHP_RELEASE);
@@ -88,8 +95,12 @@ function outdated(): int
         }
     }
 
+    if (version_compare(\static_php\SQLITE_RELEASE, $sqlite[1], '<')) {
+        $outdated[] = \sprintf('SQLite %s is out: SQLITE_RELEASE is %s, in .castor/static-php.php (see docs/development.md#the-version-of-sqlite).', $sqlite[1], \static_php\SQLITE_RELEASE);
+    }
+
     if ([] === $outdated) {
-        io()->writeln(\sprintf('<info>✔</info> PHP %s and Rust %s are the latest.', $php, $rust[1]));
+        io()->writeln(\sprintf('<info>✔</info> PHP %s, Rust %s and SQLite %s are the latest.', $php, $rust[1], $sqlite[1]));
 
         return 0;
     }
