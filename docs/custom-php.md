@@ -8,11 +8,12 @@ PHP is not a file next to the executable, which an application could swap. It is
 
 ## Choose the PHP
 
-Two constants at the top of `.castor/static-php.php` describe it:
+Three constants at the top of `.castor/static-php.php` describe it:
 
 | Constant | In the releases | |
 |---|---|---|
 | `PHP_RELEASE` | `8.5.12` | The PHP version, to its patch release (see [The version of PHP](development.md#the-version-of-php)). Nativella's PHP packages need 8.4 or later. |
+| `PHP_RELEASE_SHA256` | The hash of `php-8.5.12.tar.xz` | The SHA-256 of the `tar.xz` archive of that version, as php.net gives it (`https://www.php.net/releases/index.php?json&version=8.4.27`). The build stops when the archive it downloaded has another one. |
 | `EXTENSIONS` | `bcmath,ctype,…,zlib` | The extensions, separated by commas, by their names in [static-php-cli](https://static-php.dev/en/guide/extensions.html), which builds PHP and the libraries they need. |
 
 For PHP 8.4, with gd and without intl:
@@ -21,6 +22,8 @@ For PHP 8.4, with gd and without intl:
 const EXTENSIONS = 'bcmath,ctype,curl,dom,fileinfo,filter,gd,iconv,mbstring,opcache,openssl,pdo,pdo_sqlite,phar,session,simplexml,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zlib';
 
 const PHP_RELEASE = '8.4.27';
+
+const PHP_RELEASE_SHA256 = '…'; // the sha256 of php-8.4.27.tar.xz, from php.net
 ```
 
 Keep what the application needs. `composer check-platform-reqs --lock --no-dev`, in its directory, lists the extensions its packages require. Then add the ones nobody declares: session, if the application has sessions; pdo_sqlite, for the [database](database.md) in the data directory.
