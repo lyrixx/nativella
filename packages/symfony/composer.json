@@ -3,7 +3,18 @@
     "description": "Runs Symfony applications as desktop and mobile applications with Nativella.",
     "type": "symfony-bundle",
     "keywords": ["desktop", "native", "nativella", "symfony"],
+    "homepage": "https://lyrixx.github.io/nativella/",
     "license": "MIT",
+    "authors": [
+        {
+            "name": "Grégoire Pineau"
+        }
+    ],
+    "support": {
+        "docs": "https://lyrixx.github.io/nativella/docs/symfony/",
+        "issues": "https://github.com/lyrixx/nativella/issues",
+        "source": "https://github.com/lyrixx/nativella"
+    },
     "require": {
         "php": ">=8.4",
         "nativella/nativella": "^0.5",
