@@ -33,7 +33,7 @@ chmod +x nativella
 sudo mv nativella /usr/local/bin/
 ```
 
-The executable is not signed. Downloaded with a browser, it is quarantined, and `xattr -d com.apple.quarantine nativella` lets it run.
+The executable is signed ad hoc only, by the linker, without a developer certificate. Downloaded with a browser, it is quarantined, and `xattr -d com.apple.quarantine nativella` lets it run.
 
 ### Checking the download
 
@@ -85,6 +85,6 @@ The releases are built from the repository, with its Docker stack. `castor stati
 
 ## Other platforms
 
-On macOS, the CI builds Nativella and runs its tests and the demos, without a window, and nobody has opened one there yet. Windows is untested. The code has the platform switches Tauri needs (pages are served from `http://php.localhost/` instead of `php://localhost/`), but nobody has built Nativella there yet. It would need PHP for Windows, static or as a library, and WebView2, which ships with Windows 11. Reports and patches are welcome.
+On macOS, the CI builds Nativella, runs its tests and the demos, and opens the app of a demo, which `nativella build` makes there (see [macOS apps](building.md#macos-apps)). Every native API was tried on a Mac, with macOS 14. Windows is untested. The code has the platform switches Tauri needs (pages are served from `http://php.localhost/` instead of `php://localhost/`), but nobody has built Nativella there yet. It would need PHP for Windows, static or as a library, and WebView2, which ships with Windows 11. Reports and patches are welcome.
 
 On Android, `nativella android` makes a project's APK from its release's template APK; on iOS, `nativella ios` makes an app for the simulator, or, untested, for devices, from a template app of its release. See [Mobile](mobile.md).

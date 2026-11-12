@@ -444,6 +444,7 @@
                         <li>SQLite in the data directory, migrated at boot</li>
                         <li>A single executable carrying the project and its own PHP, which updates itself</li>
                         <li>Debian packages, on Linux</li>
+                        <li>macOS apps, signed ad hoc: the three demos, on macOS 14</li>
                         <li>Android, experimentally: the three demos, in arm64 APKs</li>
                         <li>iOS, experimentally: the Symfony demo, in the simulator</li>
                     </ul>
@@ -451,10 +452,10 @@
                 <div class="status-card status-no">
                     <h3>Not yet</h3>
                     <ul>
-                        <li>macOS: no window opened yet; Windows: never built; iOS: no device</li>
+                        <li>macOS: no notarization; Windows: never built; iOS: no device</li>
                         <li>One PHP thread: a dialog holds back every other request</li>
                         <li>No worker mode: the framework boots on every request</li>
-                        <li>Installers for macOS and Windows, code signing</li>
+                        <li>Installers for macOS and Windows, signing by a developer, notarization</li>
                         <li>No PHP API for photos or the microphone: pages use <code>getUserMedia()</code></li>
                         <li>No screen readers on Linux, to dodge a WebKitGTK crash</li>
                     </ul>

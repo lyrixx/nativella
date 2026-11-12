@@ -52,7 +52,7 @@ if ($event instanceof TrayClicked && MouseButton::Left === $event->button) {
 ```
 
 > [!NOTE]
-> Linux reports no click on tray icons, so only the menu works there. Put every tray action in its menu.
+> Linux reports no click on tray icons, so only the menu works there. Put every tray action in its menu. On macOS, a left click is reported, and a right click opens the menu, without `TrayClicked`.
 
 ## Example: keep running in the tray
 
