@@ -19,6 +19,8 @@ use function docker\run_in_builder;
 
 /** static-php-cli, which builds PHP and the libraries it needs */
 const SPC_VERSION = '2.8.5';
+// Keep in sync with src/globals/defines.php of static-php-cli
+const SPC_DOWNLOAD_PRE_BUILT = 2;
 
 /**
  * The SHA-256 of the static-php-cli of each platform, as its release gives
@@ -307,13 +309,33 @@ function downloaded_sources(array $sources): array
 
     $archives = [];
     foreach ($sources as $source) {
-        $entry = $lock[$source] ?? throw new \RuntimeException(\sprintf('static-php-cli downloaded no %s: see static-php/downloads/.lock.json.', $source));
+        $entry = $lock[$source] ?? pre_built_library($lock, $source) ?? throw new \RuntimeException(\sprintf('static-php-cli downloaded no %s: see static-php/downloads/.lock.json.', $source));
         // A source cloned with Git has a directory, not an archive
         $archives[$source] = ($entry['filename'] ?? $entry['dirname']).' '.$entry['hash'];
     }
     ksort($archives);
 
     return $archives;
+}
+
+/**
+ * The entry of a library static-php-cli downloaded built, as --prefer-pre-built
+ * asks where there is one, on macOS: its lock names it
+ * "<source>-<OS family>-<architecture>-<libc>-<version of the libc>".
+ *
+ * @param array<string, array{filename?: string, dirname?: string, hash: string, lock_as: int}> $lock
+ *
+ * @return ?array{filename?: string, dirname?: string, hash: string, lock_as: int}
+ */
+function pre_built_library(array $lock, string $source): ?array
+{
+    foreach ($lock as $name => $entry) {
+        if (SPC_DOWNLOAD_PRE_BUILT === $entry['lock_as'] && str_starts_with($name, "{$source}-".\PHP_OS_FAMILY.'-')) {
+            return $entry;
+        }
+    }
+
+    return null;
 }
 
 /**
