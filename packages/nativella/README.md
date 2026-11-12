@@ -19,7 +19,7 @@ $native->window->setTitle('Snippets');
 $native->notification->send('Copied', 'The snippet is in the clipboard.');
 ```
 
-The application runs with the `nativella` command. See [Installation](https://lyrixx.github.io/nativella/docs/installation/)
+It needs PHP 8.4 or later. The application runs with the `nativella` command. See [Installation](https://lyrixx.github.io/nativella/docs/installation/)
 and [Plain PHP](https://lyrixx.github.io/nativella/docs/plain-php/).
 
 ## Contributing

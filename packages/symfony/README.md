@@ -8,7 +8,7 @@ database when the application starts, and adds a Nativella panel to the profiler
 composer require nativella/symfony-bundle
 ```
 
-There is no Flex recipe yet, so enable the bundle yourself.
+It needs PHP 8.4 or later, and Symfony 7.4 or 8. There is no Flex recipe yet, so enable the bundle yourself.
 
 ```php
 // config/bundles.php
