@@ -124,6 +124,7 @@ pub fn package(
     })?;
 
     let platform = platform(&info)?;
+    let executable = executable(&info)?.to_owned();
     let extension = match (platform, identity) {
         (Platform::Simulator, None) => "app",
         (Platform::Device, Some(_)) => "ipa",
@@ -191,9 +192,9 @@ pub fn package(
     drop(template_file);
     // Whatever the archiver of the template recorded.
     #[cfg(unix)]
-    if let Some(executable) = info.get("CFBundleExecutable").and_then(Value::as_string) {
+    {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(app_dir.join(executable), fs::Permissions::from_mode(0o755))?;
+        fs::set_permissions(app_dir.join(&executable), fs::Permissions::from_mode(0o755))?;
     }
 
     // The bundle leaves out what the packaging writes and reads, should it be
@@ -305,6 +306,28 @@ fn platform(info: &Dictionary) -> io::Result<Platform> {
             "The template is for {platforms:?}, not for the iOS simulator (iPhoneSimulator) nor for iOS devices (iPhoneOS)."
         ))),
     }
+}
+
+/// The executable of an app, from its Info.plist: a file of the app. The
+/// packaging makes it executable and signs it in place, which a path out of
+/// the app, as `../../notes`, would do to another file.
+fn executable(info: &Dictionary) -> io::Result<&str> {
+    let executable = info
+        .get("CFBundleExecutable")
+        .and_then(Value::as_string)
+        .ok_or_else(|| invalid("The Info.plist of the template has no CFBundleExecutable."))?;
+    let mut components = Path::new(executable).components();
+    if !matches!(
+        (components.next(), components.next()),
+        (Some(Component::Normal(_)), None)
+    ) || executable.contains('\\')
+    {
+        return Err(invalid(&format!(
+            "The executable of the template, {executable}, is not a file of its app."
+        )));
+    }
+
+    Ok(executable)
 }
 
 /// Extracts the app `app` of the template, `Payload/<name>.app/`, to
@@ -899,6 +922,22 @@ mod tests {
         assert!(error.to_string().contains("outside of its app"), "{error}");
         assert!(!project_dir.join("escaped").exists());
         fs::remove_dir_all(project_dir.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn the_executable_is_a_file_of_the_app() {
+        let info = |executable: &str| {
+            let mut info = Dictionary::new();
+            info.insert("CFBundleExecutable".to_owned(), executable.into());
+            info
+        };
+
+        assert_eq!(executable(&info("Nativella")).unwrap(), "Nativella");
+        for outside in ["../Nativella", "/bin/sh", "Frameworks/Nativella", ".."] {
+            let error = executable(&info(outside)).unwrap_err();
+            assert!(error.to_string().contains("not a file of its app"), "{outside}");
+        }
+        assert!(executable(&Dictionary::new()).is_err());
     }
 
     #[test]
