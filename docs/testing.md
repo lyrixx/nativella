@@ -74,17 +74,22 @@ final class ExporterTest extends TestCase
 |---|---|
 | `respond(string $method, array\|Throwable $result): void` | Answers the next call to `$method` with `$result`, or throws it. Call it several times to queue answers. |
 | `calls(?string $method = null): list<Call>` | The calls made so far, all of them or those to `$method`. A `Nativella\Client\Call` has the `method` and the `payload`. |
+| `fail(string $method, ErrorKind $kind, string $reason): void` | Fails the next call to `$method` with a `NativeCallException`, as the native side does. |
 | `reset(): void` | Forgets the calls and the queued answers. |
 
 Methods are the native ones, `<domain>.<method>`: `window.open`, `dialog.confirm`, `clipboard.readText`… The payloads are the JSON objects the API classes send, with camelCase keys. The quickest way to learn them is to make the call and look at `$client->calls()`.
 
-To test how your code handles a failure, queue an exception:
+To test how your code handles a failure, make the call fail, with the [kind](plain-php.md#errors) the native side would give:
 
 ```php
-use Nativella\Exception\NativeCallException;
+use Nativella\Exception\ErrorKind;
 
-$client->respond('globalShortcut.register', new NativeCallException('globalShortcut.register', new \RuntimeException('Already taken.')));
+$client->fail('globalShortcut.register', ErrorKind::Failed, 'The shortcut is already taken.');
 ```
+
+The fake encodes each payload as the real client does. A string that is not UTF-8, `INF` or `NAN` throws a `NativeCallException` in the tests too.
+
+It keeps no state. After `settings.set`, `settings.get` still answers its default, and a window opened is not in `window.all`. Queue the answers a test needs.
 
 ## What it answers by default
 
@@ -97,7 +102,7 @@ Without a queued answer, `FakeClient` returns:
 | `app.path` | `/home/nativella/<directory>` |
 | `app.thirdPartyNotices` | `null`, as a development build of Nativella |
 | `barcodeScanner.scan` | `null`: cancelled |
-| `biometrics.authenticate`, `biometrics.isAvailable` | `false` |
+| `biometrics.authenticate`, `biometrics.isAvailable` | `false`, as on a computer |
 | `childProcess.all` | none |
 | `childProcess.start` | the process id `1` |
 | `clipboard.readImage`, `clipboard.readText` | `null`: empty |
@@ -140,4 +145,4 @@ if ($nativella->isNative()) {
 }
 ```
 
-`isNative()` of `Nativella\Nativella` (a service with Symfony, the `Nativella` facade with Laravel) asks the client. It is true in Nativella and under the fake client, so that the tests go through the native code as the application does. `nativella_is_native()` in Twig and `@native` in Blade answer the same. `Runtime::isNative()` only tells whether `nativella_call()` exists, which is false in tests, fake client or not, so keep it for where there is no client.
+`isNative()` of `Nativella\Nativella` (a service with Symfony, the `Nativella` facade with Laravel) asks the client. It is true in Nativella and under the fake client, so that the tests go through the native code as the application does. `nativella_is_native()` in Twig and `@native` in Blade answer the same. `Runtime::isAvailable()` only tells whether PHP runs in Nativella, which is false in tests, fake client or not. Guard native features with `isNative()`.
