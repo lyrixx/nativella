@@ -129,7 +129,37 @@ enum Job {
 struct RequestJob {
     request: Request<Vec<u8>>,
     origin: RequestOrigin,
-    respond: Responder,
+    answer: Answer,
+}
+
+/// The answer a request waits for. Dropped without one, it sends a 503: the
+/// requests still queued when the PHP thread dies (PHP did not start, a
+/// responder panicked) would leave their window waiting forever.
+struct Answer {
+    respond: Option<Responder>,
+    pending: Arc<AtomicUsize>,
+}
+
+impl Answer {
+    fn send(mut self, response: Response<Vec<u8>>) {
+        self.finish(response);
+    }
+
+    fn finish(&mut self, response: Response<Vec<u8>>) {
+        if let Some(respond) = self.respond.take() {
+            self.pending.fetch_sub(1, Ordering::SeqCst);
+            respond(response);
+        }
+    }
+}
+
+impl Drop for Answer {
+    fn drop(&mut self) {
+        if self.respond.is_some() {
+            log!("[php] The PHP thread is gone: answering a request with a 503.");
+            self.finish(crate::empty_response(StatusCode::SERVICE_UNAVAILABLE));
+        }
+    }
 }
 
 /// Handle to the PHP thread. Cheap to clone; PHP shuts down once every handle
@@ -159,10 +189,9 @@ impl PhpRuntime {
         let pending = Arc::new(AtomicUsize::new(0));
 
         let php_app = Arc::clone(&app);
-        let php_pending = Arc::clone(&pending);
         thread::Builder::new()
             .name("php".to_owned())
-            .spawn(move || run(&php_app, &queue, &php_pending))
+            .spawn(move || run(&php_app, &queue))
             .expect("The OS can spawn the PHP thread.");
 
         Self { app, jobs, pending }
@@ -188,25 +217,18 @@ impl PhpRuntime {
             return;
         }
 
+        self.pending.fetch_add(1, Ordering::SeqCst);
         let job = Job::Request(Box::new(RequestJob {
             request,
             origin,
-            respond: Box::new(respond),
+            answer: Answer {
+                respond: Some(Box::new(respond)),
+                pending: Arc::clone(&self.pending),
+            },
         }));
 
-        self.pending.fetch_add(1, Ordering::SeqCst);
-        if let Err(mpsc::SendError(Job::Request(job))) = self.jobs.send(job) {
-            self.pending.fetch_sub(1, Ordering::SeqCst);
-            let RequestJob {
-                request, respond, ..
-            } = *job;
-            log!(
-                "[php] The PHP thread is gone, {} {} is not served.",
-                request.method(),
-                request.uri()
-            );
-            respond(crate::empty_response(StatusCode::SERVICE_UNAVAILABLE));
-        }
+        // Without a PHP thread, the job comes back and answers as it drops.
+        let _ = self.jobs.send(job);
     }
 
     /// Runs `callback` on the PHP thread once the requests queued before it
@@ -236,11 +258,11 @@ impl PhpRuntime {
 
         receiver
             .recv()
-            .expect("Every dispatched request gets a response.")
+            .expect("Every dispatched request gets a response, a 503 without PHP.")
     }
 }
 
-fn run(app: &PhpApp, queue: &mpsc::Receiver<Job>, pending: &AtomicUsize) {
+fn run(app: &PhpApp, queue: &mpsc::Receiver<Job>) {
     let engine = Engine::start(&app.ini);
     let mut cookies = app
         .cookie_file
@@ -254,7 +276,7 @@ fn run(app: &PhpApp, queue: &mpsc::Receiver<Job>, pending: &AtomicUsize) {
                 let RequestJob {
                     request,
                     origin,
-                    respond,
+                    answer,
                 } = *job;
                 // One response that breaks the runtime must not stop the
                 // thread: every later request would get no answer.
@@ -266,8 +288,7 @@ fn run(app: &PhpApp, queue: &mpsc::Receiver<Job>, pending: &AtomicUsize) {
 
                     crate::empty_response(StatusCode::INTERNAL_SERVER_ERROR)
                 });
-                pending.fetch_sub(1, Ordering::SeqCst);
-                respond(response);
+                answer.send(response);
             }
             Job::Callback(callback) => callback(),
         }
