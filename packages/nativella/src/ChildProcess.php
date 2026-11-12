@@ -22,15 +22,16 @@ final readonly class ChildProcess
      * Returns the process id. A process of that name being stopped gets 4
      * seconds to end first.
      *
-     * @param non-empty-list<string> $command the program, then its arguments: no shell is involved
-     * @param string|null            $cwd     relative to the project, the project itself by default
-     * @param array<string, string>  $env     on top of the environment of the application
+     * @param non-empty-array<string> $command the program, then its arguments: no shell is involved
+     * @param string|null             $cwd     relative to the project, the project itself by default
+     * @param array<string, string>   $env     on top of the environment of the application
      */
     public function start(string $alias, array $command, ?string $cwd = null, array $env = []): int
     {
         return $this->client->call('childProcess.start', [
             'alias' => $alias,
-            'command' => $command,
+            // A JSON array, whatever the keys.
+            'command' => array_values($command),
             'cwd' => $cwd,
             // A JSON object, even empty.
             'env' => (object) $env,

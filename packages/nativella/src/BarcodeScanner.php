@@ -26,15 +26,16 @@ final readonly class BarcodeScanner
      *
      * On Android, QR codes are read whatever the formats.
      *
-     * @param list<Format> $formats     the kinds of codes to read, every kind when empty
-     * @param string       $cancelLabel the label of the button that gives up, in the language of the application
+     * @param array<Format> $formats     the kinds of codes to read, every kind when empty
+     * @param string        $cancelLabel the label of the button that gives up, in the language of the application
      *
      * @throws Exception\NativeCallException when the camera fails, or reads no code within 2 minutes
      */
     public function scan(array $formats = [], string $cancelLabel = 'Cancel'): ?Barcode
     {
         $barcode = $this->client->call('barcodeScanner.scan', [
-            'formats' => array_map(static fn (Format $format): string => $format->value, $formats),
+            // A JSON array, whatever the keys.
+            'formats' => array_map(static fn (Format $format): string => $format->value, array_values($formats)),
             'cancelLabel' => $cancelLabel,
         ])['barcode'];
 

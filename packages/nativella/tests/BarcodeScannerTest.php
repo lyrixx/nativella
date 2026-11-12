@@ -49,4 +49,13 @@ final class BarcodeScannerTest extends TestCase
     {
         $this->assertNull(new BarcodeScanner(new FakeClient())->scan());
     }
+
+    public function testFilteredFormatsAreStillAList(): void
+    {
+        $client = new FakeClient();
+
+        new BarcodeScanner($client)->scan(array_filter([null, Format::Ean13, null, Format::QrCode]));
+
+        $this->assertSame(['EAN_13', 'QR_CODE'], $client->calls('barcodeScanner.scan')[0]->payload['formats']);
+    }
 }

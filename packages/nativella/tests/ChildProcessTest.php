@@ -66,4 +66,13 @@ final class ChildProcessTest extends TestCase
 
         EventFactory::create('childProcess.output', ['alias' => 'worker', 'pid' => 42, 'stream' => 'stdlog', 'output' => 'Ready.']);
     }
+
+    public function testAFilteredCommandIsStillAList(): void
+    {
+        $client = new FakeClient();
+
+        new ChildProcess($client)->start('worker', array_filter(['php', null, 'worker.php']));
+
+        $this->assertSame(['php', 'worker.php'], $client->calls('childProcess.start')[0]->payload['command']);
+    }
 }
