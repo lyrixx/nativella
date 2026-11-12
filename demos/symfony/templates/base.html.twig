@@ -42,6 +42,9 @@
             {% for message in app.flashes('success') %}
                 <p class="flash" role="status">{{ message }}</p>
             {% endfor %}
+            {% for message in app.flashes('error') %}
+                <p class="flash error" role="alert">{{ message }}</p>
+            {% endfor %}
             {% if not nativella_is_native() %}
                 <p class="flash warning">Running in a browser: native features (dialogs, clipboard, export…) need Nativella.</p>
             {% endif %}

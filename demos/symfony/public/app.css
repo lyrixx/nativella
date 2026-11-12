@@ -114,7 +114,7 @@ button.small { padding: 2px 8px; font-size: .85em; }
 form.inline { display: inline; margin-left: 6px; }
 
 .flash { padding: 10px 14px; border-radius: var(--radius); background: var(--flash); color: var(--flash-text); margin: 0 0 16px; }
-.flash.warning { background: var(--warning); color: var(--warning-text); }
+.flash.warning, .flash.error { background: var(--warning); color: var(--warning-text); }
 
 .toolbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding-bottom: 14px; margin-bottom: 20px; }
 .toolbar h1 { margin: 0 0 2px; font-size: 1.6rem; }

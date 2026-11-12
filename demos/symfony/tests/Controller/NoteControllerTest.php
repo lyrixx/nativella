@@ -234,7 +234,7 @@ final class NoteControllerTest extends NotesTestCase
         $this->post("/notes/{$note->getId()}/location");
         $this->client->followRedirect();
 
-        $this->assertSelectorTextContains('.flash', 'Notes may not know where you are');
+        $this->assertSelectorTextContains('.flash.error[role=alert]', 'Notes may not know where you are');
         $this->assertSame('Bring a blanket.', $this->notes()->find($note->getId())?->getBody());
     }
 
@@ -247,7 +247,7 @@ final class NoteControllerTest extends NotesTestCase
         $this->post("/notes/{$note->getId()}/location");
         $this->client->followRedirect();
 
-        $this->assertSelectorTextContains('.flash', 'Notes cannot find where you are: Location services are disabled.');
+        $this->assertSelectorTextContains('.flash.error[role=alert]', 'Notes cannot find where you are: Location services are disabled.');
     }
 
     public function testAPhoneSharesTheNote(): void
@@ -325,7 +325,7 @@ final class NoteControllerTest extends NotesTestCase
         $this->post("/notes/{$note->getId()}/scan");
         $this->client->followRedirect();
 
-        $this->assertSelectorTextContains('.flash', 'Notes cannot read a code: The phone read no barcode within 120 seconds.');
+        $this->assertSelectorTextContains('.flash.error[role=alert]', 'Notes cannot read a code: The phone read no barcode within 120 seconds.');
     }
 
     public function testComputersHaveNoBarcodeScanner(): void
