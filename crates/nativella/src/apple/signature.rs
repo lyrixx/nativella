@@ -1,4 +1,5 @@
-//! The code signature of an iOS app, as Apple's codesign writes it.
+//! The code signature of an app of iOS or macOS, as Apple's codesign writes
+//! it.
 //!
 //! The executable carries it, at its end (see macho.rs): a superblob of
 //! blobs, each in a slot.
@@ -29,10 +30,11 @@ use std::path::Path;
 use plist::{Dictionary, Value};
 use rsa::sha2::{Digest, Sha256};
 
-use super::certificate::Certificate;
-use super::entitlements;
+use super::Layout;
 use super::macho::{Executable, PAGE_SIZE};
 use super::resources;
+use crate::ios::certificate::Certificate;
+use crate::ios::entitlements;
 
 const SUPERBLOB: u32 = 0xfade_0cc0;
 const CODE_DIRECTORY: u32 = 0xfade_0c02;
@@ -90,10 +92,12 @@ pub enum Signer<'a> {
     },
 }
 
-/// Signs the app `app`: seals its files in `_CodeSignature/CodeResources`,
-/// then signs its executable, which binds them.
-pub fn sign(app: &Path, signer: &Signer) -> io::Result<()> {
-    let info_bytes = fs::read(app.join("Info.plist"))?;
+/// Signs the app `app`, laid out as `layout`: seals its files in
+/// `_CodeSignature/CodeResources`, then signs its executable, which binds
+/// them.
+pub fn sign(app: &Path, layout: Layout, signer: &Signer) -> io::Result<()> {
+    let contents = layout.contents(app);
+    let info_bytes = fs::read(contents.join("Info.plist"))?;
     let info: Dictionary = plist::from_bytes(&info_bytes)
         .map_err(|error| invalid(&format!("The Info.plist of the app is invalid: {error}.")))?;
     let field = |key: &str| {
@@ -101,11 +105,11 @@ pub fn sign(app: &Path, signer: &Signer) -> io::Result<()> {
             .and_then(Value::as_string)
             .ok_or_else(|| invalid(&format!("The Info.plist of the app has no {key}.")))
     };
-    let executable = field("CFBundleExecutable")?;
+    let executable = layout.executable(field("CFBundleExecutable")?);
     let identifier = field("CFBundleIdentifier")?;
 
-    let code_resources = resources::seal(app, executable)?;
-    let signature_dir = app.join("_CodeSignature");
+    let code_resources = resources::seal(&contents, &executable, layout)?;
+    let signature_dir = contents.join("_CodeSignature");
     fs::create_dir_all(&signature_dir)?;
     fs::write(signature_dir.join("CodeResources"), &code_resources)?;
 
@@ -157,7 +161,7 @@ pub fn sign(app: &Path, signer: &Signer) -> io::Result<()> {
         _ => CS_EXECSEG_MAIN_BINARY,
     };
 
-    let mut executable = Executable::open(&app.join(executable))?;
+    let mut executable = Executable::open(&contents.join(executable))?;
     let code_slots = executable.signature_offset.div_ceil(PAGE_SIZE) as usize;
     let special_slots = special
         .iter()
@@ -229,8 +233,8 @@ fn code_directory(directory: &CodeDirectory) -> io::Result<Vec<u8>> {
         + directory.team.map_or(0, |team| team.len() + 1)
         + directory.special.len() * HASH_LENGTH;
     let length = hash_offset + directory.code.len() * HASH_LENGTH;
-    let code_limit = u32::try_from(directory.code_limit)
-        .map_err(|_| invalid("The executable of the template exceeds 4 GB."))?;
+    let code_limit =
+        u32::try_from(directory.code_limit).map_err(|_| invalid("The executable exceeds 4 GB."))?;
     let u32_of = |value: usize| {
         u32::try_from(value).map_err(|_| invalid("The code directory would exceed 4 GB."))
     };

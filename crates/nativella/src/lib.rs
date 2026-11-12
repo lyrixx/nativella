@@ -10,6 +10,8 @@ mod absolute_urls;
 #[cfg(desktop)]
 pub mod apk;
 #[cfg(desktop)]
+mod apple;
+#[cfg(desktop)]
 mod before_unload;
 #[cfg(desktop)]
 mod binary;

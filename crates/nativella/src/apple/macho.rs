@@ -1,10 +1,10 @@
-//! The executable of an iOS app: a Mach-O file for arm64, thin, whose code
-//! signature signature.rs replaces, in place.
+//! The executable of an app of iOS or macOS: a Mach-O file for arm64, thin,
+//! whose code signature signature.rs replaces, in place.
 //!
 //! The signature is the last data of the file: the end of its last segment,
 //! `__LINKEDIT`, where the load command `LC_CODE_SIGNATURE` points. The linker
-//! signs the executables of the simulator ad hoc already; those of devices
-//! may have no signature, and no such load command yet.
+//! signs the executables of the simulator and of macOS ad hoc already; those
+//! of iOS devices may have no signature, and no such load command yet.
 
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
@@ -21,11 +21,15 @@ const CPU_TYPE_ARM64: u32 = 0x0100_000c;
 const MH_EXECUTE: u32 = 2;
 const LC_SEGMENT_64: u32 = 0x19;
 const LC_CODE_SIGNATURE: u32 = 0x1d;
+#[cfg(any(test, target_os = "macos"))]
+const LC_BUILD_VERSION: u32 = 0x32;
 
 const HEADER_LENGTH: usize = 32;
 const SEGMENT_COMMAND_LENGTH: usize = 72;
 const SECTION_LENGTH: usize = 80;
 const LINKEDIT_DATA_COMMAND_LENGTH: usize = 16;
+#[cfg(any(test, target_os = "macos"))]
+const BUILD_VERSION_COMMAND_LENGTH: usize = 24;
 
 /// What the linker rounds the virtual size of segments to, the pages of
 /// arm64: as codesign does for `__LINKEDIT`.
@@ -47,6 +51,11 @@ pub struct Executable {
     code_signature: Option<usize>,
     /// Where the signature starts: what comes before is the signed code.
     pub signature_offset: u64,
+    /// The oldest version of its system it runs on, as the linker recorded
+    /// it: `minos` of `LC_BUILD_VERSION`, X.Y.Z as 0xXXXXYYZZ. The
+    /// Info.plist of macOS apps says it (see macos.rs).
+    #[cfg(any(test, target_os = "macos"))]
+    minimum_os: Option<u32>,
 }
 
 impl Executable {
@@ -57,22 +66,18 @@ impl Executable {
 
         let mut header = [0; HEADER_LENGTH];
         file.read_exact(&mut header)
-            .map_err(|_| invalid("The executable of the template is not a Mach-O file."))?;
+            .map_err(|_| invalid("The executable is not a Mach-O file."))?;
         let magic = u32_at(&header, 0);
         if FAT_MAGICS.contains(&magic) {
             return Err(invalid(
-                "The executable of the template is a universal binary: a template is built for arm64 only.",
+                "The executable is a universal binary: Nativella builds for arm64 only.",
             ));
         }
         if magic != MH_MAGIC_64 {
-            return Err(invalid(
-                "The executable of the template is not a 64-bit Mach-O file.",
-            ));
+            return Err(invalid("The executable is not a 64-bit Mach-O file."));
         }
         if u32_at(&header, 4) != CPU_TYPE_ARM64 || u32_at(&header, 12) != MH_EXECUTE {
-            return Err(invalid(
-                "The executable of the template is not an executable for arm64.",
-            ));
+            return Err(invalid("The executable is not an executable for arm64."));
         }
         let count = u32_at(&header, 16);
         let commands_length = u32_at(&header, 20) as usize;
@@ -85,6 +90,8 @@ impl Executable {
         let mut text = None;
         let mut linkedit = None;
         let mut code_signature = None;
+        #[cfg(any(test, target_os = "macos"))]
+        let mut minimum_os = None;
         // Where the data of the segments before __LINKEDIT ends, and where the
         // first section starts: the load commands may grow until there.
         let mut other_segments_end = 0;
@@ -130,6 +137,10 @@ impl Executable {
                 LC_CODE_SIGNATURE if size >= LINKEDIT_DATA_COMMAND_LENGTH => {
                     code_signature = Some(offset);
                 }
+                #[cfg(any(test, target_os = "macos"))]
+                LC_BUILD_VERSION if size >= BUILD_VERSION_COMMAND_LENGTH => {
+                    minimum_os = Some(u32_at(command, 12));
+                }
                 _ => {}
             }
             offset += size;
@@ -138,13 +149,13 @@ impl Executable {
             return Err(corrupted());
         }
 
-        let text = text.ok_or_else(|| invalid("The executable of the template has no __TEXT."))?;
+        let text = text.ok_or_else(|| invalid("The executable has no __TEXT."))?;
         let (linkedit_command, linkedit_offset, linkedit_end) =
-            linkedit.ok_or_else(|| invalid("The executable of the template has no __LINKEDIT."))?;
+            linkedit.ok_or_else(|| invalid("The executable has no __LINKEDIT."))?;
         // The signature grows __LINKEDIT, at the end of the file.
         if other_segments_end > linkedit_offset || linkedit_end != length {
             return Err(invalid(
-                "__LINKEDIT is not the last data of the executable of the template: it cannot be signed.",
+                "__LINKEDIT is not the last data of the executable: it cannot be signed.",
             ));
         }
 
@@ -154,7 +165,7 @@ impl Executable {
                 let size = u64::from(u32_at(&commands, command + 12));
                 if start < linkedit_offset || start + size != linkedit_end {
                     return Err(invalid(
-                        "The signature of the executable of the template is not at its end: it cannot be signed again.",
+                        "The signature of the executable is not at its end: it cannot be signed again.",
                     ));
                 }
                 start
@@ -164,7 +175,7 @@ impl Executable {
                     > first_section.min(text.1) as usize
                 {
                     return Err(invalid(
-                        "The executable of the template has no room for a signature in its load commands.",
+                        "The executable has no room for a signature in its load commands.",
                     ));
                 }
                 linkedit_end
@@ -179,6 +190,22 @@ impl Executable {
             code_signature,
             // On 16 bytes, as codesign aligns it.
             signature_offset: signature_start.next_multiple_of(16),
+            #[cfg(any(test, target_os = "macos"))]
+            minimum_os,
+        })
+    }
+
+    /// The oldest version of its system the executable runs on, as
+    /// `LSMinimumSystemVersion` writes it: `11.0`, `13.3.1`.
+    #[cfg(any(test, target_os = "macos"))]
+    pub fn minimum_os(&self) -> Option<String> {
+        let version = self.minimum_os?;
+        let (major, minor, patch) = (version >> 16, (version >> 8) & 0xff, version & 0xff);
+
+        Some(if patch == 0 {
+            format!("{major}.{minor}")
+        } else {
+            format!("{major}.{minor}.{patch}")
         })
     }
 
@@ -187,9 +214,8 @@ impl Executable {
     pub fn reserve(&mut self, size: u32) -> io::Result<()> {
         let (linkedit_command, linkedit_offset) = self.linkedit;
         let linkedit_size = self.signature_offset + u64::from(size) - linkedit_offset;
-        let dataoff = u32::try_from(self.signature_offset).map_err(|_| {
-            invalid("The executable of the template exceeds 4 GB: it cannot be signed.")
-        })?;
+        let dataoff = u32::try_from(self.signature_offset)
+            .map_err(|_| invalid("The executable exceeds 4 GB: it cannot be signed."))?;
 
         // vmsize, then filesize.
         put_u64(
@@ -272,7 +298,7 @@ fn put_u64(bytes: &mut [u8], offset: usize, value: u64) {
 }
 
 fn corrupted() -> io::Error {
-    invalid("The load commands of the executable of the template are corrupted.")
+    invalid("The load commands of the executable are corrupted.")
 }
 
 fn invalid(message: &str) -> io::Error {
@@ -319,6 +345,13 @@ pub(crate) mod tests {
         };
         commands.extend(segment(b"__TEXT", 0, 2 * CODE, &[CODE as u32]));
         commands.extend(segment(b"__LINKEDIT", linkedit_offset, linkedit_size, &[]));
+        // macOS 11.0, with the SDK of macOS 14.5, and no tool.
+        commands.extend(LC_BUILD_VERSION.to_le_bytes());
+        commands.extend((BUILD_VERSION_COMMAND_LENGTH as u32).to_le_bytes());
+        commands.extend(1_u32.to_le_bytes());
+        commands.extend(0x000b_0000_u32.to_le_bytes());
+        commands.extend(0x000e_0500_u32.to_le_bytes());
+        commands.extend(0_u32.to_le_bytes());
         if signed {
             commands.extend(LC_CODE_SIGNATURE.to_le_bytes());
             commands.extend(16_u32.to_le_bytes());
@@ -331,7 +364,7 @@ pub(crate) mod tests {
         file.extend(CPU_TYPE_ARM64.to_le_bytes());
         file.extend(0_u32.to_le_bytes());
         file.extend(MH_EXECUTE.to_le_bytes());
-        file.extend((if signed { 3_u32 } else { 2 }).to_le_bytes());
+        file.extend((if signed { 4_u32 } else { 3 }).to_le_bytes());
         file.extend((commands.len() as u32).to_le_bytes());
         file.extend(0x0020_0085_u32.to_le_bytes());
         file.extend(0_u32.to_le_bytes());
@@ -397,13 +430,27 @@ pub(crate) mod tests {
         drop(executable);
 
         let reopened = Executable::open(&path).unwrap();
-        assert_eq!(u32_at(&reopened.commands, 16), 3);
+        assert_eq!(u32_at(&reopened.commands, 16), 4);
         let signature = reopened.code_signature.unwrap();
         assert_eq!(u32_at(&reopened.commands, signature + 8), 0x8100);
         assert_eq!(u32_at(&reopened.commands, signature + 12), 0x200);
         // The code itself is untouched.
         let bytes = std::fs::read(&path).unwrap();
         assert_eq!(bytes[0x4000..0x8100], original[0x4000..0x8100]);
+
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn the_oldest_system_the_executable_runs_on() {
+        let (executable, path) = open(&executable(true), "minimum-os");
+        assert_eq!(executable.minimum_os().as_deref(), Some("11.0"));
+
+        let with_patch = Executable {
+            minimum_os: Some(0x000d_0301),
+            ..executable
+        };
+        assert_eq!(with_patch.minimum_os().as_deref(), Some("13.3.1"));
 
         std::fs::remove_file(path).unwrap();
     }

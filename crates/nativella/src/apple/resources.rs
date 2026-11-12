@@ -4,13 +4,16 @@
 //!
 //! A property list of the SHA-1 hash of each file (`files`, the first
 //! version of the seal), of its SHA-256 hash (`files2`, the second), and of
-//! the rules that chose them: those codesign applies to iOS apps, as an app
-//! signed by Xcode has them. The second version leaves out the Info.plist and
-//! PkgInfo, which the code directory binds already; both make the localized
-//! resources (`*.lproj/`) optional, but the base ones.
+//! the rules that chose them: those codesign applies to the apps of each
+//! [`Layout`], as an app signed by Xcode has them for iOS, and an app signed
+//! ad hoc by codesign for macOS. The second version leaves out the Info.plist
+//! and PkgInfo, which the code directory binds already; both make the
+//! localized resources (`*.lproj/`) optional, but the base ones. On macOS,
+//! the first version seals the resources only, and the second takes the
+//! files of `MacOS/`, and those beside the Info.plist, for nested code.
 //!
 //! Nested code, frameworks or app extensions, needs a seal of its own, signed
-//! first: an app of the template has none, and none is sealed.
+//! first: the apps Nativella makes have none, and none is sealed.
 
 use std::collections::BTreeMap;
 use std::fs::{self, File};
@@ -20,6 +23,8 @@ use std::path::Path;
 use plist::{Dictionary, Value};
 use rsa::sha2::{Digest, Sha256};
 use sha1::Sha1;
+
+use super::Layout;
 
 /// The magic numbers of Mach-O files, thin or universal, in either order.
 const MACHO_MAGICS: [[u8; 4]; 6] = [
@@ -38,6 +43,8 @@ enum Rule {
     /// Sealed, and may be missing.
     Optional,
     Omitted,
+    /// Code, signed on its own.
+    Nested,
 }
 
 /// The hashes of a file.
@@ -46,16 +53,23 @@ struct Hashes {
     sha256: Vec<u8>,
 }
 
-/// The seal of the files of `app`, but its `executable`: what to write to
-/// `_CodeSignature/CodeResources`.
-pub fn seal(app: &Path, executable: &str) -> io::Result<Vec<u8>> {
+/// The seal of the files of `contents`, the directory of an app laid out as
+/// `layout` that holds its signature, but its `executable`, a path in it with
+/// `/`: what to write to `_CodeSignature/CodeResources`.
+pub fn seal(contents: &Path, executable: &str, layout: Layout) -> io::Result<Vec<u8>> {
     let mut hashes = BTreeMap::new();
-    hash_dir(app, "", executable, &mut hashes)?;
+    hash_dir(contents, "", executable, &mut hashes)?;
 
     let mut files = Dictionary::new();
     let mut files2 = Dictionary::new();
     for (path, hashes) in &hashes {
-        match rule(path, false) {
+        let rules = [rule(path, false, layout), rule(path, true, layout)];
+        if rules.contains(&Rule::Nested) {
+            return Err(invalid(&format!(
+                "The app holds {path}, where only code goes, which this command does not sign."
+            )));
+        }
+        match rules[0] {
             Rule::Sealed => {
                 files.insert(path.clone(), Value::Data(hashes.sha1.clone()));
             }
@@ -68,9 +82,9 @@ pub fn seal(app: &Path, executable: &str) -> io::Result<Vec<u8>> {
                     ]),
                 );
             }
-            Rule::Omitted => {}
+            Rule::Omitted | Rule::Nested => {}
         }
-        match rule(path, true) {
+        match rules[1] {
             Rule::Sealed => {
                 files2.insert(
                     path.clone(),
@@ -86,15 +100,15 @@ pub fn seal(app: &Path, executable: &str) -> io::Result<Vec<u8>> {
                     ]),
                 );
             }
-            Rule::Omitted => {}
+            Rule::Omitted | Rule::Nested => {}
         }
     }
 
     let seal = dictionary([
         ("files", files.into()),
         ("files2", files2.into()),
-        ("rules", rules()),
-        ("rules2", rules2()),
+        ("rules", rules(layout)),
+        ("rules2", rules2(layout)),
     ]);
     let mut xml = Vec::new();
     plist::to_writer_xml(&mut xml, &seal)
@@ -103,15 +117,15 @@ pub fn seal(app: &Path, executable: &str) -> io::Result<Vec<u8>> {
     Ok(xml)
 }
 
-/// Hashes the files of the directory `relative` of `app`, but the
+/// Hashes the files of the directory `relative` of `contents`, but the
 /// `executable` and the signature directory, at the root.
 fn hash_dir(
-    app: &Path,
+    contents: &Path,
     relative: &str,
     executable: &str,
     hashes: &mut BTreeMap<String, Hashes>,
 ) -> io::Result<()> {
-    for entry in fs::read_dir(app.join(relative))? {
+    for entry in fs::read_dir(contents.join(relative))? {
         let entry = entry?;
         let name = entry.file_name().into_string().map_err(|name| {
             invalid(&format!(
@@ -130,12 +144,12 @@ fn hash_dir(
 
         let kind = entry.file_type()?;
         if kind.is_dir() {
-            hash_dir(app, &path, executable, hashes)?;
+            hash_dir(contents, &path, executable, hashes)?;
         } else if kind.is_file() {
             hashes.insert(path.clone(), hash_file(&entry.path(), &path)?);
         } else {
             return Err(invalid(&format!(
-                "The app holds {path}, a symbolic link or a special file, which no app of the template has."
+                "The app holds {path}, a symbolic link or a special file, which no app of Nativella holds."
             )));
         }
     }
@@ -173,27 +187,80 @@ fn hash_file(path: &Path, relative: &str) -> io::Result<Hashes> {
     })
 }
 
-/// What the first or the second version of the seal makes of the file
-/// `path`: the rule of the greatest weight among those of [`rules`] or
-/// [`rules2`] that match it, from the greatest weight down.
-fn rule(path: &str, version2: bool) -> Rule {
+/// What the first or the second version of the seal of an app laid out as
+/// `layout` makes of the file `path`: the rule of the greatest weight among
+/// those of [`rules`] or [`rules2`] that match it, from the greatest weight
+/// down.
+fn rule(path: &str, version2: bool, layout: Layout) -> Rule {
     let name = path.rsplit('/').next().unwrap_or(path);
+    // The localized resources: anywhere on iOS, in Resources/ on macOS.
+    let localized = match layout {
+        Layout::Ios => path,
+        Layout::Macos => path.strip_prefix("Resources/").unwrap_or_default(),
+    };
 
-    if (version2 && name == ".DS_Store") || path.ends_with(".lproj/locversion.plist") {
+    if (version2 && name == ".DS_Store") || localized.ends_with(".lproj/locversion.plist") {
         Rule::Omitted
-    } else if path.starts_with("Base.lproj/") {
+    } else if localized.starts_with("Base.lproj/") {
         Rule::Sealed
-    } else if path.contains(".lproj/") {
+    } else if localized.contains(".lproj/") {
         Rule::Optional
     } else if version2 && (path == "Info.plist" || path == "PkgInfo") {
         Rule::Omitted
+    } else if layout == Layout::Ios {
+        Rule::Sealed
+    } else if !version2 {
+        // The first version of macOS seals the resources only.
+        if path.starts_with("Resources/") || path == "version.plist" {
+            Rule::Sealed
+        } else {
+            Rule::Omitted
+        }
+    } else if path.starts_with("Resources/")
+        || path == "embedded.provisionprofile"
+        || path == "version.plist"
+        || path.split('/').any(|part| part.ends_with(".dSYM"))
+    {
+        Rule::Sealed
+    } else if !path.contains('/') || NESTED_CODE.iter().any(|dir| path.starts_with(dir)) {
+        Rule::Nested
     } else {
         Rule::Sealed
     }
 }
 
-/// The rules of the first version, as codesign writes them for iOS apps.
-fn rules() -> Value {
+/// Where macOS apps keep nested code, which the second version of their seal
+/// does not hash: what codesign writes as
+/// `^(Frameworks|SharedFrameworks|PlugIns|Plug-ins|XPCServices|Helpers|MacOS|Library/(Automator|Spotlight|LoginItems))/`.
+const NESTED_CODE: &[&str] = &[
+    "Frameworks/",
+    "SharedFrameworks/",
+    "PlugIns/",
+    "Plug-ins/",
+    "XPCServices/",
+    "Helpers/",
+    "MacOS/",
+    "Library/Automator/",
+    "Library/Spotlight/",
+    "Library/LoginItems/",
+];
+
+/// The rules of the first version, as codesign writes them for the apps of
+/// `layout`.
+fn rules(layout: Layout) -> Value {
+    if layout == Layout::Macos {
+        return dictionary([
+            ("^Resources/", true.into()),
+            ("^Resources/.*\\.lproj/", weighted(1000.0, Some("optional"))),
+            (
+                "^Resources/.*\\.lproj/locversion.plist$",
+                weighted(1100.0, Some("omit")),
+            ),
+            ("^Resources/Base\\.lproj/", weighted(1010.0, None)),
+            ("^version.plist$", true.into()),
+        ]);
+    }
+
     dictionary([
         ("^.*", true.into()),
         ("^.*\\.lproj/", weighted(1000.0, Some("optional"))),
@@ -206,8 +273,33 @@ fn rules() -> Value {
     ])
 }
 
-/// The rules of the second version, as codesign writes them for iOS apps.
-fn rules2() -> Value {
+/// The rules of the second version, as codesign writes them for the apps of
+/// `layout`.
+fn rules2(layout: Layout) -> Value {
+    if layout == Layout::Macos {
+        return dictionary([
+            (".*\\.dSYM($|/)", weighted(11.0, None)),
+            ("^(.*/)?\\.DS_Store$", weighted(2000.0, Some("omit"))),
+            (
+                "^(Frameworks|SharedFrameworks|PlugIns|Plug-ins|XPCServices|Helpers|MacOS|Library/(Automator|Spotlight|LoginItems))/",
+                weighted(10.0, Some("nested")),
+            ),
+            ("^.*", true.into()),
+            ("^Info\\.plist$", weighted(20.0, Some("omit"))),
+            ("^PkgInfo$", weighted(20.0, Some("omit"))),
+            ("^Resources/", weighted(20.0, None)),
+            ("^Resources/.*\\.lproj/", weighted(1000.0, Some("optional"))),
+            (
+                "^Resources/.*\\.lproj/locversion.plist$",
+                weighted(1100.0, Some("omit")),
+            ),
+            ("^Resources/Base\\.lproj/", weighted(1010.0, None)),
+            ("^[^/]+$", weighted(10.0, Some("nested"))),
+            ("^embedded\\.provisionprofile$", weighted(20.0, None)),
+            ("^version\\.plist$", weighted(20.0, None)),
+        ]);
+    }
+
     dictionary([
         (".*\\.dSYM($|/)", weighted(11.0, None)),
         ("^(.*/)?\\.DS_Store$", weighted(2000.0, Some("omit"))),
@@ -225,7 +317,7 @@ fn rules2() -> Value {
     ])
 }
 
-/// A rule of the given weight, with a flag, `omit` or `optional`.
+/// A rule of the given weight, with a flag, `omit`, `optional` or `nested`.
 fn weighted(weight: f64, flag: Option<&str>) -> Value {
     let mut rule = Dictionary::new();
     if let Some(flag) = flag {
@@ -254,7 +346,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rules_as_codesign_applies_them() {
+    fn rules_as_codesign_applies_them_to_ios_apps() {
         for (path, version1, version2) in [
             ("Assets.car", Rule::Sealed, Rule::Sealed),
             ("nativella.bundle", Rule::Sealed, Rule::Sealed),
@@ -274,8 +366,8 @@ mod tests {
             ("fr.lproj/locversion.plist", Rule::Omitted, Rule::Omitted),
             (".DS_Store", Rule::Sealed, Rule::Omitted),
         ] {
-            assert_eq!(rule(path, false), version1, "{path}");
-            assert_eq!(rule(path, true), version2, "{path}");
+            assert_eq!(rule(path, false, Layout::Ios), version1, "{path}");
+            assert_eq!(rule(path, true, Layout::Ios), version2, "{path}");
         }
     }
 
@@ -291,7 +383,8 @@ mod tests {
         fs::write(app.join("nativella.bundle"), "bundle").unwrap();
         fs::write(app.join("fr.lproj/InfoPlist.strings"), "fr").unwrap();
 
-        let sealed: Dictionary = plist::from_bytes(&seal(&app, "Nativella").unwrap()).unwrap();
+        let sealed: Dictionary =
+            plist::from_bytes(&seal(&app, "Nativella", Layout::Ios).unwrap()).unwrap();
 
         let files = sealed["files"].as_dictionary().unwrap();
         let keys: Vec<_> = files.keys().map(String::as_str).collect();
@@ -323,9 +416,77 @@ mod tests {
 
         // Nested code is not sealed.
         fs::write(app.join("Helper"), [0xcf, 0xfa, 0xed, 0xfe, 0]).unwrap();
-        let error = seal(&app, "Nativella").unwrap_err();
+        let error = seal(&app, "Nativella", Layout::Ios).unwrap_err();
         assert!(error.to_string().contains("nested code"), "{error}");
 
         fs::remove_dir_all(app).unwrap();
+    }
+
+    #[test]
+    fn rules_as_codesign_applies_them_to_macos_apps() {
+        for (path, version1, version2) in [
+            ("Resources/nativella.bundle", Rule::Sealed, Rule::Sealed),
+            ("Resources/AppIcon.icns", Rule::Sealed, Rule::Sealed),
+            ("Info.plist", Rule::Omitted, Rule::Omitted),
+            ("PkgInfo", Rule::Omitted, Rule::Omitted),
+            ("version.plist", Rule::Sealed, Rule::Sealed),
+            (
+                "Resources/fr.lproj/InfoPlist.strings",
+                Rule::Optional,
+                Rule::Optional,
+            ),
+            ("Resources/Base.lproj/Main.nib", Rule::Sealed, Rule::Sealed),
+            (
+                "Resources/fr.lproj/locversion.plist",
+                Rule::Omitted,
+                Rule::Omitted,
+            ),
+            ("Resources/.DS_Store", Rule::Sealed, Rule::Omitted),
+            ("MacOS/helper", Rule::Omitted, Rule::Nested),
+            ("Frameworks/Lib.framework/Lib", Rule::Omitted, Rule::Nested),
+            ("stray.txt", Rule::Omitted, Rule::Nested),
+            ("SharedSupport/readme.txt", Rule::Omitted, Rule::Sealed),
+        ] {
+            assert_eq!(rule(path, false, Layout::Macos), version1, "{path}");
+            assert_eq!(rule(path, true, Layout::Macos), version2, "{path}");
+        }
+    }
+
+    /// The same as codesign: the seal of `testdata/macos-CodeResources.plist`,
+    /// which `codesign --force -s -` wrote for an app of these files.
+    #[test]
+    fn the_seal_of_a_macos_app_as_codesign_writes_it() {
+        let contents = Path::new(env!("OUT_DIR"))
+            .join(format!("resources-test-macos-{}.app", std::process::id()))
+            .join("Contents");
+        fs::create_dir_all(contents.join("MacOS")).unwrap();
+        fs::create_dir_all(contents.join("Resources")).unwrap();
+        fs::create_dir_all(contents.join("_CodeSignature")).unwrap();
+        fs::write(
+            contents.join("MacOS/Reference"),
+            [0xcf, 0xfa, 0xed, 0xfe, 0],
+        )
+        .unwrap();
+        fs::write(contents.join("_CodeSignature/CodeResources"), "previous").unwrap();
+        fs::write(contents.join("Info.plist"), "info").unwrap();
+        fs::write(contents.join("Resources/nativella.bundle"), "bundle").unwrap();
+        fs::write(contents.join("Resources/AppIcon.icns"), "icon").unwrap();
+
+        let sealed: Dictionary =
+            plist::from_bytes(&seal(&contents, "MacOS/Reference", Layout::Macos).unwrap()).unwrap();
+
+        let reference: Dictionary = plist::from_file(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("src/apple/testdata/macos-CodeResources.plist"),
+        )
+        .unwrap();
+        assert_eq!(sealed, reference);
+
+        // Nested code is not sealed, nor files where only code goes.
+        fs::write(contents.join("MacOS/notes.txt"), "notes").unwrap();
+        let error = seal(&contents, "MacOS/Reference", Layout::Macos).unwrap_err();
+        assert!(error.to_string().contains("only code goes"), "{error}");
+
+        fs::remove_dir_all(contents.parent().unwrap()).unwrap();
     }
 }

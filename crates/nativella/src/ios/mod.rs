@@ -12,7 +12,7 @@
 //! - with the identity of the project in its Info.plist: its bundle ID, its
 //!   name, its version, and the reasons iOS gives the user for the phone APIs
 //!   it asks for, and for them only;
-//! - signed (see signature.rs): ad hoc for the simulator, which runs nothing
+//! - signed (see apple/signature.rs): ad hoc for the simulator, which runs nothing
 //!   unsigned on Apple silicon; with the certificate of the developer and the
 //!   provisioning profile that lets the app run on devices, embedded as
 //!   `embedded.mobileprovision`, for devices.
@@ -22,24 +22,21 @@
 //! it from the bundle, at startup (see lib.rs), and iOS gives each bundle ID a
 //! container of its own, where the data and cache directories are.
 
-mod certificate;
-mod entitlements;
-mod macho;
+pub(crate) mod certificate;
+pub(crate) mod entitlements;
 mod profile;
-mod resources;
-mod signature;
 
 use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufWriter, Write};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Component, Path};
 
 use plist::{Dictionary, Value};
-use semver::Version;
 
 use self::certificate::Certificate;
 use self::profile::Profile;
-use self::signature::Signer;
+use crate::apple::signature::{self, Signer};
+use crate::apple::{Layout, Staging, bundle_version, replace_app};
 use crate::embedded::{self, LeftOut, PACKAGED_BUNDLE};
 use crate::output::{self, Output};
 use crate::project::{Permission, Project};
@@ -224,13 +221,14 @@ pub fn package(
     written.map_err(|error| io::Error::other(format!("Cannot write the Info.plist: {error}.")))?;
 
     match identity {
-        None => signature::sign(&app_dir, &Signer::AdHoc)?,
+        None => signature::sign(&app_dir, Layout::Ios, &Signer::AdHoc)?,
         Some(identity) => {
             let identifier = &project.manifest.identifier;
             fs::copy(identity.profile.path(), app_dir.join(EMBEDDED_PROFILE))?;
             let entitlements = identity.profile.entitlements(identifier)?;
             signature::sign(
                 &app_dir,
+                Layout::Ios,
                 &Signer::Developer {
                     certificate: &identity.certificate,
                     entitlements: &entitlements,
@@ -240,36 +238,11 @@ pub fn package(
     }
 
     match platform {
-        Platform::Simulator => replace_app(&app_dir, output)?,
+        Platform::Simulator => replace_app(&app_dir, output, Layout::Ios)?,
         Platform::Device => write_ipa(&staging.0, output)?,
     }
 
     Ok(left_out)
-}
-
-/// A directory that the packaging removes when it ends, whether it failed
-/// or not.
-struct Staging(PathBuf);
-
-impl Staging {
-    fn create(path: PathBuf) -> io::Result<Self> {
-        if path.exists() {
-            fs::remove_dir_all(&path)?;
-        }
-        fs::create_dir(&path)?;
-
-        Ok(Self(path))
-    }
-}
-
-impl Drop for Staging {
-    fn drop(&mut self) {
-        if let Err(error) = fs::remove_dir_all(&self.0)
-            && error.kind() != io::ErrorKind::NotFound
-        {
-            eprintln!("Warning: cannot remove {}: {error}.", self.0.display());
-        }
-    }
 }
 
 /// `Payload/<name>.app/`: the app of the template, the only one of its
@@ -478,46 +451,6 @@ fn usage_description(permission: Permission, name: &str) -> Option<(&'static str
     }
 }
 
-/// `CFBundleShortVersionString` and `CFBundleVersion`: the version of the
-/// project as three integers, which Apple requires, without its pre-release
-/// or build suffix.
-fn bundle_version(version: &str) -> io::Result<String> {
-    let Version {
-        major,
-        minor,
-        patch,
-        ..
-    } = Version::parse(version).map_err(|_| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!(
-                "The version \"{version}\" cannot number an iOS app, which takes three integers: major.minor.patch."
-            ),
-        )
-    })?;
-
-    Ok(format!("{major}.{minor}.{patch}"))
-}
-
-/// Moves the app made in `app_dir` to `output`, in place of a previous one.
-fn replace_app(app_dir: &Path, output: &Path) -> io::Result<()> {
-    if output.exists() {
-        // Never a directory that is not an app: the output could be a typo.
-        if !output.join("Info.plist").is_file() {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                format!(
-                    "{} exists and is not an app: choose another output.",
-                    output.display()
-                ),
-            ));
-        }
-        fs::remove_dir_all(output)?;
-    }
-
-    fs::rename(app_dir, output)
-}
-
 /// Writes the IPA of the app in `staging/Payload/`: a ZIP archive of it,
 /// with the Unix permissions of its files.
 fn write_ipa(staging: &Path, output: &Path) -> io::Result<()> {
@@ -572,12 +505,15 @@ fn invalid(message: &str) -> io::Error {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use flate2::read::GzDecoder;
     use rsa::sha2::{Digest, Sha256};
 
     use super::*;
+    use crate::apple::macho;
+    use crate::apple::signature::tests::{blobs, parse};
     use crate::ios::certificate::tests::{PASSWORD, testdata};
-    use crate::ios::signature::tests::{blobs, parse};
 
     /// A template, as `castor mobile:ios-template` makes it: the app Xcode
     /// built, in `Payload/`, its Info.plist binary, its executable signed by
@@ -941,15 +877,5 @@ mod tests {
             );
         }
         assert!(executable(&Dictionary::new()).is_err());
-    }
-
-    #[test]
-    fn bundle_versions() {
-        assert_eq!(bundle_version("1.2.3").unwrap(), "1.2.3");
-        assert_eq!(bundle_version("2.3.4-beta.1+abc").unwrap(), "2.3.4");
-
-        for version in ["", "1.2", "1.2.3.4", "v1.0.0"] {
-            assert!(bundle_version(version).is_err(), "{version}");
-        }
     }
 }
