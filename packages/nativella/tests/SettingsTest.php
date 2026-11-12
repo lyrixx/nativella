@@ -2,6 +2,7 @@
 
 namespace Nativella\Tests;
 
+use Nativella\Client\Call;
 use Nativella\Client\FakeClient;
 use Nativella\Settings;
 use PHPUnit\Framework\TestCase;
@@ -19,5 +20,14 @@ final class SettingsTest extends TestCase
         $client->respond('settings.get', ['value' => null]);
 
         $this->assertNull(new Settings($client)->get('theme', 'light'));
+    }
+
+    public function testAKeyIsDeleted(): void
+    {
+        $client = new FakeClient();
+
+        new Settings($client)->delete('theme');
+
+        $this->assertEquals([new Call('settings.forget', ['key' => 'theme'])], $client->calls());
     }
 }

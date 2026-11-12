@@ -32,7 +32,10 @@ final readonly class Settings
         $this->client->call('settings.set', ['key' => $key, 'value' => $value]);
     }
 
-    public function forget(string $key): void
+    /**
+     * Nothing happens if there is no such key.
+     */
+    public function delete(string $key): void
     {
         $this->client->call('settings.forget', ['key' => $key]);
     }
