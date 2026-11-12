@@ -79,6 +79,7 @@ castor migrate                   # migrate the databases of the demos, for the f
 castor website:build             # website/dist/, and the documentation in website/dist/docs/
 castor nativella:run symfony     # the Symfony demo, as a desktop application (host)
 castor nativella:smoke           # each demo answers through the runtime, without a window
+castor nativella:macos-app [demo]  # the app of a demo, opened in a window, and PHP answers (macOS)
 castor nativella:build [demo]    # dist/nativella and the standalone executables of the demos, with the static PHP (staged for production) and the third-party notices
 castor static-php:build          # PHP as a static library, for nativella:build and --static (qa:rust…), in the static service
 castor static-php:android        # the same PHP for Android (android service), --abi=x86_64 for emulators

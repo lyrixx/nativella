@@ -12,6 +12,8 @@ pub mod apk;
 #[cfg(desktop)]
 mod apple;
 #[cfg(desktop)]
+mod apple;
+#[cfg(desktop)]
 mod before_unload;
 #[cfg(desktop)]
 mod binary;
@@ -27,6 +29,8 @@ mod events;
 pub mod ios;
 #[cfg(target_os = "android")]
 mod logcat;
+#[cfg(any(test, target_os = "macos"))]
+pub mod macos;
 mod native;
 #[cfg(any(test, all(mobile, feature = "nfc")))]
 mod nfc_tags;

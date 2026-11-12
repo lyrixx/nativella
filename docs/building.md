@@ -1,6 +1,6 @@
 # Building a standalone app
 
-`nativella build` turns a project into a single executable: a copy of the `nativella` command, PHP included, with the project packed inside. Run it and the application starts, with no PHP needed on the machine.
+`nativella build` turns a project into a single executable: a copy of the `nativella` command, PHP included, with the project packed inside. Run it and the application starts, with no PHP needed on the machine. On a Mac, it makes an app instead, `dist/Notes.app` (see [macOS apps](#macos-apps)).
 
 ```bash
 cd path/to/notes
@@ -18,7 +18,7 @@ Done: dist/notes
 nativella build [<project-dir>] [-o <output>]
 ```
 
-The project directory defaults to the current one. The executable goes to `dist/` in the current directory, named after the application's [`name`](configuration.md#name), in lower case, with dashes in place of everything but ASCII letters, digits, `+` and `.`. `Notes/Pro` makes `dist/notes-pro` (`.exe` on Windows). A name that starts with none of these letters and digits, or of one character, gets an `app-` prefix, and a name without any, such as "笔记", leaves the last segment of the [`identifier`](configuration.md#identifier) to name the file. `-o`, or `--output`, picks another path.
+The project directory defaults to the current one. The executable goes to `dist/` in the current directory, named after the application's [`name`](configuration.md#name), in lower case, with dashes in place of everything but ASCII letters, digits, `+` and `.`. `Notes/Pro` makes `dist/notes-pro` (`.exe` on Windows, and `dist/Notes-Pro.app` on macOS, whose apps keep their name). A name that starts with none of these letters and digits, or of one character, gets an `app-` prefix, and a name without any, such as "笔记", leaves the last segment of the [`identifier`](configuration.md#identifier) to name the file. `-o`, or `--output`, picks another path.
 
 > [!TIP]
 > `nativella build` from the project directory works too. The `dist/` it writes to is never packed, so earlier builds do not ship. With `-o` to another directory of the project, only the executable being written is left out of the archive.
@@ -88,6 +88,8 @@ The executable finds the project it carries and extracts it, once per build, int
 | macOS | `~/Library/Caches/<identifier>/<build>` |
 | Windows | `%LOCALAPPDATA%\<identifier>\<build>` |
 
+A macOS app keeps its project apart from its executable, in its resources, and extracts it the same way.
+
 The next launches of the same build start right away. A build of other files, or by another version of Nativella, extracts again, next to the previous one, and removes it once it runs, when no other instance of the application can be running from there. The data directory stays. Extraction is safe when two instances start at once, because each one extracts aside and the first to finish wins.
 
 At each start, the application checks that every file of the build is still there, and extracts the build again when some are missing, as after a cleaner went through the cache. So an application must not delete the files it ships, and what it writes among them does not last: write to the [data directory](configuration.md#the-data-directory).
@@ -119,7 +121,7 @@ Android and iOS applications carry the same PHP, with the same extensions, built
 Another PHP version, or other extensions, take a `nativella` built with them, from the repository. See [Your own PHP](custom-php.md).
 
 > [!NOTE]
-> Linux has [Debian packages](#debian-packages). Other installers (`.dmg`, `.msi`) and code signing are not there yet; standalone executables [update themselves](updates.md). See [Limitations and roadmap](limitations.md#distribution).
+> Linux has [Debian packages](#debian-packages), macOS [apps](#macos-apps), signed ad hoc. Other installers (`.dmg`, `.msi`), signing by a developer and Apple's notarization are not there yet; standalone executables and apps [update themselves](updates.md). See [Limitations and roadmap](limitations.md#distribution).
 
 ## Size and memory
 
@@ -141,6 +143,27 @@ The sizes are those GitHub shows, in MB of 1,048,576 bytes.
 Nearly all of an executable is the `nativella` command: PHP and its libraries, ICU and its data for intl (36 MB), and the Rust shell around the webview. The project adds its own size, compressed: 0.3 MB for the vanilla demo, 4 to 5 MB for the Symfony and Laravel ones, `vendor/` included. The webview is the system's, and is not part of it. A `nativella` with [your own PHP](custom-php.md), without intl, makes smaller executables.
 
 The memory is the PSS of each process (`Pss` in `/proc/<pid>/smaps_rollup`): its own memory, plus its share of what it shares with other processes, like the system libraries. The application holds the Rust shell, GTK, the side of WebKit that drives the windows, and PHP. WebKit starts a web process, which renders the pages and runs their JavaScript, a network process, and the sandboxes of both. The demo pages are light; heavier ones take more WebKit memory, as in a browser. The RSS of these processes, which counts the shared libraries in full in each one, adds up to about 500 MB. The memory on macOS and on phones is not measured yet.
+
+## macOS apps
+
+On a Mac, `nativella build` makes an app: a `.app` directory that Finder shows as one file, with its name and its icon, and that opens as any other application.
+
+```text
+Packaging Notes 1.2.0 into dist/Notes.app…
+Done: dist/Notes.app
+```
+
+| The app holds | |
+|---|---|
+| `Contents/MacOS/<name>` | The `nativella` command, as it is, but its signature. |
+| `Contents/Resources/nativella.bundle` | The project, packed as in an executable. |
+| `Contents/Resources/AppIcon.icns` | The [icon](configuration.md#icon), from 16 to 1,024 pixels. |
+| `Contents/Info.plist` | The application's `name`, `identifier` and `version`, as three integers (`1.2.3-beta.1` makes `1.2.3`), the reasons macOS gives the user when the pages ask for the camera, the microphone or the location, for the [`permissions`](configuration.md#permissions) it asks for, and the schemes of its [deep links](configuration.md#deeplinks), which macOS registers once the app has been opened or moved by Finder. |
+| `Contents/_CodeSignature/CodeResources` | The seal of the resources, which the signature binds. |
+
+The app is signed ad hoc, as `codesign -s -` signs: macOS checks that nothing changed in it, but no developer signs it, and Apple did not notarize it. It opens on the Mac that built it. Downloaded from the Internet, it opens once the user allows it, the first time: macOS says that it cannot check the app, then opens it from the context menu's Open on macOS 14, and from "Open Anyway", in the Privacy & Security settings, on macOS 15 and later. Tell your users, until Nativella signs with a developer certificate.
+
+To publish it, archive it, because a directory does not download: `ditto -c -k --keepParent dist/Notes.app notes.zip` makes a ZIP file, which Finder opens with a double click, and the `.tar.gz` that [updates](updates.md#apps-of-macos) take works too. Ask your users to move the app to their Applications folder before they open it. macOS runs a downloaded app that has not moved from a read-only copy elsewhere, where it cannot update itself.
 
 ## Debian packages
 

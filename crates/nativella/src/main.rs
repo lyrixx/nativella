@@ -12,7 +12,8 @@ use nativella_lib::{Project, notices, output};
 
 const USAGE: &str = "Usage:
   nativella run [<project-dir>]                    Run a PHP project as a desktop application
-  nativella build [<project-dir>] [-o <output>]    Build a standalone executable of the project
+  nativella build [<project-dir>] [-o <output>]    Build a standalone executable of the project,
+                                                   an app (.app) on macOS
   nativella deb [<project-dir>] [-o <output>]      Build a Debian package of the project (Linux)
   nativella android [<project-dir>] --template <apk> [--key <pem>] [-o <output>]
                                                    Make an Android application (APK) of the project,
@@ -121,6 +122,11 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
         let name = output::package_name(&project.manifest);
         PathBuf::from("dist").join(match package {
             Package::Executable if cfg!(windows) => format!("{name}.exe"),
+            #[cfg(target_os = "macos")]
+            Package::Executable => {
+                format!("{}.app", nativella_lib::macos::app_name(&project.manifest))
+            }
+            #[cfg(not(target_os = "macos"))]
             Package::Executable => name,
             Package::Deb => deb_name(&project),
             Package::Android => format!("{name}.apk"),
@@ -138,9 +144,7 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
     );
     let result = match package {
         // The notices first: they refuse to replace a file of the project.
-        Package::Executable => {
-            write_notices(&output).and_then(|()| embedded::build(&project, &output))
-        }
+        Package::Executable => write_notices(&output).and_then(|()| executable(&project, &output)),
         Package::Deb => deb(&project, &output),
         Package::Android => android(&project, template.as_deref(), key.as_deref(), &output),
         Package::Ios => ios(
@@ -262,6 +266,18 @@ fn write_notices(output: &Path) -> io::Result<()> {
     );
 
     Ok(())
+}
+
+/// The standalone executable of `project`.
+#[cfg(not(target_os = "macos"))]
+fn executable(project: &Project, output: &Path) -> io::Result<LeftOut> {
+    embedded::build(project, output)
+}
+
+/// The standalone application of `project`: an app, on macOS.
+#[cfg(target_os = "macos")]
+fn executable(project: &Project, output: &Path) -> io::Result<LeftOut> {
+    nativella_lib::macos::package(project, output)
 }
 
 /// The APK of `project`, signed with the key in `key`, or the debug key.

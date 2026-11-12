@@ -1,7 +1,8 @@
 name: macOS
 
-# Checks the Rust crates on macOS (arm64), against a static PHP, and serves
-# each demo through the runtime, without a window.
+# Checks the Rust crates on macOS (arm64), against a static PHP, serves
+# each demo through the runtime, without a window, then opens the app of the
+# vanilla demo, as nativella build makes it, in a window.
 #
 # A pull request runs it on the changes that can break it: the crates,
 # mobile/php/php, which describes the static PHP to ext-php-rs, and the
@@ -154,6 +155,19 @@ jobs:
 
             - name: "Smoke test the demos through the runtime"
               run: "castor nativella:smoke --static"
+
+            # A window, as a user gets it: the app of nativella build, its
+            # signature checked as macOS checks it, opened as Finder opens it
+            - name: "Open the app of the vanilla demo"
+              run: "castor nativella:macos-app vanilla"
+
+            - name: "Upload the output of the app"
+              if: ${{ !cancelled() }}
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: nativella-macos-app-output
+                  path: target/nativella/vanilla.log
+                  if-no-files-found: ignore
 
             # Main only, once all built, as in rust.yml
             - name: "Prune the Rust build"

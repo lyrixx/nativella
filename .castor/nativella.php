@@ -83,7 +83,7 @@ function run_demo(
  * need no PHP on the machine. With --no-static, they link the libphp and the
  * WebKitGTK of the builder (Debian), dynamically, and need them. Each demo
  * ships staged for production: without its dev dependencies, in the
- * production environment.
+ * production environment. On macOS, each demo is an app, dist/<demo>.app.
  *
  * The nativella command embeds the third-party notices of what it contains
  * (notices\desktop()), which it writes next to the executables it builds:
@@ -117,11 +117,12 @@ function build_demos(
     fs()->copy(target_dir($environment).'/release/nativella', variable('root_dir').'/dist/nativella', overwriteNewerFiles: true);
 
     foreach ($projects as $project) {
-        io()->section("Building {$project->path} into dist/{$project->name()}");
+        $output = "dist/{$project->name()}".(context()['macos'] ? '.app' : '');
+        io()->section("Building {$project->path} into {$output}");
 
         // Staged in the builder, which has PHP and Composer
         $stage = stage($project);
-        run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--release', '--locked', '--', 'build', $stage, '-o', "dist/{$project->name()}"], environment: $environment, service: $service);
+        run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--release', '--locked', '--', 'build', $stage, '-o', $output], environment: $environment, service: $service);
     }
 
     io()->success('The executables are in dist/.');
@@ -132,7 +133,9 @@ function build_demos(
  * nativella-demo-<demo>-<platform>, their third-party notices,
  * THIRD_PARTY_NOTICES-<platform>.txt, with SHA256SUMS-<platform>. On Linux,
  * only executables that run on the glibc and the libstdc++ of the static
- * service, built against the static PHP.
+ * service, built against the static PHP. On macOS, the demos are apps:
+ * nativella-demo-<demo>-<platform>.app.tar.gz, as the updates of an app take
+ * it, without the extended attributes of macOS.
  */
 #[AsTask(description: 'Copies the executables of dist/ into release/, named after the platform, with their checksums')]
 function package(): void
@@ -141,12 +144,18 @@ function package(): void
     $platform = builder_platform();
 
     fs()->remove("{$root}/release");
+    fs()->mkdir("{$root}/release");
 
     if (!is_file("{$root}/dist/".\notices\FILE)) {
         throw new \RuntimeException('There are no third-party notices in dist/: build the executables with "castor nativella:build".');
     }
 
     $checksums = '';
+    foreach (finder()->in("{$root}/dist")->directories()->depth(0)->name('*.app')->sortByName() as $app) {
+        $name = 'nativella-demo-'.$app->getBasename('.app')."-{$platform}.app.tar.gz";
+        run(['tar', '-czf', "{$root}/release/{$name}", '-C', "{$root}/dist", $app->getFilename()], context: context()->withEnvironment(['COPYFILE_DISABLE' => '1']));
+        $checksums .= hash_file('sha256', "{$root}/release/{$name}")."  {$name}\n";
+    }
     foreach (finder()->in("{$root}/dist")->files()->depth(0)->sortByName() as $file) {
         if (\notices\FILE === $file->getFilename()) {
             $name = "THIRD_PARTY_NOTICES-{$platform}.txt";
@@ -165,6 +174,56 @@ function package(): void
     fs()->dumpFile("{$root}/release/SHA256SUMS-{$platform}", $checksums);
 
     io()->success("The release files of {$platform} are in release/.");
+}
+
+/**
+ * The app of a demo, as a user gets it: made by `nativella build` (the one of
+ * the workspace, against the static PHP), checked as macOS checks an app
+ * before it opens it, but for the notarization, then opened as Finder opens
+ * it. Fails if PHP answers no page, then quits the app. The app and its
+ * output: target/nativella/<demo>.app and <demo>.log.
+ */
+#[AsTask(name: 'macos-app', description: 'Builds the app of a demo, opens it, and fails if PHP answers no page (macOS)')]
+function macos_app(
+    #[AsArgument(description: 'The demo', autocomplete: 'project\complete_demo_names')]
+    string $demo = 'vanilla',
+    #[AsOption(description: 'The time PHP has to answer, in seconds')]
+    int $wait = 60,
+): void {
+    if (!context()['macos']) {
+        throw new \RuntimeException('Only macOS opens apps: run it on a Mac, in the host context.');
+    }
+    $project = install_if_missing(demo($demo));
+    \static_php\build();
+    $environment = \static_php\environment();
+    $root = variable('root_dir');
+    $app = "target/nativella/{$demo}.app";
+    $log = "{$root}/target/nativella/{$demo}.log";
+
+    io()->title("Building {$app}");
+    run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--', 'build', $project->path, '-o', $app], environment: $environment, service: \static_php\SERVICE);
+    run(['codesign', '--verify', '--deep', '--strict', '--verbose=2', "{$root}/{$app}"]);
+
+    io()->title("Opening {$app}");
+    fs()->remove($log);
+    // A new instance, even if another one runs, its output in the log
+    run(['open', '-n', "{$root}/{$app}", '--stdout', $log, '--stderr', $log]);
+    $executables = "{$root}/{$app}/Contents/MacOS/";
+    $running = static fn (): bool => run(['pgrep', '-f', $executables], context()->withQuiet()->withAllowFailure())->isSuccessful();
+    $output = static fn (): string => is_file($log) ? (string) file_get_contents($log) : '';
+
+    io()->comment("Waiting up to {$wait} seconds for PHP to answer a page...");
+    $answered = \mobile\wait_for_a_page($wait, $output, $running);
+    $wasRunning = $running();
+    run(['pkill', '-TERM', '-f', $executables], context()->withQuiet()->withAllowFailure());
+
+    if (!preg_match(\mobile\PHP_ANSWERED, $answered)) {
+        io()->writeln($answered);
+
+        throw new \RuntimeException($wasRunning ? \sprintf('PHP answered no page within %d seconds: the output of the app is above.', $wait) : 'The app stopped before PHP answered a page: its output is above.');
+    }
+
+    io()->success("PHP answered a page. The output of the app: target/nativella/{$demo}.log.");
 }
 
 /**
