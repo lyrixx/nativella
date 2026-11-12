@@ -22,8 +22,8 @@ NATIVELLA_DATA_DIR=$PWD/var/data nativella run .
 
 There is no deployment step. The user installs a new version and starts it, so the schema follows the code when the application starts, on [`AppBooted`](lifecycle.md#booting), which the runtime handles before it serves any page.
 
-- With Symfony and `doctrine/doctrine-migrations-bundle`, the bundle runs the pending Doctrine migrations before the application's listeners, as `doctrine:migrations:migrate` does: each one in its own transaction, so the migrations before a failing one stay applied. `all_or_nothing: true` in the migrations bundle configuration runs them in a single transaction, but then refuses a non-transactional migration (a table rebuild on SQLite).
-- With Laravel, the package runs `migrate --force` before the application's listeners.
+- With Symfony and `doctrine/doctrine-migrations-bundle`, the bundle runs the pending Doctrine migrations before the application's listeners, as `doctrine:migrations:migrate` does: each one in its own transaction, so the migrations before a failing one stay applied. Without a migrations directory, it runs none and logs a warning. `all_or_nothing: true` in the migrations bundle configuration runs them in a single transaction, but then refuses a non-transactional migration (a table rebuild on SQLite).
+- With Laravel, the package runs `migrate --force` before the application's listeners, after loading the schema dump of `schema:dump` on a new database.
 - In plain PHP, migrate in your `AppBooted` handler.
 
 Write migrations that work on existing data. A new column needs a default value or must be nullable, for the rows already there. And never edit a migration that shipped, because some users already ran it.
