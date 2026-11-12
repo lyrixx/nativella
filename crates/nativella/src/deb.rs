@@ -50,8 +50,19 @@ struct Control {
 /// before the end, as semantic versions do a pre-release: 1.2.0~beta.1 comes
 /// before 1.2.0. It would take 1.2.0-beta.1 for 1.2.0, revision beta.1, and
 /// the final 1.2.0 for a downgrade.
+///
+/// The other dashes become dots: after a `~` each, 1.2.0-alpha-1 would come
+/// before 1.2.0-alpha, and it comes after.
 pub fn version(manifest: &Manifest) -> String {
-    manifest.version.replace('-', "~")
+    let (core, suffix) = manifest
+        .version
+        .split_at(manifest.version.find(['-', '+']).unwrap_or(manifest.version.len()));
+    let suffix = match suffix.strip_prefix('-') {
+        Some(pre_release) => format!("~{pre_release}"),
+        None => suffix.to_owned(),
+    };
+
+    format!("{core}{}", suffix.replace('-', "."))
 }
 
 /// Debian's name of the architecture of this executable, which the package
@@ -432,8 +443,12 @@ mod tests {
 
         assert_eq!(
             control(&notes, &json!({})).unwrap().version,
-            "1.2.0~beta.1+build~7"
+            "1.2.0~beta.1+build.7"
         );
+        notes.version = "1.2.0-alpha-1".to_owned();
+        assert_eq!(version(&notes), "1.2.0~alpha.1");
+        notes.version = "1.2.0+git-abc".to_owned();
+        assert_eq!(version(&notes), "1.2.0+git.abc");
     }
 
     #[test]
