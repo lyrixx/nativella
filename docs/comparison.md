@@ -17,14 +17,14 @@ This page compares Nativella 0.5, NativePHP Desktop 2.4, NativePHP Mobile 4.7 an
 | | Nativella | NativePHP Desktop | NativePHP Mobile | Symfony UX Native |
 |---|---|---|---|---|
 | Status | Experimental | Production-ready, says [its roadmap](https://nativephp.com/docs/desktop/2/getting-started/status) | Made for the stores | Experimental |
-| Platforms | Linux. macOS and Windows untested, Android and iOS experimental (see [Platforms](limitations.md#platforms)) | Windows, macOS, Linux | iOS, Android | iOS, Android |
+| Platforms | Linux and macOS, not every API of macOS tried. Windows untested, Android and iOS experimental (see [Platforms](limitations.md#platforms)) | Windows, macOS, Linux | iOS, Android | iOS, Android |
 | Applications | Any PHP application with a `public/index.php` | Laravel | Laravel | Symfony |
 | Where PHP runs | On the device, in the application's process | On the device, in a process of its own | On the device, in the application | On your server |
 | How the interface reaches PHP | In memory, no port | HTTP, between two local web servers | Shared memory, no network | HTTP, over the network |
 | Interface | Your pages, in the system webview | Your pages, in Chromium | Blade rendered as SwiftUI and Jetpack Compose views; a web view on request | Your pages, in a web view, with native navigation |
 | Without a network | Works | Works | Works | The pages come from your server |
 | Tools to build | The `nativella` command, without Xcode, the Android SDK or a Mac | PHP and Node.js 22 or later | Xcode on a Mac with Apple silicon and Android Studio, or Bifrost | Xcode and Android Studio, as the shells are your own projects |
-| Signing and stores | Android and iOS apps are signed, but none is ready for the stores (see [Mobile](mobile.md#what-is-tested)). Nothing on computers | Signing and notarization, for macOS and Windows | `native:package`, for the App Store and Google Play | Those of your native projects |
+| Signing and stores | Android and iOS apps are signed, but none is ready for the stores (see [Mobile](mobile.md#what-is-tested)). macOS apps are signed ad hoc, not notarized. Nothing on Linux and Windows | Signing and notarization, for macOS and Windows | `native:package`, for the App Store and Google Play | Those of your native projects |
 | Updates | [Standalone executables](updates.md) update themselves | Automatic, through its `publish` command | Through the stores, or over the air with Bifrost | Pages at each deployment, without the stores. The shell through the stores |
 
 ## NativePHP
@@ -37,7 +37,7 @@ It is the closest project: PHP on the user's device, a static build of it from [
 - NativePHP ships Electron, so Chromium. Pages render the same everywhere, and every application carries a browser. Nativella uses the system webview, so it has nothing to carry, but one engine per platform, each with its gaps. See [What WebKit does not do](how-it-works.md#what-webkit-does-not-do).
 - NativePHP starts a web server on each side of the application, and they talk over HTTP with a key made at each start, which [its security guide](https://nativephp.com/docs/desktop/2/digging-deeper/security) tells you never to bypass. Nativella has no port to protect, because a request stays in the memory of the process.
 - For background work, NativePHP starts [Laravel queue workers](https://nativephp.com/docs/desktop/2/digging-deeper/queues) as child processes. Nativella has [one PHP thread](limitations.md#one-request-at-a-time), so a slow request holds back the others, and a queue worker needs PHP's command line on the machine.
-- NativePHP [signs and notarizes](https://nativephp.com/docs/desktop/2/publishing/building) for macOS and Windows. Nativella has Debian packages and no code signing. See [Distribution](limitations.md#distribution).
+- NativePHP [signs and notarizes](https://nativephp.com/docs/desktop/2/publishing/building) for macOS and Windows. Nativella has Debian packages, and macOS apps signed ad hoc, which Apple does not notarize. See [Distribution](limitations.md#distribution).
 
 ### On a phone
 

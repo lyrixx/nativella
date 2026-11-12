@@ -88,7 +88,7 @@ The state is written when the application quits, to `.window-state.json` in the 
 | `reload(?string $window = null): void` | Reloads the page. |
 | `setProgress(?int $percent, ?string $window = null): void` | Shows a progress bar, from 0 to 100, on the window's icon in the taskbar or the dock (Windows, macOS, GNOME with libunity). Null removes it. Desktop only. |
 | `print(?string $window = null): void` | Opens the system print dialog, which can also print to PDF, for the window's page. |
-| `printToPdf(string $path, ?string $window = null): void` | Writes the window's page to a PDF file, at an absolute path, without a dialog, for an invoice or a report. `@media print` styles apply. Linux only, for now. |
+| `printToPdf(string $path, ?string $window = null): void` | Writes the window's page to a PDF file, at an absolute path, without a dialog, for an invoice or a report. `@media print` styles apply. Linux and macOS only, for now. |
 | `navigate(string $url, ?string $window = null): void` | Loads an application path (`/notes/42`). The URL of another website opens in the system browser, as a link to it does. |
 | `openDevtools(?string $window = null): void` | Opens the window's web inspector. Debug builds of Nativella only. Elsewhere it throws. |
 

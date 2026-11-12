@@ -48,4 +48,4 @@ To write a file PHP already holds without a link, call [`Dialog::saveFile()`](di
 
 ## Platforms
 
-Tested on Linux. macOS and Windows go through the same code, untested. Phones do not save downloads yet.
+Tested on Linux and macOS. On macOS, the dialog starts in the last directory the user saved to rather than in the downloads directory, for the reason [Dialogs](dialogs.md) gives. Windows goes through the same code, untested. Phones do not save downloads yet.

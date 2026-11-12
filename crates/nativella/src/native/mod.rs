@@ -25,7 +25,7 @@ pub(crate) mod menu;
 pub(crate) mod nfc;
 pub(crate) mod notification;
 pub(crate) mod page;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 pub(crate) mod pdf;
 #[cfg(desktop)]
 pub(crate) mod power;
@@ -319,8 +319,9 @@ pub(crate) fn not_found(message: impl Into<String>) -> NativeError {
     NativeError::new(ErrorKind::NotFound, message)
 }
 
-// Only printing to PDF, on Linux, and the phone APIs wait with a limit
-#[cfg(any(target_os = "linux", mobile, test))]
+// Only printing to PDF, on Linux and macOS, and the phone APIs wait with a
+// limit
+#[cfg(any(target_os = "linux", target_os = "macos", mobile, test))]
 pub(crate) fn timeout(message: impl Into<String>) -> NativeError {
     NativeError::new(ErrorKind::Timeout, message)
 }

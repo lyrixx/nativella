@@ -10,6 +10,8 @@ mod absolute_urls;
 #[cfg(desktop)]
 pub mod apk;
 #[cfg(desktop)]
+mod apple;
+#[cfg(desktop)]
 mod before_unload;
 #[cfg(desktop)]
 mod binary;
@@ -25,6 +27,8 @@ mod events;
 pub mod ios;
 #[cfg(target_os = "android")]
 mod logcat;
+#[cfg(any(test, target_os = "macos"))]
+pub mod macos;
 mod native;
 #[cfg(any(test, all(mobile, feature = "nfc")))]
 mod nfc_tags;
@@ -203,6 +207,9 @@ fn start(
     let asked = manifest.permissions.clone();
     let builder = Builder::default()
         .on_permission_request(move |_, kind| webview_permissions::respond(&asked, kind));
+    // Tauri's menu, with the Quit item of Nativella, which waits for PHP.
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(native::menu::default_menu);
 
     #[cfg(desktop)]
     let builder = builder

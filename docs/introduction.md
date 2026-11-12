@@ -65,7 +65,7 @@ Nativella is a good fit for:
 
 It is not a good fit, yet, for:
 
-- an application that must ship on macOS or Windows today: both are untested;
+- an application that must ship on Windows today, which is untested, or on macOS without the warning macOS gives on the first launch: apps are not notarized yet;
 - an application for the Android or iOS stores: phone builds are experimental, and no iOS device has run one yet;
 - long requests or many busy windows: one PHP thread serves every request, one at a time.
 

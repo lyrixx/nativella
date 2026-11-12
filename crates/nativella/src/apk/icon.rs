@@ -1,7 +1,8 @@
 //! The launcher icon of an application: the icon of the project, or
 //! Nativella's, drawn for each screen density of the template as `tauri icon`
 //! draws the launcher icons of Android: 48 dp, the image inside a margin of a
-//! twelfth, its corners rounded as much. Linux packages take it whole (deb.rs).
+//! twelfth, its corners rounded as much. Linux packages (deb.rs) and macOS
+//! apps (macos.rs) take it whole.
 
 use std::fs;
 use std::io::{self, Cursor};
@@ -129,8 +130,9 @@ impl Icon {
         encode(&icon)
     }
 
-    /// The whole icon, `size` pixels square, as a PNG file.
-    #[cfg(target_os = "linux")]
+    /// The whole icon, `size` pixels square, as a PNG file: for Linux
+    /// packages, and for macOS apps.
+    #[cfg(any(test, target_os = "linux", target_os = "macos"))]
     pub fn png(&self, size: u32) -> Vec<u8> {
         let resized = imageops::resize(&self.image, size, size, Filter::Lanczos3);
 

@@ -42,7 +42,7 @@ if (null !== $path) {
 | `openDirectory(?string $title = null, ?string $directory = null): ?string` | The absolute path of the chosen directory. |
 | `saveFile(?string $title = null, ?string $directory = null, ?string $fileName = null, list<FileFilter> $filters = []): ?string` | Where the user wants the file. The file is not created, so writing it is up to you. |
 
-A cancelled dialog returns null, or an empty list. `$directory` is where the dialog starts, `$fileName` the name `saveFile()` suggests.
+A cancelled dialog returns null, or an empty list. `$directory` is where the dialog starts, `$fileName` the name `saveFile()` suggests. On macOS, `saveFile()` with a `$fileName` starts in the last directory the user saved to, not in `$directory`: the dialog library of Tauri, rfd 0.16, drops a directory given with a name. rfd 0.18 fixes it, which tauri-plugin-dialog does not use yet.
 
 On phones, `openDirectory()` and `saveFile()` throw a `NativeCallException`. `openFile()` and `openFiles()` work, and the path PHP gets is a copy of the picked file, in the application's cache directory. Nativella removes these copies at the next start, so move or copy a file you want to keep.
 

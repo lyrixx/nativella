@@ -7,10 +7,17 @@ Nativella is experimental. This page lists what does not work, what is untested 
 | Platform | Status |
 |---|---|
 | Linux | Developed and tested on Ubuntu 26.04, with WebKitGTK 2.52. The release executables run on Ubuntu 22.04 and 24.04, Debian 12 and 13 too. |
-| macOS | Built and tested by the CI (arm64), without a window: nobody has opened one there yet. |
+| macOS | Built and tested by the CI (arm64), which opens the app of a demo. Tried on a Mac, macOS 14: the three demos, as apps, and the native APIs, with their clicks. See [macOS](#macos). |
 | Windows | Untested. Pages would be served from `http://php.localhost/`, as Tauri does for custom schemes there. |
 | Android | Experimental: the three demos run on an Android 16 emulator (arm64 builds, and the Symfony demo built for x86_64). The CI opens the Symfony demo in an emulator. See [Mobile](mobile.md#what-is-tested). |
 | iOS | Experimental: the CI makes the Symfony demo app for the simulator with `nativella ios`, and opens it there. No device has run an app for devices yet. See [Mobile](mobile.md#what-is-tested). |
+
+### macOS
+
+- `saveFile()` and [downloads](downloads.md) open their dialog in the last directory the user saved to, not in the one asked. See [Dialogs](dialogs.md).
+- Quitting from the Dock, or as the user logs out, does not wait for PHP. The Quit menu item does.
+- A right click on a [tray](tray.md) icon opens its menu, and is not reported.
+- Apps are signed ad hoc, not by a developer, and Apple does not notarize them: macOS warns on their first launch. See [macOS apps](building.md#macos-apps).
 
 ### Linux
 
@@ -38,18 +45,18 @@ Nativella is experimental. This page lists what does not work, what is untested 
 - Frames of other websites do not work. Nativella cannot tell a frame's navigation from its window's, because wry, Tauri's webview library, does not say which frame navigates. An `<iframe>` of another website (a video, a map, a payment form) opens that website in the browser and stays empty. An `<iframe>` of `http://localhost/…` takes its window to that application page. Frames of the application's own pages work. Windows tells its frames apart, but this is untested.
 - Static files are read whole by the thread that receives the request, and `Range` requests are not supported. That is fine for styles, scripts and images, but not for a large video.
 - Responses are not streamed. A response reaches the page once PHP is done with it, so `flush()` sends nothing, a streamed response arrives whole, and server-sent events (`text/event-stream`) arrive all at once, at the end. A stream that never ends holds the PHP thread, and every window, forever, because `connection_aborted()` is always false and `sleep()` does not count against `max_execution_time` on Linux. The runtime logs a warning for a `text/event-stream` response. Push to the page with [events](javascript.md#from-php-to-the-page-events) instead. Request and response bodies are held whole in memory too, which is fine for a form or a photo but not for a large video.
-- Uploads are tested on Linux only. There, a request that carries a `Blob` or a `File` made by a script crashes the application, whether as the body of a `fetch()`, in a `FormData`, or in the `<input type="file">` of a form. WebKitGTK crashes as it hands the body to Nativella (seen with WebKitGTK 2.52). Send the bytes instead: `body: await blob.arrayBuffer()`. Files the user picks upload fine.
+- Uploads are tested on Linux and macOS. On Linux, a request that carries a `Blob` or a `File` made by a script crashes the application, whether as the body of a `fetch()`, in a `FormData`, or in the `<input type="file">` of a form. WebKitGTK crashes as it hands the body to Nativella (seen with WebKitGTK 2.52). Send the bytes instead: `body: await blob.arrayBuffer()`. Files the user picks upload fine.
 
 ## The native side
 
-- Clicking a [notification](notifications.md#clicks) reaches PHP on Linux only.
+- Clicking a [notification](notifications.md#clicks) reaches PHP on Linux and macOS only.
 - PHP gets no event before a window closes. Only [its page](javascript.md#unsaved-changes) can keep it open.
 - [Power](power.md) knows the battery and the power source, but not the screen lock or the thermal state, which NativePHP's `PowerMonitor` reports.
 
 ## Distribution
 
 - The PHP is fixed. The executable carries [the PHP of the `nativella` command](building.md#the-php-inside), and an Android application carries its template's PHP, with the same extensions, those of the build. It only reads Nativella's [`php.ini`](configuration.md#phpini). Using another PHP means [building `nativella`](custom-php.md) again.
-- Installers are few. Linux has [Debian packages](building.md#debian-packages), but there is no `.dmg` or `.msi` yet and no code signing. Standalone executables [update themselves](updates.md).
+- Installers are few. Linux has [Debian packages](building.md#debian-packages), macOS [apps](building.md#macos-apps), signed ad hoc, but there is no `.dmg` or `.msi` yet, no signing by a developer, and no notarization. Standalone executables and apps [update themselves](updates.md).
 - Do not put secrets in the project. Everything in it ships, readable by anyone who has the executable.
 
 ## Roadmap
@@ -58,7 +65,7 @@ Next:
 
 - Worker mode, to boot the framework once and loop over requests. ext-php-rs ships `worker_request_startup()` and `worker_request_shutdown()`. On the PHP side, it is a `symfony/runtime` runner, as with FrankenPHP.
 - ZTS and several PHP threads, so that a slow request or a dialog does not hold back the others.
-- macOS and Windows need building, testing and fixing.
+- Windows needs building, testing and fixing; macOS, apps signed by a developer and notarized by Apple.
 - Let an application pick its PHP extensions and `php.ini` settings at `nativella build`, without [building `nativella`](custom-php.md), to add an extension or to leave intl and the ICU data out of a smaller executable.
 - `.dmg` and `.msi` installers.
 - On mobile, more [phone APIs](phone-apis.md) (photos and videos, push notifications), an iOS app tried on a device, and PCRE's JIT on Android. See [Mobile](mobile.md).

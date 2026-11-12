@@ -38,7 +38,7 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, Native
         }),
         #[cfg(desktop)]
         "trash" => call.payload::<Path>().and_then(|payload| {
-            trash::delete(&payload.path).map_err(failed)?;
+            trash_context().delete(&payload.path).map_err(failed)?;
             Ok(json!({}))
         }),
         #[cfg(mobile)]
@@ -111,4 +111,25 @@ fn open_without_at_bridge(target: &std::ffi::OsStr) -> Result<(), NativeError> {
         "Cannot open {}: {failure}.",
         target.to_string_lossy()
     )))
+}
+
+/// On macOS, the trash of the system, as NSFileManager puts files there. The
+/// default of the trash crate asks Finder, with AppleScript, which macOS lets
+/// an app do once the user allows it to control Finder: a question, and PHP
+/// waiting for its answer. The price is Finder's "Put Back", which files
+/// trashed this way may lack.
+#[cfg(desktop)]
+fn trash_context() -> trash::TrashContext {
+    #[cfg_attr(
+        not(target_os = "macos"),
+        expect(unused_mut, reason = "Only macOS has methods.")
+    )]
+    let mut context = trash::TrashContext::default();
+    #[cfg(target_os = "macos")]
+    {
+        use trash::macos::{DeleteMethod, TrashContextExtMacos};
+        context.set_delete_method(DeleteMethod::NsFileManager);
+    }
+
+    context
 }

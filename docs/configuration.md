@@ -89,7 +89,7 @@ public function __invoke(AppUrlsOpened $event): void
 }
 ```
 
-Schemes are lowercase letters, digits, `+`, `-` and `.`, starting with a letter; web schemes (`http`, `https`…) are refused. On Linux and Windows, a [standalone executable](building.md) registers its schemes with the system when it starts; `nativella run` does not, as it is not what the system should launch. macOS registers schemes when an application is installed, which Nativella does not do yet. Deep links are not available on mobile yet.
+Schemes are lowercase letters, digits, `+`, `-` and `.`, starting with a letter; web schemes (`http`, `https`…) are refused. On Linux and Windows, a [standalone executable](building.md) registers its schemes with the system when it starts; `nativella run` does not, as it is not what the system should launch. On macOS, the [app](building.md#macos-apps) declares them, and macOS registers them once it has seen the app: opened, or moved by Finder. A link opens the app, or reaches it if it runs. Deep links are not available on mobile yet.
 
 ## `permissions`
 

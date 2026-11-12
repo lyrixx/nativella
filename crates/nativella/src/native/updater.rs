@@ -8,6 +8,12 @@
 //! replaces it once its signature holds and it says it is the announced
 //! version of this application, for this machine: the next start runs the
 //! new version. PHP learns it from `updater.installed`, or `updater.failed`.
+//!
+//! A macOS app is a directory: its release is the `.tar.gz` of the new app,
+//! as Tauri's updater takes it, which replaces the whole app (see app.rs).
+
+#[cfg(any(test, target_os = "macos"))]
+mod app;
 
 use std::collections::HashMap;
 use std::env;
@@ -28,7 +34,7 @@ use serde_json::{Value, json};
 use super::{Call, NativeError, failed, lock, unavailable};
 use crate::embedded::{self, Bundle};
 use crate::events;
-use crate::project::Updates;
+use crate::project::{Manifest, Updates};
 
 /// The document is small: a server that takes longer is down.
 const DOCUMENT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -158,10 +164,10 @@ fn install(call: &Call<'_>) -> Result<Value, NativeError> {
 
     // Where the application started from, as the system has it once the
     // file is replaced.
-    let executable = tauri::utils::platform::current_exe().map_err(failed)?;
-    // Next to the executable, to take its place in one step: now, so that a
+    let target = installed(tauri::utils::platform::current_exe().map_err(failed)?);
+    // Next to what it replaces, to take its place in one step: now, so that a
     // directory the user cannot write to is an error of the call.
-    let (download, file) = download_file(&executable)?;
+    let (download, file) = download_file(&target)?;
 
     let app = call.app.clone();
     let expected = Expected {
@@ -173,7 +179,7 @@ fn install(call: &Call<'_>) -> Result<Value, NativeError> {
         .name("updater".to_owned())
         .spawn(move || {
             let version = expected.version.to_string();
-            match replace(file, &download, &executable, &artifact, &updates, &expected) {
+            match replace(file, &download, &target, &artifact, &updates, &expected) {
                 Ok(()) => {
                     claim.installed();
                     events::send(&app, "updater.installed", json!({ "version": version }));
@@ -193,10 +199,23 @@ fn install(call: &Call<'_>) -> Result<Value, NativeError> {
     Ok(json!({ "version": release.version.to_string() }))
 }
 
-/// What the downloads of the updates of `executable` are named with, next
-/// to it.
-fn download_prefix(executable: &Path) -> String {
-    let name = executable
+/// What an update replaces: the running `executable`, or the macOS app it
+/// is the executable of, `<name>.app/Contents/MacOS/<name>`.
+fn installed(executable: PathBuf) -> PathBuf {
+    #[cfg(target_os = "macos")]
+    if embedded::app_bundle_of(&executable).is_some()
+        && let Some(app) = executable.ancestors().nth(3)
+    {
+        return app.to_owned();
+    }
+
+    executable
+}
+
+/// What the downloads of the updates of `target` are named with, next to
+/// it.
+fn download_prefix(target: &Path) -> String {
+    let name = target
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
@@ -209,21 +228,23 @@ fn download_prefix(executable: &Path) -> String {
 /// startup, when no other instance runs.
 pub(crate) fn remove_leftovers() {
     match tauri::utils::platform::current_exe() {
-        Ok(executable) => remove_leftovers_of(&executable),
+        Ok(executable) => remove_leftovers_of(&installed(executable)),
         Err(error) => eprintln!("[updater] Unfinished downloads are not removed: {error}."),
     }
 }
 
-fn remove_leftovers_of(executable: &Path) {
-    let prefix = download_prefix(executable);
-    let Some(entries) = executable.parent().and_then(|dir| dir.read_dir().ok()) else {
+/// Removes the downloads next to `target`, and the apps being extracted
+/// from them.
+fn remove_leftovers_of(target: &Path) {
+    let prefix = download_prefix(target);
+    let Some(entries) = target.parent().and_then(|dir| dir.read_dir().ok()) else {
         return;
     };
     for entry in entries.flatten() {
         if !entry.file_name().to_string_lossy().starts_with(&prefix) {
             continue;
         }
-        if let Err(error) = fs::remove_file(entry.path()) {
+        if let Err(error) = remove_any(&entry.path()) {
             eprintln!(
                 "[updater] {} is left behind: {error}.",
                 entry.path().display()
@@ -232,14 +253,14 @@ fn remove_leftovers_of(executable: &Path) {
     }
 }
 
-/// A file of its own next to `executable`, for the download.
-fn download_file(executable: &Path) -> Result<(PathBuf, File), String> {
+/// A file of its own next to `target`, for the download.
+fn download_file(target: &Path) -> Result<(PathBuf, File), String> {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |elapsed| elapsed.as_nanos());
-    let download = executable.with_file_name(format!(
+    let download = target.with_file_name(format!(
         "{}{}-{nanos}",
-        download_prefix(executable),
+        download_prefix(target),
         std::process::id()
     ));
     let file = File::options()
@@ -248,7 +269,7 @@ fn download_file(executable: &Path) -> Result<(PathBuf, File), String> {
         .open(&download)
         .map_err(|error| {
             format!(
-                "Cannot write next to the executable, in {}: {error}. An executable installed by a package manager updates with it.",
+                "Cannot write next to the application, in {}: {error}. An executable installed by a package manager updates with it.",
                 download.parent().unwrap_or(&download).display()
             )
         })?;
@@ -330,11 +351,12 @@ struct Expected {
 }
 
 /// Downloads the executable of `artifact` into `file`, at `download`,
-/// checks it, and puts it in the place of `executable`.
+/// checks it, and puts it in the place of `target`: the executable, or its
+/// macOS app.
 fn replace(
     file: File,
     download: &Path,
-    executable: &Path,
+    target: &Path,
     artifact: &Artifact,
     updates: &Updates,
     expected: &Expected,
@@ -348,9 +370,8 @@ fn replace(
     .and_then(|()| {
         let bytes = fs::read(download).map_err(|error| error.to_string())?;
         verify(&updates.public_key, &artifact.signature, &bytes)?;
-        check(&bytes, expected)
-    })
-    .and_then(|()| swap(executable, download).map_err(|error| error.to_string()));
+        put_in_place(&bytes, download, target, expected)
+    });
     if result.is_err()
         && let Err(error) = fs::remove_file(download)
         && error.kind() != io::ErrorKind::NotFound
@@ -359,6 +380,26 @@ fn replace(
     }
 
     result
+}
+
+/// Checks the signed `bytes`, downloaded to `download`, and puts them in
+/// the place of `target`.
+fn put_in_place(
+    bytes: &[u8],
+    download: &Path,
+    target: &Path,
+    expected: &Expected,
+) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    if target
+        .extension()
+        .is_some_and(|extension| extension == "app")
+    {
+        return app::put_in_place(bytes, download, target, expected);
+    }
+
+    check(bytes, expected)?;
+    swap(target, download).map_err(|error| error.to_string())
 }
 
 /// Checks that `bytes`, a signed executable, run on this machine and are
@@ -370,16 +411,18 @@ fn check(bytes: &[u8], expected: &Expected) -> Result<(), String> {
             platform()
         ));
     }
-    let manifest = match Bundle::read(Cursor::new(bytes)) {
-        Ok(Some(bundle)) => bundle.manifest().clone(),
-        Ok(None) => {
-            return Err(
-                "The executable carries no application: publish the one of nativella build."
-                    .to_owned(),
-            );
-        }
-        Err(error) => return Err(format!("The executable is unreadable: {error}")),
-    };
+    match Bundle::read(Cursor::new(bytes)) {
+        Ok(Some(bundle)) => check_manifest(bundle.manifest(), expected),
+        Ok(None) => Err(
+            "The executable carries no application: publish the one of nativella build.".to_owned(),
+        ),
+        Err(error) => Err(format!("The executable is unreadable: {error}")),
+    }
+}
+
+/// Checks that `manifest`, of the downloaded application, is the version
+/// `expected` of this application.
+fn check_manifest(manifest: &Manifest, expected: &Expected) -> Result<(), String> {
     if manifest.identifier != expected.identifier {
         return Err(format!(
             "The executable is the one of {}, not of {}.",
@@ -556,11 +599,20 @@ fn previous(executable: &Path) -> PathBuf {
     executable.with_file_name(name)
 }
 
-/// Removes the executable an earlier update replaced.
+/// Removes the executable, or the app, an earlier update replaced.
 fn remove_previous(previous: &Path) -> io::Result<()> {
-    match fs::remove_file(previous) {
+    match remove_any(previous) {
         Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
         _ => Ok(()),
+    }
+}
+
+/// Removes the file, or the directory and what it holds, at `path`.
+fn remove_any(path: &Path) -> io::Result<()> {
+    if fs::symlink_metadata(path)?.is_dir() {
+        fs::remove_dir_all(path)
+    } else {
+        fs::remove_file(path)
     }
 }
 

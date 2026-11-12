@@ -7,7 +7,10 @@
 //! ```
 //!
 //! - `nativella build` appends it to a copy of the `nativella` executable: a
-//!   standalone desktop application.
+//!   standalone desktop application. On macOS, it makes an app of the
+//!   executable instead, with the bundle as the file [`PACKAGED_BUNDLE`] of
+//!   its resources (see macos.rs): the signature of an executable must stay
+//!   its last data.
 //! - `nativella android` adds it to an APK, as the asset [`PACKAGED_BUNDLE`]
 //!   (see apk/mod.rs).
 //! - `nativella ios` adds it to an iOS app, as the file [`PACKAGED_BUNDLE`]
@@ -133,11 +136,9 @@ pub struct Bundle<R> {
     archive_length: u64,
 }
 
-/// The project appended to the running executable, extracted if needed.
+/// The project of the running application, extracted if needed.
 pub fn find() -> io::Result<Option<Project>> {
-    let file = File::open(env::current_exe()?)?;
-
-    match Bundle::read(file)? {
+    match running()? {
         Some(bundle) => {
             let cache_dir = dirs::cache_dir().ok_or_else(|| {
                 io::Error::new(io::ErrorKind::NotFound, "The user has no home directory.")
@@ -151,10 +152,33 @@ pub fn find() -> io::Result<Option<Project>> {
 /// Whether the running executable carries its project: a standalone
 /// application, installed for good, as opposed to `nativella run`.
 pub fn is_standalone() -> bool {
-    env::current_exe()
-        .and_then(File::open)
-        .and_then(Bundle::read)
-        .is_ok_and(|bundle| bundle.is_some())
+    running().is_ok_and(|bundle| bundle.is_some())
+}
+
+/// The bundle of the running application: in the resources of its macOS
+/// app, or appended to its executable.
+fn running() -> io::Result<Option<Bundle<File>>> {
+    let executable = env::current_exe()?;
+    #[cfg(target_os = "macos")]
+    if let Some(bundle) = app_bundle_of(&executable) {
+        return Bundle::read(File::open(bundle)?);
+    }
+
+    Bundle::read(File::open(executable)?)
+}
+
+/// The bundle of the macOS app whose executable is `executable`,
+/// `<name>.app/Contents/MacOS/<name>`: `Contents/Resources/nativella.bundle`,
+/// if it is one.
+#[cfg(any(test, target_os = "macos"))]
+pub(crate) fn app_bundle_of(executable: &Path) -> Option<PathBuf> {
+    let macos_dir = executable.parent()?;
+    if macos_dir.file_name()? != "MacOS" {
+        return None;
+    }
+    let bundle = macos_dir.with_file_name("Resources").join(PACKAGED_BUNDLE);
+
+    bundle.is_file().then_some(bundle)
 }
 
 /// The bundle of a phone application, read where its platform keeps it.
@@ -215,16 +239,21 @@ pub(crate) fn write_executable(
     target: &mut dyn Write,
     excluded: &[&Path],
 ) -> io::Result<LeftOut> {
-    let mut base = File::open(env::current_exe()?)?;
-    if Bundle::read(&mut base)?.is_some() {
+    io::copy(&mut nativella_executable()?, target)?;
+
+    write_bundle(project, target, excluded)
+}
+
+/// This executable, read from its start, which the applications are made
+/// of: the `nativella` command, not an application, which carries a project.
+pub(crate) fn nativella_executable() -> io::Result<File> {
+    if is_standalone() {
         return Err(io::Error::other(
             "This executable is already a standalone application: build with the nativella executable.",
         ));
     }
-    base.seek(SeekFrom::Start(0))?;
-    io::copy(&mut base, target)?;
 
-    write_bundle(project, target, excluded)
+    File::open(env::current_exe()?)
 }
 
 impl<R: Read + Seek> Bundle<R> {
@@ -1107,7 +1136,8 @@ mod tests {
 
     #[test]
     fn the_icon_must_ship() {
-        let root = Path::new(env!("OUT_DIR")).join(format!("icon-test-{}", std::process::id()));
+        let root =
+            Path::new(env!("OUT_DIR")).join(format!("bundle-icon-test-{}", std::process::id()));
         fs::create_dir_all(root.join("public")).unwrap();
         fs::create_dir_all(root.join("tests")).unwrap();
         fs::write(root.join("public/index.php"), "<?php").unwrap();
