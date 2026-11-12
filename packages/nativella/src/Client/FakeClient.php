@@ -67,6 +67,8 @@ final class FakeClient implements Client
 
     public function call(string $method, array $payload = []): array
     {
+        // As the real client: what JSON cannot hold never reaches the runtime.
+        Payload::encode($method, $payload);
         $this->calls[] = new Call($method, $payload);
 
         if ([] !== ($this->responses[$method] ?? [])) {

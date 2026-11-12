@@ -24,12 +24,7 @@ final readonly class ExtensionClient implements Client
 
         self::ensureSameReleaseLine();
 
-        try {
-            $json = json_encode((object) $payload, \JSON_THROW_ON_ERROR | \JSON_PRESERVE_ZERO_FRACTION | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
-        } catch (\JsonException $e) {
-            // A string that is not UTF-8: text read from a file in another encoding.
-            throw new NativeCallException($method, $e);
-        }
+        $json = Payload::encode($method, $payload);
 
         try {
             $result = nativella_call($method, $json);

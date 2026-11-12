@@ -4,8 +4,8 @@ namespace Nativella\Exception;
 
 /**
  * The native side could not do what PHP asked: the window does not exist,
- * the payload is invalid (a string that is not UTF-8 cannot even be sent), or
- * the system refused.
+ * the payload is invalid (a string that is not UTF-8, INF or NAN cannot even
+ * be sent), or the system refused.
  */
 final class NativeCallException extends \RuntimeException implements ExceptionInterface
 {

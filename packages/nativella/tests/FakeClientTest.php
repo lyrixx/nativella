@@ -71,4 +71,18 @@ final class FakeClientTest extends TestCase
         $this->assertSame([], $client->calls());
         $this->assertSame(['confirmed' => false], $client->call('dialog.confirm'));
     }
+
+    public function testWhatJsonCannotHoldFailsAsInNativella(): void
+    {
+        $client = new FakeClient();
+
+        try {
+            $client->call('clipboard.writeText', ['text' => "Gr\xFC\xDFe"]);
+            $this->fail('A NativeCallException was expected.');
+        } catch (NativeCallException $e) {
+            $this->assertSame('The native call "clipboard.writeText" failed: Malformed UTF-8 characters, possibly incorrectly encoded', $e->getMessage());
+        }
+
+        $this->assertSame([], $client->calls());
+    }
 }
