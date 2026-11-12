@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    What the nativella command says of itself on macOS, which tauri-codegen
+    embeds in its executable, with the name and the version of
+    tauri.conf.json: the reasons macOS gives the user when the pages of
+    `nativella run` use the camera, the microphone or the location. Without
+    them, the webview does not even show the camera and the microphone to the
+    pages. The apps of `nativella build` have an Info.plist of their own:
+    keep in sync with usage_descriptions() in src/macos.rs.
+-->
+<plist version="1.0">
+<dict>
+    <key>NSCameraUsageDescription</key>
+    <string>The application uses the camera.</string>
+    <key>NSLocationUsageDescription</key>
+    <string>The application uses the location of the computer.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>The application uses the location of the computer.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>The application uses the microphone.</string>
+</dict>
+</plist>
