@@ -5,6 +5,7 @@ PHP only runs to answer a request or a [native event](lifecycle.md#native-events
 ```php
 use Nativella\Event\AppBooted;
 use Nativella\Event\TimerFired;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener]
 public function onBoot(AppBooted $event): void
@@ -20,6 +21,8 @@ public function onTimer(TimerFired $event): void
     }
 }
 ```
+
+These are Symfony listeners. [Lifecycle and events](lifecycle.md#handling-events) says how the other integrations route events.
 
 | Method | |
 |---|---|

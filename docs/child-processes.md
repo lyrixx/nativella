@@ -14,21 +14,22 @@ $processes->stop('worker');
 | Method | |
 |---|---|
 | `start(string $alias, array $command, ?string $cwd = null, array $env = []): int` | Starts `$command` under the name `$alias`, and returns its process id. Throws if a process of that name is running; one being stopped gets 4 seconds to end first, so `stop()` then `start()` restarts it. |
-| `write(string $alias, string $data): void` | Writes to its standard input. It returns at once, and the process reads it when it likes. |
-| `closeInput(string $alias): void` | Closes its standard input, after what was written. This is the end of the input that `sort`, `wc` or `jq` wait for. |
+| `write(string $alias, string $data): void` | Writes to its standard input. It returns at once, and the process reads it when it likes. Throws if no process of that name is running, or if its input is closed. |
+| `closeInput(string $alias): void` | Closes its standard input, after what was written. This is the end of the input that `sort`, `wc` or `jq` wait for. Throws if no process of that name is running. |
 | `stop(string $alias): void` | Asks it to end (`SIGTERM`), and kills it 3 seconds later if it has not. Nothing happens if it is not running. |
 | `isRunning(string $alias): bool` | |
 | `all(): list<RunningProcess>` | The running processes: their `alias`, `pid` and `command`. |
 
 `$command` is the program, then its arguments. No shell is involved, so nothing needs quoting, and `|`, `>` or `$VAR` mean nothing. For those, start a shell: `['sh', '-c', 'du -sh ~ | sort -h']`.
 
-The process starts in the project directory, or in `$cwd`, relative to it. It gets the application's environment, plus the Nativella variables that PHP finds in `$_SERVER` (`NATIVELLA_DATA_DIR`, `NATIVELLA_SECRET`, `NATIVELLA_PLATFORM` and `NATIVELLA_VERSION`), plus `$env`, which wins. An application worker opens the same database, with the same secret, as the requests do.
+The process starts in the project directory, or in `$cwd`, relative to it. It gets the application's environment, plus the Nativella variables that PHP finds in `$_SERVER` (`NATIVELLA_DATA_DIR`, `NATIVELLA_SECRET`, `NATIVELLA_PLATFORM` and `NATIVELLA_VERSION`), plus `$env`, which wins. On Linux, it does not get the `NO_AT_BRIDGE` that Nativella [sets for itself](configuration.md#environment-variables). An application worker opens the same database, with the same secret, as the requests do.
 
 ## Output and end
 
 ```php
 use Nativella\Event\ChildProcessExited;
 use Nativella\Event\ChildProcessOutput;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener]
 public function onOutput(ChildProcessOutput $event): void
@@ -43,6 +44,8 @@ public function onExit(ChildProcessExited $event): void
     // $event->code: the exit code, null when a signal ended the process
 }
 ```
+
+These are Symfony listeners. [Lifecycle and events](lifecycle.md#handling-events) says how the other integrations route events.
 
 `ChildProcessOutput::$output` is what the process wrote, as it came: often whole lines with their line endings, sometimes a prompt or a part of a line, never half a character. `ChildProcessExited` comes after the process's last output, however long PHP takes to handle it. A daemon that the process started outside of its process group may keep the output open after the process has ended. Nativella then waits for 2 seconds of quiet, and no longer.
 
