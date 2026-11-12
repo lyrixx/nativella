@@ -6,6 +6,7 @@ use Castor\Attribute\AsOption;
 use Castor\Attribute\AsTask;
 
 use function Castor\finder;
+use function Castor\http_request;
 use function Castor\io;
 use function Castor\variable;
 use function notices\workspace_package;
@@ -50,6 +51,64 @@ function check(
     }
 
     return 1;
+}
+
+/**
+ * What no Dependabot ecosystem follows, and a release ships: the PHP that
+ * every platform builds (static_php\PHP_RELEASE), and the Rust of the images
+ * (RUST_VERSION in their Dockerfile). The weekly run of the PHP workflow fails
+ * here when php.net or the stable channel of Rust has a newer one: a security
+ * release of PHP, above all.
+ */
+#[AsTask(namespace: 'qa', name: 'outdated', description: 'Checks that the pinned PHP and Rust are the latest releases of PHP 8.5 and of Rust stable')]
+function outdated(): int
+{
+    io()->section('Checking the pinned PHP and Rust against their latest releases...');
+
+    $branch = implode('.', \array_slice(explode('.', \static_php\PHP_RELEASE), 0, 2));
+    $php = json_decode(fetch("https://www.php.net/releases/index.php?json&version={$branch}"), true, flags: \JSON_THROW_ON_ERROR)['version']
+        ?? throw new \RuntimeException(\sprintf('php.net names no release of PHP %s.', $branch));
+
+    $dockerfile = 'infrastructure/docker/services/php/Dockerfile';
+    preg_match_all('{^ARG RUST_VERSION=(\S+)$}m', (string) file_get_contents(variable('root_dir')."/{$dockerfile}"), $pinned);
+    if ([] === $pinned[1]) {
+        throw new \RuntimeException(\sprintf('%s has no RUST_VERSION.', $dockerfile));
+    }
+    if (!preg_match('{^\[pkg\.rust\]\nversion = "(\S+) }m', fetch('https://static.rust-lang.org/dist/channel-rust-stable.toml'), $rust)) {
+        throw new \RuntimeException('The stable channel of Rust names no version of Rust.');
+    }
+
+    $outdated = [];
+    if (version_compare(\static_php\PHP_RELEASE, $php, '<')) {
+        $outdated[] = \sprintf('PHP %s is out: PHP_RELEASE is %s, in .castor/static-php.php (see docs/development.md#the-version-of-php).', $php, \static_php\PHP_RELEASE);
+    }
+    foreach (array_unique($pinned[1]) as $version) {
+        if (version_compare($version, $rust[1], '<')) {
+            $outdated[] = \sprintf('Rust %s is out: RUST_VERSION is %s, in %s.', $rust[1], $version, $dockerfile);
+        }
+    }
+
+    if ([] === $outdated) {
+        io()->writeln(\sprintf('<info>✔</info> PHP %s and Rust %s are the latest.', $php, $rust[1]));
+
+        return 0;
+    }
+
+    foreach ($outdated as $message) {
+        io()->writeln("<error>✘</error> {$message}");
+    }
+
+    return 1;
+}
+
+function fetch(string $url): string
+{
+    $response = http_request('GET', $url, ['max_duration' => 60, 'timeout' => 20]);
+    if (200 !== $response->getStatusCode()) {
+        throw new \RuntimeException(\sprintf('%s answered %d.', $url, $response->getStatusCode()));
+    }
+
+    return $response->getContent();
 }
 
 /**

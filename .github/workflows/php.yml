@@ -11,7 +11,8 @@ name: PHP
 # without the runtime. Not on the documentation alone, Markdown but the
 # fixtures of the tests, and what builds it, nor on the files of the crates
 # it links to: the Website workflow builds it, and fails on a broken link.
-# Weekly too, for the new advisories of the security audit.
+# Weekly too, for the new advisories of the security audit, and the new
+# releases of the PHP and the Rust that the builds pin.
 
 "on":
     # Every push to main, whatever the paths: main catches a path missing
@@ -85,6 +86,12 @@ jobs:
             - name: "Check Security issues"
               if: ${{ !cancelled() && steps.start.outcome == 'success' }}
               run: "castor qa:security-audit"
+
+            # Weekly only: a new release of PHP or of Rust is no fault of a
+            # pull request
+            - name: "Check that the pinned PHP and Rust are the latest"
+              if: ${{ !cancelled() && github.event_name == 'schedule' }}
+              run: "castor qa:outdated"
 
             - name: "Check PHP coding standards"
               if: ${{ !cancelled() && steps.start.outcome == 'success' }}
