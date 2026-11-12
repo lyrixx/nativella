@@ -218,8 +218,23 @@ fn start(
                     let _ = window.unminimize();
                     let _ = window.set_focus();
                 }
+                // Not from this callback: on Windows it runs on the main
+                // thread, where building a window deadlocks.
                 None => {
-                    if let Err(error) = native::window::open(app, MAIN_WINDOW, Default::default()) {
+                    let app = app.clone();
+                    let spawned =
+                        std::thread::Builder::new()
+                            .name("reopen".to_owned())
+                            .spawn(move || {
+                                if let Err(error) =
+                                    native::window::open(&app, MAIN_WINDOW, Default::default())
+                                {
+                                    eprintln!(
+                                        "[nativella] Could not open the main window: {error}"
+                                    );
+                                }
+                            });
+                    if let Err(error) = spawned {
                         eprintln!("[nativella] Could not open the main window: {error}");
                     }
                 }
