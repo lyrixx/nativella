@@ -92,6 +92,20 @@ final class ApplicationTest extends TestCase
         $this->assertNull($this->repository->find($snippet->id));
     }
 
+    public function testAPhoneImportsThePickedFile(): void
+    {
+        // What the runtime sets on Android.
+        $_SERVER['NATIVELLA_PLATFORM'] = 'android';
+        $application = $this->application(new Nativella($this->client));
+        // The runtime copies the picked file to the cache of the application, and answers its path.
+        $this->client->respond('dialog.openFile', ['path' => __DIR__.'/Fixtures/hello.txt']);
+
+        $response = $this->post($application, '/snippets/import');
+
+        $this->assertSame(303, $response->status);
+        $this->assertSame(['hello.txt'], array_column($this->repository->search('', 10), 'title'));
+    }
+
     public function testInABrowserTheNativeRoutesDoNotExist(): void
     {
         $application = $this->application(Nativella::create());

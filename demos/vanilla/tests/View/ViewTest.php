@@ -61,7 +61,7 @@ final class ViewTest extends TestCase
         $this->assertStringContainsString('<pre>Content…</pre>', $html);
     }
 
-    public function testOnlyDesktopsImportFiles(): void
+    public function testPhonesImportFilesButTakeNoDrop(): void
     {
         $parameters = ['hasMore' => false, 'isNative' => true, 'query' => '', 'snippets' => []];
 
@@ -71,7 +71,7 @@ final class ViewTest extends TestCase
 
         $mobile = $this->view->render('snippets/index', ['isMobile' => true] + $parameters);
         $this->assertStringNotContainsString('Drop text files', $mobile);
-        $this->assertStringNotContainsString('/snippets/import', $mobile);
+        $this->assertStringContainsString('action="/snippets/import"', $mobile);
     }
 
     public function testOnMobileThePageKnowsItGoesUnderTheStatusBar(): void

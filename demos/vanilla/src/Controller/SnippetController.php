@@ -120,7 +120,7 @@ final readonly class SnippetController
     }
 
     /**
-     * Only routed in Nativella, on the desktop.
+     * Only routed in Nativella.
      */
     public function import(): Response
     {

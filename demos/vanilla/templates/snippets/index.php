@@ -15,7 +15,7 @@ use App\Http\CsrfToken;
     <form class="search" method="get" action="/" role="search">
         <input type="search" id="search" name="q" value="<?= $this->e($query) ?>" placeholder="Search" aria-label="Search the snippets" autocomplete="off" spellcheck="false">
     </form>
-    <?php if ($isNative && !$isMobile): ?>
+    <?php if ($isNative): ?>
         <form method="post" action="/snippets/import">
             <input type="hidden" name="<?= CsrfToken::FIELD ?>" value="<?= $this->e($this->csrfToken()) ?>">
             <button type="submit">Import…</button>

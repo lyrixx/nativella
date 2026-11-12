@@ -15,7 +15,6 @@ use App\View\Flash;
 use App\View\View;
 use Doctrine\DBAL\Connection;
 use Nativella\Nativella;
-use Nativella\Runtime;
 
 /**
  * The pages of the application: a request of the webview, or of a browser,
@@ -55,12 +54,9 @@ final readonly class Application
         $router->post('/snippets/{id}/delete', $snippets->delete(...));
         $router->get('/snippets/{id}/download', $snippets->download(...));
         $router->get('/system', $system->show(...));
-        // The clipboard and the file dialog only exist in Nativella. On phones, the
-        // file dialog picks a content URI, not a file PHP can read: no import there.
+        // The clipboard and the file dialog only exist in Nativella.
         if ($this->native->isNative()) {
             $router->post('/snippets/{id}/copy', $snippets->copy(...));
-        }
-        if ($this->native->isNative() && !Runtime::isMobile()) {
             $router->post('/snippets/import', $snippets->import(...));
         }
 
