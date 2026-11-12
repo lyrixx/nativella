@@ -56,9 +56,9 @@ The runtime marks it with `$_SERVER['NATIVELLA_INTERNAL'] = '1'`, which a page c
 | `updater.failed` | `UpdaterFailed` | `version`, `message` | The update was not installed. |
 | `globalShortcut.pressed` | `GlobalShortcutPressed` | `accelerator` | A [global shortcut](global-shortcuts.md) was pressed. |
 
-All the classes live in `Nativella\Event`. `window` is a window label, `theme` a `Nativella\System\Theme`, `paths` a list of absolute paths, `path` an absolute path, `checked` the new state of a checkbox item (null for other items), `button` one of `left`, `right` and `middle`.
+All the classes live in `Nativella\Event`. `window` is a window label, `theme` a `Nativella\System\Theme`, `paths` a list of absolute paths, `path` an absolute path, `checked` the new state of a checkbox item (null for other items), `button` a `Nativella\Tray\MouseButton` (`Left`, `Middle` or `Right`).
 
-An event this version of the package does not know arrives as a `NativeEvent`, with its `name` and its raw `payload`, so a newer runtime can add events without breaking an older application.
+An event this version of the package does not know arrives as a `NativeEvent`, with its `name` and its raw `payload`, so a newer runtime can add events without breaking an older application. With Symfony and Laravel, every event is also dispatched as a `NativeEvent`, after its own class, so a listener of `NativeEvent` hears them all.
 
 ## Handling events
 
@@ -66,7 +66,7 @@ Each integration routes the events its own way:
 
 - With Symfony, the bundle dispatches them through the event dispatcher, named after their class. An `#[AsEventListener]` whose `__invoke()` takes a `MenuItemClicked` gets it. See [Symfony](symfony.md).
 - With Laravel, the package dispatches them as Laravel events. See [Laravel](laravel.md).
-- In plain PHP, `EventFactory::fromGlobals()` returns the event of the current request, or null when it is not an internal one:
+- In plain PHP, `EventFactory::fromGlobals()` returns the event of the current request, as its class or as a `NativeEvent`, or null when the request is not an internal one:
 
 ```php title="public/index.php"
 use Nativella\Event\EventFactory;
@@ -85,13 +85,25 @@ if (null !== $event = EventFactory::fromGlobals()) {
 }
 ```
 
-Answer with any 2xx status. Anything else is logged by the runtime (`[event] PHP answered 500 to the "menu.itemClicked" event.`), and the application goes on.
+Answer with any 2xx status. Anything else is logged by the runtime (`[event] PHP answered 500 Internal Server Error to the "menu.itemClicked" event.`), and the application goes on.
 
 During an event there is no "current window". The native APIs act on the focused window, or on the window the event names when you pass it on:
 
 ```php
 $window->setTitle('Dropped '.\count($event->paths).' files', $event->window);
 ```
+
+### In another framework
+
+An integration is a route and a few lines. Take the `POST` requests to `Nativella\Runtime::EVENT_PATH` (`/_nativella/event`) for which `Runtime::isInternalRequest()` is true, answer the others with a 404, and hand the body to `EventFactory`:
+
+| Method | |
+|---|---|
+| `EventFactory::fromJson(string $body): object` | The event, as its class, or as a `NativeEvent` when the package does not know it. |
+| `EventFactory::allFromJson(string $body): list<object>` | What the Symfony and Laravel integrations dispatch: the event as its class, then as a `NativeEvent`. Only the `NativeEvent` for an event the package does not know. |
+| `EventFactory::create(string $name, array $payload): object` | The event of that name, from a payload already decoded. |
+
+The first two throw a `Nativella\Exception\UnexpectedResponseException` for a body that is not an event.
 
 ## Events in the page
 
@@ -124,3 +136,5 @@ Closing a window sends `WindowClosed`. Closing the last one quits the applicatio
 Before a window closes, its page is asked, as a browser asks before closing a tab. A page with unsaved changes can [keep it open](javascript.md#unsaved-changes) until the user confirms.
 
 `App::quit()` and `App::restart()` act once the current request has been answered, so the response still reaches the page. See [App](app.md).
+
+When the user quits, PHP may be in the middle of a request, saving a form for instance. On Linux, the Quit menu item lets PHP answer the requests it already has, for 5 seconds at most, then quits. So do Ctrl+C, a closed terminal and `kill` (`SIGINT`, `SIGHUP`, `SIGTERM`) on Linux and macOS, where a second signal quits at once. The Quit menu item of macOS and Windows does not wait.

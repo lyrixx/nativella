@@ -68,7 +68,7 @@ Every [native event](lifecycle.md#native-events) reaches the pages too, before P
 | `nativella:updater.failed` | `{version, message}` |
 | `nativella:globalShortcut.pressed` | `{accelerator}` |
 
-`stream` is `stdout` or `stderr`, and `theme` is `light` or `dark`. These are the values PHP gets, before it makes objects of them. See [Lifecycle and events](lifecycle.md#native-events) for when each event comes.
+`stream` is `stdout` or `stderr`, `theme` is `light` or `dark`, and `button` is `left`, `middle` or `right`. These are the values PHP gets, before it makes objects of them. See [Lifecycle and events](lifecycle.md#native-events) for when each event comes.
 
 Every window gets every event, including child process output and deep link URLs, which may carry a token. Any script that runs in a page sees them. Compare `detail.window` with the window's label when it matters. A page knows its own label if PHP prints it, from `Nativella\Runtime::window()`:
 
@@ -116,7 +116,7 @@ A right click is a page event; the menu is native. The page asks PHP for it, and
 
 ## Links and absolute URLs
 
-Pages live at `php://localhost/` (`http://php.localhost/` on Windows). Relative URLs, and URLs that start with `/`, work as usual.
+Pages live at `php://localhost/` (`http://php.localhost/` on Windows and Android). Relative URLs, and URLs that start with `/`, work as usual.
 
 PHP believes it is served from `http://localhost/`, so the absolute URLs it generates point there, where nothing listens. The runtime rewrites them to the window's address where a page loads or links to them, in HTML URL attributes (`href`, `src`, `action`, `formaction`, `srcset`…) and CSS `url()`. Links, forms, images and stylesheets built with `url()`, `route()` or `asset()` keep working. Text, form values, scripts and JSON are the user's data and stay as they are, but the requests a script sends to `http://localhost/…` with `fetch()`, `XMLHttpRequest` or `EventSource` are brought back to the application, which is how Symfony's web debug toolbar loads itself. Anything else a script does with such a URL, like setting the `src` of an image, still points to where nothing listens, so build URLs for JavaScript and APIs relative (`path()`, `route(absolute: false)`). A navigation to `http://localhost/…` that slipped through is still brought back to the application. Files in `public/` are served as they are.
 

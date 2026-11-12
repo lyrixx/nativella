@@ -56,7 +56,7 @@ On Linux and Windows, each window shows the menu under its title bar. On macOS, 
 | `MenuItem::editMenu(string $label = 'Edit')` | Undo, redo, cut, copy, paste, select all. |
 | `MenuItem::windowMenu(string $label = 'Window')` | Minimize, maximize, full screen, close. |
 
-Ids are yours to choose. They come back in `MenuItemClicked::$id`, so keep them unique across the application menu, context menus and the tray menu.
+Ids are yours to choose. They come back in `MenuItemClicked::$id`, so keep them unique across the application menu, context menus and the tray menu. Nativella keeps the ids that start with `nativella:role:` for the [roles](#roles) it implements on Linux, and a click on such an id does not reach PHP.
 
 ### Roles
 
@@ -65,8 +65,8 @@ Ids are yours to choose. They come back in `MenuItemClicked::$id`, so keep them 
 | Role | macOS | Linux |
 |---|---|---|
 | `Undo`, `Redo`, `Cut`, `Copy`, `Paste`, `SelectAll` | The system | Nativella, on the focused page. The page keeps its own keyboard shortcuts. |
-| `Minimize`, `Maximize`, `Fullscreen`, `CloseWindow` | The system | Nativella, on the focused window. `Maximize` and `Fullscreen` (F11) toggle. |
-| `Quit` | The system | Nativella (`CmdOrCtrl+Q`) |
+| `Minimize`, `Maximize`, `Fullscreen`, `CloseWindow` | The system | Nativella, on the focused window. `Maximize` and `Fullscreen` (F11) toggle. `CloseWindow` is `CmdOrCtrl+W`. |
+| `Quit` | The system | Nativella (`CmdOrCtrl+Q`). It asks the pages with [unsaved changes](javascript.md#unsaved-changes) first, then [waits for PHP](lifecycle.md#closing-and-quitting). |
 | `About` | The system | The system, with the application's name, version and icon |
 | `Hide`, `HideOthers`, `ShowAll`, `Services` | The system | Left out |
 
