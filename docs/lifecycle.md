@@ -103,7 +103,7 @@ An integration is a route and a few lines. Take the `POST` requests to `Nativell
 | `EventFactory::allFromJson(string $body): list<object>` | What the Symfony and Laravel integrations dispatch: the event as its class, then as a `NativeEvent`. Only the `NativeEvent` for an event the package does not know. |
 | `EventFactory::create(string $name, array $payload): object` | The event of that name, from a payload already decoded. |
 
-The first two throw a `Nativella\Exception\UnexpectedResponseException` for a body that is not an event.
+The first two throw a `Nativella\Exception\UnexpectedResponseException` for a body that is not an event. Answer the request with a 2xx status, 204 for instance.
 
 ## Events in the page
 

@@ -115,15 +115,7 @@ Every event and its properties are listed in [Lifecycle and events](lifecycle.md
 
 ### In another framework
 
-To dispatch native events through a framework's own dispatcher, route `POST` requests to `Runtime::EVENT_PATH` (`/_nativella/event`), answer 404 unless `Runtime::isInternalRequest()` is true, and build the events from the body of the request:
-
-| Method | |
-|---|---|
-| `EventFactory::fromJson(string $body): object` | The event of the body: its own class, or a `NativeEvent`. |
-| `EventFactory::allFromJson(string $body): list<object>` | What the Symfony and Laravel integrations dispatch: the event as its own class, when it has one, then as a `NativeEvent`. A listener of `NativeEvent` hears every event. |
-| `EventFactory::create(string $name, array $payload): object` | The event of a name and a payload, already decoded. |
-
-`fromJson()` and `allFromJson()` throw an `UnexpectedResponseException` for a body that is not a native event. Answer the request with a 2xx status, 204 for instance.
+To dispatch native events through a framework's own dispatcher, see [Lifecycle and events](lifecycle.md#in-another-framework): a route, and `EventFactory::fromJson()` or `allFromJson()`.
 
 ## Errors
 

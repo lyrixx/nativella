@@ -69,7 +69,7 @@ The options of the main window, the one Nativella opens when PHP opens none whil
 
 Without `window`, the main window opens on `/`, 1024 by 768 pixels, titled after the application.
 
-The size and the position apply the first time the window opens. After that, a window opens where the user left it, at the size they gave it. See [Windows](windows.md#window-options).
+The size and the position apply the first time the window opens. After that, a window opens where the user left it, at the size they gave it. See [What a window remembers](windows.md#what-a-window-remembers).
 
 ## `deepLinks`
 
