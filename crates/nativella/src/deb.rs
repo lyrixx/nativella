@@ -69,9 +69,7 @@ pub fn architecture() -> io::Result<&'static str> {
 /// Writes the package of `project` to `output`. Returns what the executable
 /// left out of the project.
 pub fn build(project: &Project, output: &Path) -> io::Result<LeftOut> {
-    let composer: Value = serde_json::from_slice(&fs::read(project.dir.join("composer.json"))?)
-        .map_err(|error| io::Error::other(format!("composer.json is invalid: {error}.")))?;
-    let control = control(&project.manifest, &composer)?;
+    let control = control(&project.manifest, &composer(project)?)?;
 
     // The executable, in memory, as the rest of the package. The previous
     // package does not ship in it, should it be inside the project.
@@ -81,6 +79,17 @@ pub fn build(project: &Project, output: &Path) -> io::Result<LeftOut> {
     write(project, &control, executable, output)?;
 
     Ok(left_out)
+}
+
+/// The composer.json of `project`, null without one: a plain site may have
+/// none, and the manifest describes the package then.
+fn composer(project: &Project) -> io::Result<Value> {
+    match fs::read(project.dir.join("composer.json")) {
+        Ok(composer) => serde_json::from_slice(&composer)
+            .map_err(|error| io::Error::other(format!("composer.json is invalid: {error}."))),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Value::Null),
+        Err(error) => Err(error),
+    }
 }
 
 /// Writes the package of `project`, described by `control`, of the
@@ -397,6 +406,22 @@ mod tests {
 
         assert_eq!(control.description, "Notes Pro");
         assert_eq!(control.maintainer, "Notes Pro");
+    }
+
+    #[test]
+    fn a_project_without_composer_json() {
+        let root =
+            Path::new(env!("OUT_DIR")).join(format!("deb-plain-test-{}", std::process::id()));
+        fs::create_dir_all(root.join("notes/public")).unwrap();
+        fs::write(root.join("notes/public/index.php"), "<?php").unwrap();
+        let project = Project::load(&root.join("notes")).unwrap();
+
+        let control = control(&project.manifest, &composer(&project).unwrap()).unwrap();
+
+        assert_eq!(control.package, "notes");
+        assert_eq!(control.maintainer, "Notes");
+        assert_eq!(control.description, "Notes");
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
