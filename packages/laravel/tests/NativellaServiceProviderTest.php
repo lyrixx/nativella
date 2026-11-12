@@ -3,6 +3,7 @@
 namespace Nativella\Laravel\Tests;
 
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Facade;
 use Illuminate\Support\ServiceProvider;
 use Nativella\App;
 use Nativella\BarcodeScanner;
@@ -15,7 +16,6 @@ use Nativella\Dialog;
 use Nativella\Geolocation;
 use Nativella\GlobalShortcut;
 use Nativella\Haptics;
-use Nativella\Laravel\Facades;
 use Nativella\Laravel\NativellaServiceProvider;
 use Nativella\Menu;
 use Nativella\Nativella;
@@ -63,22 +63,28 @@ final class NativellaServiceProviderTest extends TestCase
         }
     }
 
-    public function testEachFacadeServesItsApi(): void
+    /**
+     * @param class-string<Facade> $facade
+     * @param class-string         $api
+     */
+    #[DataProvider('provideFacades')]
+    public function testEachFacadeServesItsApi(string $facade, string $api): void
     {
-        $this->assertSame(app(App::class), Facades\App::getFacadeRoot());
-        $this->assertSame(app(Clipboard::class), Facades\Clipboard::getFacadeRoot());
-        $this->assertSame(app(Dialog::class), Facades\Dialog::getFacadeRoot());
-        $this->assertSame(app(GlobalShortcut::class), Facades\GlobalShortcut::getFacadeRoot());
-        $this->assertSame(app(Menu::class), Facades\Menu::getFacadeRoot());
-        $this->assertSame(app(Nativella::class), Facades\Nativella::getFacadeRoot());
-        $this->assertSame(app(Notification::class), Facades\Notification::getFacadeRoot());
-        $this->assertSame(app(Page::class), Facades\Page::getFacadeRoot());
-        $this->assertSame(app(Screen::class), Facades\Screen::getFacadeRoot());
-        $this->assertSame(app(Settings::class), Facades\Settings::getFacadeRoot());
-        $this->assertSame(app(Shell::class), Facades\Shell::getFacadeRoot());
-        $this->assertSame(app(System::class), Facades\System::getFacadeRoot());
-        $this->assertSame(app(Tray::class), Facades\Tray::getFacadeRoot());
-        $this->assertSame(app(Window::class), Facades\Window::getFacadeRoot());
+        $this->assertSame(app($api), $facade::getFacadeRoot());
+    }
+
+    /**
+     * @return iterable<string, array{class-string<Facade>, class-string}>
+     */
+    public static function provideFacades(): iterable
+    {
+        foreach (self::provideApis() as [$api]) {
+            $name = substr($api, (int) strrpos($api, '\\') + 1);
+
+            /** @var class-string<Facade> $facade */
+            $facade = 'Nativella\\Laravel\\Facades\\'.$name;
+            yield $name => [$facade, $api];
+        }
     }
 
     public function testTheConfigurationHasDefaults(): void

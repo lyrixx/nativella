@@ -6,11 +6,13 @@ use Nativella\Event\AppBooted;
 use Nativella\Event\EventFactory;
 use Nativella\Event\MenuItemClicked;
 use Nativella\Event\NativeEvent;
+use Nativella\Event\TimerFired;
 use Nativella\Event\WindowDownloaded;
 use Nativella\Event\WindowDragEntered;
 use Nativella\Event\WindowThemeChanged;
 use Nativella\Exception\UnexpectedResponseException;
 use Nativella\System\Theme;
+use Nativella\Tests\Fixtures\RequestBodyStream;
 use PHPUnit\Framework\Attributes\BackupGlobals;
 use PHPUnit\Framework\TestCase;
 
@@ -72,5 +74,24 @@ final class EventFactoryTest extends TestCase
             [new NativeEvent('power.suspended', ['battery' => 12])],
             EventFactory::allFromJson('{"name":"power.suspended","payload":{"battery":12}}'),
         );
+    }
+
+    #[BackupGlobals(true)]
+    public function testFromGlobalsReadsTheEventTheRuntimeSent(): void
+    {
+        $_SERVER['REQUEST_URI'] = '/_nativella/event';
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['NATIVELLA_INTERNAL'] = '1';
+
+        RequestBodyStream::$body = '{"name":"timer.fired","payload":{"name":"sync"}}';
+        stream_wrapper_unregister('php');
+        stream_wrapper_register('php', RequestBodyStream::class);
+        try {
+            $event = EventFactory::fromGlobals();
+        } finally {
+            stream_wrapper_restore('php');
+        }
+
+        $this->assertEquals(new TimerFired('sync'), $event);
     }
 }

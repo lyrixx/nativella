@@ -18,6 +18,7 @@ final class ExtensionClientInNativellaTest extends TestCase
     {
         require_once __DIR__.'/Fixtures/nativella_call.php';
         $GLOBALS['nativella_calls'] = [];
+        unset($GLOBALS['nativella_failure']);
     }
 
     public function testItCallsTheRuntime(): void
@@ -40,5 +41,19 @@ final class ExtensionClientInNativellaTest extends TestCase
         }
 
         $this->assertSame([], $GLOBALS['nativella_calls']);
+    }
+
+    public function testAFailureOfTheNativeSideNamesTheMethod(): void
+    {
+        $GLOBALS['nativella_failure'] = 'There is no "settings" window.';
+
+        try {
+            new ExtensionClient()->call('window.close', ['window' => 'settings']);
+            $this->fail('A NativeCallException was expected.');
+        } catch (NativeCallException $e) {
+            $this->assertSame('window.close', $e->method);
+            $this->assertSame('The native call "window.close" failed: There is no "settings" window.', $e->getMessage());
+            $this->assertInstanceOf(\RuntimeException::class, $e->getPrevious());
+        }
     }
 }
