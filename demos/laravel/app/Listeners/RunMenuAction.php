@@ -4,7 +4,7 @@ namespace App\Listeners;
 
 use App\Desktop\MainWindow;
 use App\Desktop\MenuAction;
-use App\Tasks\ExportFailed;
+use App\Tasks\Exception\ExportFailed;
 use App\Tasks\TaskExporter;
 use Nativella\Dialog;
 use Nativella\Dialog\MessageKind;

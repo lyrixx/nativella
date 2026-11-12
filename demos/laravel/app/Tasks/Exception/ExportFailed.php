@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Tasks;
+namespace App\Tasks\Exception;
 
 final class ExportFailed extends \RuntimeException
 {

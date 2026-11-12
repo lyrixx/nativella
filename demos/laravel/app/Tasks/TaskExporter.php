@@ -3,6 +3,7 @@
 namespace App\Tasks;
 
 use App\Models\Task;
+use App\Tasks\Exception\ExportFailed;
 use Nativella\Dialog;
 use Nativella\Dialog\FileFilter;
 

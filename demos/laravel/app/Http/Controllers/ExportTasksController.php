@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Tasks\ExportFailed;
+use App\Tasks\Exception\ExportFailed;
 use App\Tasks\TaskExporter;
 use Illuminate\Http\RedirectResponse;
 use Psr\Log\LoggerInterface;
