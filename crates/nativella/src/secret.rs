@@ -54,7 +54,11 @@ pub(crate) fn load(data_dir: &Path) -> io::Result<String> {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600);
     }
-    options.open(&temporary)?.write_all(secret.as_bytes())?;
+    let mut file = options.open(&temporary)?;
+    file.write_all(secret.as_bytes())?;
+    // On the disk before it has its name: after a power cut, an empty file
+    // would be set aside for a new secret, and the first one lost.
+    file.sync_all()?;
     fs::rename(&temporary, &path)?;
 
     Ok(secret)
