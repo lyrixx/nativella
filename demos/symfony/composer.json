@@ -11,8 +11,8 @@
         "doctrine/doctrine-migrations-bundle": "^4.0",
         "doctrine/orm": "^3.7",
         "league/commonmark": "^2.10.4",
-        "nativella/nativella": "^0.5@dev",
-        "nativella/symfony-bundle": "^0.5@dev",
+        "nativella/nativella": "^0.6@dev",
+        "nativella/symfony-bundle": "^0.6@dev",
         "symfony/asset": "8.1.*",
         "symfony/console": "8.1.*",
         "symfony/dotenv": "8.1.*",
@@ -102,9 +102,9 @@
             "url": "../../packages/*",
             "options": {
                 "versions": {
-                    "nativella/nativella": "0.5.x-dev",
-                    "nativella/symfony-bundle": "0.5.x-dev",
-                    "nativella/laravel": "0.5.x-dev"
+                    "nativella/nativella": "0.6.x-dev",
+                    "nativella/symfony-bundle": "0.6.x-dev",
+                    "nativella/laravel": "0.6.x-dev"
                 }
             }
         }

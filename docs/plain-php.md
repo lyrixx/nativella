@@ -126,7 +126,7 @@ Every exception of the package implements `Nativella\Exception\ExceptionInterfac
 | `NativeCallException` | The native side could not do what PHP asked: the window does not exist, the platform has no such API, the system refused. Also when the payload cannot be sent: a string that is not UTF-8, `INF` or `NAN`. |
 | `RuntimeUnavailableException` | PHP does not run in Nativella: in a browser through a web server, or on the command line. |
 | `UnexpectedResponseException` | The runtime, or the endpoint of the [updates](updates.md), answered something the package cannot read. |
-| `VersionMismatchException` | The `nativella` command and the package are not of the same release line (0.5.x with 0.5.x before 1.0, 1.x with 1.x after). It is thrown on the first native call, and says which one to upgrade. |
+| `VersionMismatchException` | The `nativella` command and the package are not of the same release line (0.6.x with 0.6.x before 1.0, 1.x with 1.x after). It is thrown on the first native call, and says which one to upgrade. |
 
 A `NativeCallException` has the `method` that failed (`window.open`), a `reason`, which is a sentence for people, and a `kind` to act on, a `Nativella\Exception\ErrorKind`:
 

@@ -41,7 +41,7 @@ On Linux, the build runs in the repository's Docker stack, which needs Docker an
 ```bash
 git clone https://github.com/lyrixx/nativella.git
 cd nativella
-git checkout v0.5.0              # the version of nativella/nativella in your composer.lock
+git checkout v0.6.0              # the version of nativella/nativella in your composer.lock
 # change the constants of .castor/static-php.php
 castor static-php:build
 castor nativella:build vanilla
