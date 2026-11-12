@@ -52,7 +52,7 @@ function install(): void
     io()->title('Installing tooling');
 
     foreach (TOOLS as $tool) {
-        if (0 !== docker_exit_code(['composer', 'install', '-o'], workDir: builder_path("tools/{$tool}"))) {
+        if (0 !== docker_exit_code(['composer', 'install', '-n', '-o'], workDir: builder_path("tools/{$tool}"))) {
             throw new \RuntimeException(\sprintf('"composer install" failed in tools/%s.', $tool));
         }
     }
@@ -85,7 +85,7 @@ function update(): void
     io()->title('Updating QA tooling');
 
     foreach (TOOLS as $tool) {
-        if (0 !== docker_exit_code(['composer', 'update', '-o'], workDir: builder_path("tools/{$tool}"))) {
+        if (0 !== docker_exit_code(['composer', 'update', '-n', '-o'], workDir: builder_path("tools/{$tool}"))) {
             throw new \RuntimeException(\sprintf('"composer update" failed in tools/%s.', $tool));
         }
     }
