@@ -5,7 +5,8 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread;
 use std::time::Duration;
 
@@ -16,9 +17,19 @@ use tauri::{AppHandle, Manager};
 use super::{Call, State, lock};
 use crate::events;
 
-/// The running timers, by name. Setting a flag stops its timer.
+/// The running timers, by name.
 #[derive(Default)]
-pub(crate) struct Timers(std::sync::Mutex<HashMap<String, Arc<AtomicBool>>>);
+pub(crate) struct Timers {
+    running: std::sync::Mutex<HashMap<String, Running>>,
+    last_id: AtomicU64,
+}
+
+struct Running {
+    /// Tells a timer from the one that took its name.
+    id: u64,
+    /// Dropping it stops the timer, and ends its thread at once.
+    _stop: mpsc::Sender<()>,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Repeat {
@@ -50,9 +61,7 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
             .payload::<Schedule>()
             .and_then(|payload| start(call.app, timers, payload, Repeat::Once)),
         "cancel" => call.payload::<Name>().map(|payload| {
-            if let Some(stopped) = lock(&timers.0).remove(&payload.name) {
-                stopped.store(true, Ordering::Relaxed);
-            }
+            lock(&timers.running).remove(&payload.name);
             json!({})
         }),
         _ => return None,
@@ -73,11 +82,10 @@ fn start(
         ));
     }
 
-    let stopped = Arc::new(AtomicBool::new(false));
+    let id = timers.last_id.fetch_add(1, Ordering::Relaxed) + 1;
+    let (stop, stopped) = mpsc::channel();
     // A timer of the same name is replaced.
-    if let Some(previous) = lock(&timers.0).insert(schedule.name.clone(), Arc::clone(&stopped)) {
-        previous.store(true, Ordering::Relaxed);
-    }
+    lock(&timers.running).insert(schedule.name.clone(), Running { id, _stop: stop });
 
     let app = app.clone();
     let interval = Duration::from_secs_f64(schedule.seconds);
@@ -87,8 +95,7 @@ fn start(
         .name(format!("timer {}", schedule.name))
         .spawn(move || {
             loop {
-                thread::sleep(interval);
-                if stopped.load(Ordering::Relaxed) {
+                if !elapses(&stopped, interval) {
                     return;
                 }
                 // PHP is busy, with a dialog for one: ticks would pile up.
@@ -105,10 +112,10 @@ fn start(
                 if repeat == Repeat::Once {
                     // Unless another timer took the name since.
                     let state = app.state::<State>();
-                    let mut timers = lock(&state.timers.0);
+                    let mut timers = lock(&state.timers.running);
                     if timers
                         .get(&schedule.name)
-                        .is_some_and(|flag| Arc::ptr_eq(flag, &stopped))
+                        .is_some_and(|running| running.id == id)
                     {
                         timers.remove(&schedule.name);
                     }
@@ -120,4 +127,28 @@ fn start(
         .map_err(|error| format!("The timer thread cannot start: {error}."))?;
 
     Ok(json!({}))
+}
+
+/// Waits for `interval`: false when the timer was stopped meanwhile, without
+/// waiting for the end of an interval that may be a year.
+fn elapses(stopped: &mpsc::Receiver<()>, interval: Duration) -> bool {
+    stopped.recv_timeout(interval) == Err(RecvTimeoutError::Timeout)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Instant;
+
+    use super::*;
+
+    #[test]
+    fn a_stopped_timer_does_not_wait_for_its_interval() {
+        let (stop, stopped) = mpsc::channel();
+        assert!(elapses(&stopped, Duration::from_millis(20)));
+
+        let started = Instant::now();
+        drop(stop);
+        assert!(!elapses(&stopped, Duration::from_secs(3600)));
+        assert!(started.elapsed() < Duration::from_secs(60));
+    }
 }
