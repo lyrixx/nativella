@@ -11,7 +11,6 @@ use App\Snippet\SnippetRepository;
 use App\View\Flash;
 use App\View\View;
 use Nativella\Nativella;
-use Nativella\Runtime;
 
 final readonly class SnippetController
 {
@@ -110,7 +109,7 @@ final readonly class SnippetController
 
         $list = self::listUrl($request->form('q'));
         $question = \sprintf(self::DELETE_QUESTION, $snippet->title);
-        if (Runtime::isAvailable() && !$this->deleteConfirmation->confirm($question)) {
+        if ($this->native->isNative() && !$this->deleteConfirmation->confirm($question)) {
             return Response::redirect($list);
         }
 

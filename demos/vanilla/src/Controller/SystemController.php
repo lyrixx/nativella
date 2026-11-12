@@ -23,7 +23,7 @@ final readonly class SystemController
 
     public function show(): Response
     {
-        $isNative = Runtime::isAvailable();
+        $isNative = $this->native->isNative();
 
         return $this->view->page('System', 'system', [
             'app' => $isNative ? $this->native->app->info() : null,
