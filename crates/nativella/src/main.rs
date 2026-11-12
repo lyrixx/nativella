@@ -1,7 +1,6 @@
 //! The `nativella` command, and the entry point of standalone applications.
 
 use std::env;
-use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -138,8 +137,10 @@ fn package(mut args: impl Iterator<Item = String>, package: Package) -> ExitCode
         output.display()
     );
     let result = match package {
-        Package::Executable => embedded::build(&project, &output)
-            .and_then(|left_out| write_notices(&output).map(|()| left_out)),
+        // The notices first: they refuse to replace a file of the project.
+        Package::Executable => {
+            write_notices(&output).and_then(|()| embedded::build(&project, &output))
+        }
         Package::Deb => deb(&project, &output),
         Package::Android => android(&project, template.as_deref(), key.as_deref(), &output),
         Package::Ios => ios(
@@ -254,8 +255,7 @@ fn write_notices(output: &Path) -> io::Result<()> {
         return Ok(());
     };
 
-    let path = output.with_file_name(notices::FILE);
-    fs::write(&path, text)?;
+    let path = notices::write_next_to(output, &text)?;
     eprintln!(
         "Wrote the licenses of the software the application contains to {}: distribute them with it.",
         path.display()
