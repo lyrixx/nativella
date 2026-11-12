@@ -4,7 +4,7 @@ namespace App\Tests\EventListener;
 
 use App\Native\Desktop;
 use App\Tests\NotesTestCase;
-use Nativella\Exception\NativeCallException;
+use Nativella\Exception\ErrorKind;
 
 final class NativeEventsTest extends NotesTestCase
 {
@@ -19,7 +19,7 @@ final class NativeEventsTest extends NotesTestCase
 
     public function testATakenShortcutStillOpensTheWindow(): void
     {
-        $this->fakeClient()->respond('globalShortcut.register', new NativeCallException('globalShortcut.register', new \RuntimeException('Already taken.')));
+        $this->fakeClient()->fail('globalShortcut.register', ErrorKind::Failed, 'Already taken.');
 
         $this->sendNativeEvent('app.booted');
 
@@ -102,7 +102,7 @@ final class NativeEventsTest extends NotesTestCase
 
     public function testDeveloperToolsThatDoNotExistAreExplained(): void
     {
-        $this->fakeClient()->respond('window.openDevtools', new NativeCallException('window.openDevtools', new \RuntimeException('Developer tools only exist in debug builds.')));
+        $this->fakeClient()->fail('window.openDevtools', ErrorKind::Unavailable, 'Developer tools only exist in debug builds.');
 
         $this->sendNativeEvent('menu.itemClicked', ['id' => 'view.devtools', 'checked' => null]);
 

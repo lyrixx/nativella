@@ -6,7 +6,7 @@ use App\Entity\Note;
 use App\Repository\NoteRepository;
 use App\Tests\NotesTestCase;
 use Nativella\Client\Call;
-use Nativella\Exception\NativeCallException;
+use Nativella\Exception\ErrorKind;
 
 final class NoteControllerTest extends NotesTestCase
 {
@@ -253,7 +253,7 @@ final class NoteControllerTest extends NotesTestCase
     {
         $_SERVER['NATIVELLA_PLATFORM'] = 'android';
         $note = $this->createNote('Picnic', 'Bring a blanket.');
-        $this->fakeClient()->respond('geolocation.currentPosition', new NativeCallException('geolocation.currentPosition', new \RuntimeException('Location services are disabled.')));
+        $this->fakeClient()->fail('geolocation.currentPosition', ErrorKind::Failed, 'Location services are disabled.');
 
         $this->post("/notes/{$note->getId()}/location");
         $this->client->followRedirect();
@@ -331,7 +331,7 @@ final class NoteControllerTest extends NotesTestCase
     {
         $_SERVER['NATIVELLA_PLATFORM'] = 'android';
         $note = $this->createNote('Shopping', 'Milk.');
-        $this->fakeClient()->respond('barcodeScanner.scan', new NativeCallException('barcodeScanner.scan', new \RuntimeException('The phone read no barcode within 120 seconds.')));
+        $this->fakeClient()->fail('barcodeScanner.scan', ErrorKind::Timeout, 'The phone read no barcode within 120 seconds.');
 
         $this->post("/notes/{$note->getId()}/scan");
         $this->client->followRedirect();
