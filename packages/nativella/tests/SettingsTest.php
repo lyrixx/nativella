@@ -28,6 +28,6 @@ final class SettingsTest extends TestCase
 
         new Settings($client)->delete('theme');
 
-        $this->assertEquals([new Call('settings.forget', ['key' => 'theme'])], $client->calls());
+        $this->assertEquals([new Call('settings.delete', ['key' => 'theme'])], $client->calls());
     }
 }

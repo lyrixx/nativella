@@ -37,7 +37,7 @@ final readonly class Settings
      */
     public function delete(string $key): void
     {
-        $this->client->call('settings.forget', ['key' => $key]);
+        $this->client->call('settings.delete', ['key' => $key]);
     }
 
     /**

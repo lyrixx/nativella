@@ -50,7 +50,7 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, Native
                 values.insert(payload.key, payload.value);
             })
         }),
-        "forget" => call.payload::<Key>().and_then(|payload| {
+        "delete" => call.payload::<Key>().and_then(|payload| {
             store.write(|values| {
                 values.remove(&payload.key);
             })
