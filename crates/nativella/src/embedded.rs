@@ -466,7 +466,13 @@ pub(crate) fn write_bundle(
     // Neither the dates nor the owners of the files of this computer: the
     // same files make the same archive. The extraction dates them anew.
     builder.mode(tar::HeaderMode::Deterministic);
-    append_dir(&mut builder, &project.dir, Path::new(""), EXCLUDED, &mut walk)?;
+    append_dir(
+        &mut builder,
+        &project.dir,
+        Path::new(""),
+        EXCLUDED,
+        &mut walk,
+    )?;
     builder.into_inner()?.finish()?;
     // The windows of a standalone executable take it from the extracted
     // project.
@@ -706,8 +712,7 @@ fn is_credential(normalized: &str, path: &Path, length: u64) -> io::Result<bool>
     }
     let file_name = name.rsplit('/').next().unwrap_or(&name);
     let may_hold_a_key = PEM_FILES.iter().any(|end| name.ends_with(end))
-        || ((name.ends_with(".json") || !file_name.contains('.'))
-            && length <= KEY_FILE_MAX_LENGTH);
+        || ((name.ends_with(".json") || !file_name.contains('.')) && length <= KEY_FILE_MAX_LENGTH);
     if !may_hold_a_key {
         return Ok(false);
     }
@@ -1049,7 +1054,12 @@ mod tests {
 
     #[test]
     fn a_trailer_with_lengths_beyond_the_file_is_corrupted() {
-        for lengths in [[u64::MAX, 0], [0, u64::MAX], [0, u64::MAX - 8], [1 << 40, 2]] {
+        for lengths in [
+            [u64::MAX, 0],
+            [0, u64::MAX],
+            [0, u64::MAX - 8],
+            [1 << 40, 2],
+        ] {
             let mut bytes = b"What comes before the trailer".to_vec();
             bytes.extend(lengths[0].to_le_bytes());
             bytes.extend(lengths[1].to_le_bytes());

@@ -36,9 +36,7 @@ pub fn write_next_to(output: &Path, text: &str) -> io::Result<PathBuf> {
     match File::open(&path) {
         Ok(previous) => {
             let mut title = Vec::new();
-            previous
-                .take(TITLE.len() as u64)
-                .read_to_end(&mut title)?;
+            previous.take(TITLE.len() as u64).read_to_end(&mut title)?;
             if title != TITLE {
                 return Err(io::Error::new(
                     io::ErrorKind::AlreadyExists,

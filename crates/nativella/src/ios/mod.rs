@@ -935,7 +935,10 @@ mod tests {
         assert_eq!(executable(&info("Nativella")).unwrap(), "Nativella");
         for outside in ["../Nativella", "/bin/sh", "Frameworks/Nativella", ".."] {
             let error = executable(&info(outside)).unwrap_err();
-            assert!(error.to_string().contains("not a file of its app"), "{outside}");
+            assert!(
+                error.to_string().contains("not a file of its app"),
+                "{outside}"
+            );
         }
         assert!(executable(&Dictionary::new()).is_err());
     }
