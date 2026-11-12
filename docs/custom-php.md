@@ -13,7 +13,7 @@ Three constants at the top of `.castor/static-php.php` describe it:
 | Constant | In the releases | |
 |---|---|---|
 | `PHP_RELEASE` | `8.5.12` | The PHP version, to its patch release (see [The version of PHP](development.md#the-version-of-php)). Nativella's PHP packages need 8.4 or later. |
-| `PHP_RELEASE_SHA256` | The hash of `php-8.5.12.tar.xz` | The SHA-256 of the `tar.xz` archive of that version, as php.net gives it (`https://www.php.net/releases/index.php?json&version=8.4.27`). The build stops when the archive it downloaded has another one. |
+| `PHP_RELEASE_SHA256` | The hash of `php-8.5.12.tar.xz` | The SHA-256 of the `tar.xz` archive of that version, as php.net gives it (`https://www.php.net/releases/index.php?json&version=<PHP_RELEASE>`). The build stops when the archive it downloaded has another one. |
 | `EXTENSIONS` | `bcmath,ctype,…,zlib` | The extensions, separated by commas, by their names in [static-php-cli](https://static-php.dev/en/guide/extensions.html), which builds PHP and the libraries they need. |
 
 For PHP 8.4, with gd and without intl:
