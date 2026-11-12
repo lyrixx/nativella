@@ -125,12 +125,6 @@ jobs:
             - name: "Smoke test the demos through the runtime"
               run: "castor nativella:smoke"
 
-            # Weekly, and by hand: a new advisory is no fault of a pull
-            # request. Dependabot opens the pull requests that fix them
-            - name: "Check the crates against the advisories of RustSec"
-              if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-              run: "castor qa:rust-audit"
-
             # Main only, once all built: the key stays until the image or
             # Cargo.lock change, with what it holds. Without the crates of the
             # workspace, which a checkout makes cargo build again anyway
@@ -155,3 +149,9 @@ jobs:
               with:
                   key: ${{ steps.cargo.outputs.cache-primary-key }}
                   prefix: cargo-debug-
+
+            # Last, once the build is saved. Weekly, and by hand: a new advisory is no fault of a pull
+            # request. Dependabot opens the pull requests that fix them
+            - name: "Check the crates against the advisories of RustSec"
+              if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+              run: "castor qa:rust-audit"
