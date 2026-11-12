@@ -17,6 +17,7 @@ interface Client
      * @throws Exception\NativeCallException         when the native side fails, or the payload holds a string that is not UTF-8
      * @throws Exception\RuntimeUnavailableException when PHP does not run in Nativella
      * @throws Exception\UnexpectedResponseException when the native side answers something the package cannot read
+     * @throws Exception\VersionMismatchException    when the nativella command and the package are not of the same release line
      */
     public function call(string $method, array $payload = []): array;
 

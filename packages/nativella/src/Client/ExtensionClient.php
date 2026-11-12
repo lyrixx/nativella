@@ -2,6 +2,7 @@
 
 namespace Nativella\Client;
 
+use Composer\InstalledVersions;
 use Nativella\Client;
 use Nativella\Exception\NativeCallException;
 use Nativella\Exception\RuntimeUnavailableException;
@@ -13,11 +14,15 @@ use Nativella\Runtime;
  */
 final readonly class ExtensionClient implements Client
 {
+    private const string PACKAGE = 'nativella/nativella';
+
     public function call(string $method, array $payload = []): array
     {
         if (!Runtime::isAvailable()) {
             throw new RuntimeUnavailableException(\sprintf('Cannot call "%s": the application does not run in Nativella.', $method));
         }
+
+        self::ensureSameReleaseLine();
 
         try {
             $json = json_encode((object) $payload, \JSON_THROW_ON_ERROR | \JSON_PRESERVE_ZERO_FRACTION | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
@@ -43,5 +48,30 @@ final readonly class ExtensionClient implements Client
     public function isNative(): bool
     {
         return Runtime::isAvailable();
+    }
+
+    /**
+     * Checked on the first call only: neither version changes while PHP runs.
+     */
+    private static function ensureSameReleaseLine(): void
+    {
+        static $same = false;
+        $runtimeVersion = Runtime::version();
+        if ($same || null === $runtimeVersion || !InstalledVersions::isInstalled(self::PACKAGE)) {
+            return;
+        }
+
+        $versions = [];
+        foreach (InstalledVersions::getAllRawData() as $installed) {
+            $package = $installed['versions'][self::PACKAGE] ?? [];
+            if (isset($package['pretty_version'])) {
+                $versions = [$package['pretty_version'], ...array_values($package['aliases'] ?? [])];
+
+                break;
+            }
+        }
+
+        VersionCheck::ensureCompatible($versions, $runtimeVersion);
+        $same = true;
     }
 }
