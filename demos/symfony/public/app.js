@@ -24,7 +24,7 @@ window.addEventListener('nativella:notes.changed', (event) => {
 
     if (created) {
         location.href = `/notes/${created}`;
-    } else if (deleted && location.pathname.startsWith(`/notes/${deleted}`)) {
+    } else if (deleted && new RegExp(`^/notes/${deleted}(/|$)`).test(location.pathname)) {
         location.href = '/';
     } else {
         location.reload();
