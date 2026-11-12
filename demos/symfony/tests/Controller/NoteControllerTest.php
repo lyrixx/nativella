@@ -49,6 +49,14 @@ final class NoteControllerTest extends NotesTestCase
         $this->assertSelectorNotExists('.markdown a[href^="javascript:"]');
     }
 
+    public function testTheFieldsOfTheFormHaveAName(): void
+    {
+        $this->client->request('GET', '/notes/new');
+
+        $this->assertSelectorExists('input[name="note[title]"][aria-label="Title"]');
+        $this->assertSelectorExists('textarea[name="note[body]"][aria-label="Note, in Markdown"]');
+    }
+
     public function testATitleIsRequired(): void
     {
         $this->client->request('GET', '/notes/new');

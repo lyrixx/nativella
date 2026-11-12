@@ -17,13 +17,14 @@ final class NoteType extends AbstractType
     {
         $builder
             ->add('title', TextType::class, [
-                'attr' => ['autofocus' => true, 'placeholder' => 'Title'],
+                // No visible label: the placeholder is not a name for screen readers.
+                'attr' => ['aria-label' => 'Title', 'autofocus' => true, 'placeholder' => 'Title'],
                 // NotBlank reports an empty title, not the type error of null.
                 'empty_data' => '',
                 'label' => false,
             ])
             ->add('body', TextareaType::class, [
-                'attr' => ['placeholder' => 'Write in Markdown…', 'rows' => 18],
+                'attr' => ['aria-label' => 'Note, in Markdown', 'placeholder' => 'Write in Markdown…', 'rows' => 18],
                 'empty_data' => '',
                 'label' => false,
                 'required' => false,
