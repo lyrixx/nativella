@@ -216,7 +216,9 @@ impl ChildProcesses {
             .envs(self.variables.iter().cloned());
         #[cfg(target_os = "linux")]
         if crate::sets_no_at_bridge() {
-            command.env_remove("NO_AT_BRIDGE");
+            command
+                .env_remove("NO_AT_BRIDGE")
+                .env_remove(crate::OWN_NO_AT_BRIDGE);
         }
         command
             .envs(env)

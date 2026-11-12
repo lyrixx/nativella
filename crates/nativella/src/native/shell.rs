@@ -83,6 +83,7 @@ fn open_without_at_bridge(target: &std::ffi::OsStr) -> Result<(), String> {
     for mut command in open::commands(target) {
         command
             .env_remove("NO_AT_BRIDGE")
+            .env_remove(crate::OWN_NO_AT_BRIDGE)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())

@@ -67,6 +67,11 @@ pub(crate) const MAIN_WINDOW: &str = "main";
 #[cfg(all(desktop, unix))]
 const QUIT_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
 
+/// Set with `NO_AT_BRIDGE` when it is Nativella's own: an application that
+/// restarts inherits both, and still knows whose it is.
+#[cfg(target_os = "linux")]
+pub(crate) const OWN_NO_AT_BRIDGE: &str = "NATIVELLA_NO_AT_BRIDGE";
+
 /// Whether Nativella set `NO_AT_BRIDGE` for itself, see [`start`].
 #[cfg(target_os = "linux")]
 static SETS_NO_AT_BRIDGE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -150,9 +155,12 @@ fn start(
     // PHP: see examples/plain.rs. Disabling the bridge avoids it, at the cost
     // of screen reader support, in the application only.
     #[cfg(target_os = "linux")]
-    if env::var_os("NO_AT_BRIDGE").is_none() {
+    if env::var_os("NO_AT_BRIDGE").is_none() || env::var_os(OWN_NO_AT_BRIDGE).is_some() {
         // SAFETY: no other thread exists yet.
-        unsafe { env::set_var("NO_AT_BRIDGE", "1") };
+        unsafe {
+            env::set_var("NO_AT_BRIDGE", "1");
+            env::set_var(OWN_NO_AT_BRIDGE, "1");
+        }
         SETS_NO_AT_BRIDGE.store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
