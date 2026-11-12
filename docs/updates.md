@@ -1,6 +1,6 @@
 # Updates
 
-A [standalone executable](building.md) updates itself from the releases you publish. It asks your server whether there is a newer version, downloads it in the background, checks that you signed it and that it is that version of the application, for this machine, and replaces itself. The next start runs the new version.
+A [standalone executable](building.md), or a [macOS app](building.md#macos-apps), updates itself from the releases you publish. It asks your server whether there is a newer version, downloads it in the background, checks that you signed it and that it is that version of the application, for this machine, and replaces itself. The next start runs the new version.
 
 ## Configuration
 
@@ -40,14 +40,14 @@ The endpoint serves a JSON document in the format of [Tauri's updater](https://v
             "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkK…"
         },
         "darwin-aarch64": {
-            "url": "https://notes.example/releases/1.3.0/notes-macos-aarch64",
+            "url": "https://notes.example/releases/1.3.0/notes-macos-aarch64.app.tar.gz",
             "signature": "…"
         }
     }
 }
 ```
 
-`version` may start with a `v`. `notes` and `pub_date` are optional; `pub_date` is an RFC 3339 date, with or without a fraction of a second, or `Updater::check()` throws an `UnexpectedResponseException`. Each platform, `linux-x86_64`, `linux-aarch64`, `darwin-aarch64`, `windows-x86_64`, gives the URL of its `nativella build` executable, 1 GiB at most, and its signature. A platform the document leaves out gets no update.
+`version` may start with a `v`. `notes` and `pub_date` are optional; `pub_date` is an RFC 3339 date, with or without a fraction of a second, or `Updater::check()` throws an `UnexpectedResponseException`. Each platform, `linux-x86_64`, `linux-aarch64`, `darwin-aarch64`, `windows-x86_64`, gives the URL of its `nativella build` executable, 1 GiB at most, or for macOS the `.tar.gz` of its app (see [Apps of macOS](#apps-of-macos)), and its signature. A platform the document leaves out gets no update.
 
 The executable says what it is. The application keeps it only if it has its `identifier`, the `version` of the document, newer than the running one, and runs on the machine. Build each release with the `version` of composer.json raised to the one you announce, so that a release announced as `99.0.0` cannot bring back an older build, signed or not.
 
@@ -59,7 +59,7 @@ The keys and the signatures are [minisign](https://jedisct1.github.io/minisign/)
 
 ```bash
 minisign -G -p notes.pub -s notes.key           # once: keep notes.key secret, and safe
-minisign -S -s notes.key -m dist/notes          # each release: writes dist/notes.minisig
+minisign -S -s notes.key -m dist/notes          # each release: writes dist/notes.minisig, and the same for the .tar.gz of a macOS app
 base64 < dist/notes.minisig | tr -d '\n'        # the "signature" of the document
 base64 < notes.pub | tr -d '\n'                 # the "publicKey" of composer.json
 ```
@@ -109,4 +109,17 @@ The previous executable stays next to the new one, as `<name>.old` (`notes.old`,
 
 While it downloads, the new executable is a hidden file next to the running one, `.<name>.update-…`. An application that quits before the end leaves it there, removes it at its next start, and the next `install()` downloads from the beginning.
 
-Tested on Linux. macOS and Windows go through the same code, untested. On Windows, a second update in the same run fails, because the previous executable is still running: restart the application first. Phones update through their store.
+Tested on Linux and macOS. Windows goes through the same code, untested. On Windows, a second update in the same run fails, because the previous executable is still running: restart the application first. Phones update through their store.
+
+## Apps of macOS
+
+A macOS app is a directory, which the update replaces whole. Its release is the `.tar.gz` of the app that `nativella build` made, as Tauri's updater takes it, and its signature is the archive's:
+
+```bash
+COPYFILE_DISABLE=1 tar -czf notes-macos-aarch64.app.tar.gz -C dist Notes.app
+minisign -S -s notes.key -m notes-macos-aarch64.app.tar.gz
+```
+
+`COPYFILE_DISABLE=1` keeps macOS's `tar` from adding the extended attributes of the files, as `._` files, which the application would ignore anyway.
+
+The archive holds one app, of directories and files only, 1 GiB at most once extracted. The application extracts it next to itself, checks that it is the announced version of this application, for this Mac, then takes its place in one step: there is no moment without an app. The previous one stays next to the new one, as `<name>.app.old` (`Notes.app.old`), which Finder does not take for an app. The app's directory has to be writable by the user, as the Applications folder is for an administrator. An app the user did not move since they downloaded it runs from a read-only copy, and cannot update itself: ask them to move it to their Applications folder first.
