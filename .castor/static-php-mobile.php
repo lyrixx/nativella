@@ -14,7 +14,7 @@ use function Castor\io;
 use function Castor\run;
 use function Castor\variable;
 use function docker\builder_path;
-use function docker\docker_compose_run;
+use function docker\capture_in_builder;
 use function docker\run_in_builder;
 use function mobile\ndk_home;
 use function static_php\spc;
@@ -436,7 +436,7 @@ function missing_prerequisites(Target $target): array
 function environment_variable(Target $target, string $name): string
 {
     if ($target->isAndroid() && !context()['run_on_host']) {
-        return trim(docker_compose_run(['printenv', $name], context()->withQuiet(), service: 'android')->getOutput());
+        return capture_in_builder(['printenv', $name], 'android');
     }
 
     return (string) getenv($name);
@@ -449,7 +449,7 @@ function environment_variable(Target $target, string $name): string
 function build_triple(Target $target): string
 {
     if ($target->isAndroid() && !context()['run_on_host']) {
-        return trim(docker_compose_run(['cc', '-dumpmachine'], context()->withQuiet(), service: 'android')->getOutput());
+        return capture_in_builder(['cc', '-dumpmachine'], 'android');
     }
 
     return trim(capture(['cc', '-dumpmachine']));

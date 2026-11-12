@@ -505,6 +505,22 @@ function run_on_host(array $params, Context $c, ?string $workDir): Process
 }
 
 /**
+ * What a command of docker_compose_run() prints, trimmed: throws when it
+ * fails, as an empty answer would pass for one.
+ *
+ * @param list<string> $params
+ */
+function capture_in_builder(array $params, ?string $service = null): string
+{
+    $process = docker_compose_run($params, context()->withQuiet(), $service);
+    if (!$process->isSuccessful()) {
+        throw new \RuntimeException(\sprintf('"%s" failed: %s', implode(' ', $params), trim($process->getErrorOutput())));
+    }
+
+    return trim($process->getOutput());
+}
+
+/**
  * Runs a command with docker_compose_run(), and throws when it fails.
  *
  * @param list<string>          $params

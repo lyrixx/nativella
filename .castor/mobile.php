@@ -18,7 +18,7 @@ use function Castor\run;
 use function Castor\variable;
 use function docker\builder_path;
 use function docker\builder_platform;
-use function docker\docker_compose_run;
+use function docker\capture_in_builder;
 use function docker\run_in_builder;
 use function nativella\stage;
 use function project\demo;
@@ -737,7 +737,7 @@ function missing_android_prerequisites(): array
 function ndk_home(): string
 {
     if (!context()['run_on_host']) {
-        return trim(docker_compose_run(['printenv', 'NDK_HOME'], context()->withQuiet(), service: 'android')->getOutput());
+        return capture_in_builder(['printenv', 'NDK_HOME'], 'android');
     }
 
     if ($ndk = getenv('NDK_HOME')) {
