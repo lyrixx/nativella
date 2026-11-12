@@ -31,7 +31,7 @@ final class NativellaDataCollector extends AbstractDataCollector
             'call_count' => \count($calls),
             'error_count' => \count(array_filter($calls, static fn (TracedCall $call): bool => null !== $call->error)),
             'duration' => array_sum(array_column($calls, 'durationInMs')),
-            'native' => Runtime::isNative(),
+            'native' => Runtime::isAvailable(),
             'version' => $request->server->get('NATIVELLA_VERSION'),
             'window' => $request->server->get('NATIVELLA_WINDOW'),
             'data_dir' => $request->server->get('NATIVELLA_DATA_DIR'),

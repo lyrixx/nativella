@@ -4,12 +4,13 @@
 //! twelfth, its corners rounded as much. Linux packages take it whole (deb.rs).
 
 use std::fs;
-use std::io;
+use std::io::{self, Cursor};
 
 use image::codecs::png::{CompressionType, FilterType, PngEncoder};
 use image::imageops::{self, FilterType as Filter};
 use image::{
-    ExtendedColorType, ImageEncoder, ImageFormat, ImageResult, Rgba, Rgba32FImage, RgbaImage,
+    ExtendedColorType, ImageEncoder, ImageFormat, ImageReader, ImageResult, Rgba, Rgba32FImage,
+    RgbaImage,
 };
 
 use crate::project::Project;
@@ -23,9 +24,14 @@ const NATIVELLA: &[u8] = include_bytes!("../../icons/icon.png");
 const LAUNCHER_DP: u32 = 48;
 const MDPI: u32 = 160;
 
-/// The launcher icon of the densest screens, xxxhdpi, at 640 dpi, in pixels:
-/// an image smaller than that blurs there.
-const LARGEST: u32 = LAUNCHER_DP * 640 / MDPI;
+/// The largest the icon is drawn, in pixels: in a Debian package, the
+/// launcher icon of the densest screens being 192. A smaller image blurs
+/// there. Keep in sync with ICON_SIZES in deb.rs.
+const LARGEST: u32 = 512;
+
+/// The longest side of the image of an icon, in pixels: it is drawn on a
+/// square of that side, 16 bytes a pixel, 256 MiB at most then.
+const LONGEST_SIDE: u32 = 4096;
 
 /// The margin around the image, and the radius of its corners, in parts of
 /// the size of the icon.
@@ -53,15 +59,28 @@ impl Icon {
                 format!("Cannot read the icon {}: {error}.", path.display()),
             )
         })?;
-        let image = decode(&png).map_err(|error| {
+        let not_a_png = |error| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("The icon {} is not a PNG file: {error}.", path.display()),
             )
-        })?;
+        };
+        let (width, height) = ImageReader::with_format(Cursor::new(&png), ImageFormat::Png)
+            .into_dimensions()
+            .map_err(not_a_png)?;
+        if width.max(height) > LONGEST_SIDE {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "The icon {} is {width}×{height} pixels: give it {LONGEST_SIDE} pixels at most.",
+                    path.display()
+                ),
+            ));
+        }
+        let image = decode(&png).map_err(not_a_png)?;
         if image.width().max(image.height()) < LARGEST {
             eprintln!(
-                "Warning: the icon {} is {}×{} pixels, and phones and desktops show it at up to {LARGEST} pixels, blurred: give it 512 pixels or more.",
+                "Warning: the icon {} is {}×{} pixels, and desktops show it at up to {LARGEST} pixels, blurred: give it {LARGEST} pixels or more.",
                 path.display(),
                 image.width(),
                 image.height()
@@ -174,7 +193,6 @@ fn coverage(x: u32, y: u32, side: u32, radius: f32) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use std::path::Path;
 
     use super::*;
@@ -312,6 +330,12 @@ mod tests {
             error.to_string().contains("icon.png is not a PNG file"),
             "{error}"
         );
+
+        let long = png(&RgbaImage::new(1, LONGEST_SIDE + 1));
+        let error = Icon::of(&project(&root.join("long"), Some(&long)))
+            .err()
+            .unwrap();
+        assert!(error.to_string().contains("4096 pixels at most"), "{error}");
 
         let missing = project(&root.join("missing"), Some(b""));
         fs::remove_file(root.join("missing/icon.png")).unwrap();

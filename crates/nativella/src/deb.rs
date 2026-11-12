@@ -23,7 +23,8 @@ use crate::notices;
 use crate::output::{Output, build_time, package_name};
 use crate::project::{Manifest, Project};
 
-/// The sizes of the icon desktops pick from, in pixels.
+/// The sizes of the icon desktops pick from, in pixels. Keep the largest in
+/// sync with LARGEST in apk/icon.rs.
 const ICON_SIZES: &[u32] = &[32, 48, 64, 128, 256, 512];
 
 /// What the executable needs on the system, as the releases of `nativella`
@@ -50,8 +51,22 @@ struct Control {
 /// before the end, as semantic versions do a pre-release: 1.2.0~beta.1 comes
 /// before 1.2.0. It would take 1.2.0-beta.1 for 1.2.0, revision beta.1, and
 /// the final 1.2.0 for a downgrade.
+///
+/// The other dashes become dots: after a `~` each, 1.2.0-alpha-1 would come
+/// before 1.2.0-alpha, and it comes after.
 pub fn version(manifest: &Manifest) -> String {
-    manifest.version.replace('-', "~")
+    let (core, suffix) = manifest.version.split_at(
+        manifest
+            .version
+            .find(['-', '+'])
+            .unwrap_or(manifest.version.len()),
+    );
+    let suffix = match suffix.strip_prefix('-') {
+        Some(pre_release) => format!("~{pre_release}"),
+        None => suffix.to_owned(),
+    };
+
+    format!("{core}{}", suffix.replace('-', "."))
 }
 
 /// Debian's name of the architecture of this executable, which the package
@@ -69,9 +84,7 @@ pub fn architecture() -> io::Result<&'static str> {
 /// Writes the package of `project` to `output`. Returns what the executable
 /// left out of the project.
 pub fn build(project: &Project, output: &Path) -> io::Result<LeftOut> {
-    let composer: Value = serde_json::from_slice(&fs::read(project.dir.join("composer.json"))?)
-        .map_err(|error| io::Error::other(format!("composer.json is invalid: {error}.")))?;
-    let control = control(&project.manifest, &composer)?;
+    let control = control(&project.manifest, &composer(project)?)?;
 
     // The executable, in memory, as the rest of the package. The previous
     // package does not ship in it, should it be inside the project.
@@ -81,6 +94,17 @@ pub fn build(project: &Project, output: &Path) -> io::Result<LeftOut> {
     write(project, &control, executable, output)?;
 
     Ok(left_out)
+}
+
+/// The composer.json of `project`, null without one: a plain site may have
+/// none, and the manifest describes the package then.
+fn composer(project: &Project) -> io::Result<Value> {
+    match fs::read(project.dir.join("composer.json")) {
+        Ok(composer) => serde_json::from_slice(&composer)
+            .map_err(|error| io::Error::other(format!("composer.json is invalid: {error}."))),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Value::Null),
+        Err(error) => Err(error),
+    }
 }
 
 /// Writes the package of `project`, described by `control`, of the
@@ -147,24 +171,6 @@ fn write(
 /// The control of the package, from the manifest and the composer.json of
 /// the project.
 fn control(manifest: &Manifest, composer: &Value) -> io::Result<Control> {
-    if !manifest
-        .version
-        .starts_with(|character: char| character.is_ascii_digit())
-    {
-        return Err(io::Error::other(format!(
-            "The version \"{}\" does not start with a digit, which Debian packages need: set \"version\" in extra.nativella.",
-            manifest.version
-        )));
-    }
-    if manifest.version.contains(|character: char| {
-        !character.is_ascii_alphanumeric() && !".+-~".contains(character)
-    }) {
-        return Err(io::Error::other(format!(
-            "The version \"{}\" holds characters that Debian versions cannot: letters, digits and .+-~ only.",
-            manifest.version
-        )));
-    }
-
     let text = |value: &Value| value.as_str().map(one_line).filter(|text| !text.is_empty());
 
     let maintainer = composer["authors"]
@@ -400,6 +406,22 @@ mod tests {
     }
 
     #[test]
+    fn a_project_without_composer_json() {
+        let root =
+            Path::new(env!("OUT_DIR")).join(format!("deb-plain-test-{}", std::process::id()));
+        fs::create_dir_all(root.join("notes/public")).unwrap();
+        fs::write(root.join("notes/public/index.php"), "<?php").unwrap();
+        let project = Project::load(&root.join("notes")).unwrap();
+
+        let control = control(&project.manifest, &composer(&project).unwrap()).unwrap();
+
+        assert_eq!(control.package, "notes");
+        assert_eq!(control.maintainer, "Notes");
+        assert_eq!(control.description, "Notes");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn a_pre_release_comes_before_the_release() {
         let mut notes = manifest("Notes");
 
@@ -407,18 +429,12 @@ mod tests {
 
         assert_eq!(
             control(&notes, &json!({})).unwrap().version,
-            "1.2.0~beta.1+build~7"
+            "1.2.0~beta.1+build.7"
         );
-    }
-
-    #[test]
-    fn a_version_debian_cannot_take_is_refused() {
-        let mut notes = manifest("Notes");
-
-        notes.version = "v1.2.0".to_owned();
-        assert!(control(&notes, &json!({})).is_err());
-        notes.version = "1.2.0 beta".to_owned();
-        assert!(control(&notes, &json!({})).is_err());
+        notes.version = "1.2.0-alpha-1".to_owned();
+        assert_eq!(version(&notes), "1.2.0~alpha.1");
+        notes.version = "1.2.0+git-abc".to_owned();
+        assert_eq!(version(&notes), "1.2.0+git.abc");
     }
 
     #[test]

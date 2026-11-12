@@ -4,6 +4,7 @@ namespace Nativella\Tests;
 
 use Nativella\Client\FakeClient;
 use Nativella\Clipboard;
+use Nativella\Exception\UnexpectedResponseException;
 use PHPUnit\Framework\TestCase;
 
 final class ClipboardTest extends TestCase
@@ -24,5 +25,15 @@ final class ClipboardTest extends TestCase
     public function testAClipboardWithoutImageGivesNull(): void
     {
         $this->assertNull(new Clipboard(new FakeClient())->readImage());
+    }
+
+    public function testAnImageThatIsNotBase64IsRefused(): void
+    {
+        $client = new FakeClient();
+        $client->respond('clipboard.readImage', ['png' => '~not base64~']);
+
+        $this->expectException(UnexpectedResponseException::class);
+
+        new Clipboard($client)->readImage();
     }
 }

@@ -23,6 +23,13 @@ final class NoteTest extends TestCase
         $this->assertSame('milk', $note->getBody());
     }
 
+    public function testAHeadingWithoutTextIsNotATitle(): void
+    {
+        $note = Note::fromFile('draft.md', "#  \n\nSomething.");
+
+        $this->assertSame('draft', $note->getTitle());
+    }
+
     public function testExportAndImportRoundTrip(): void
     {
         $note = new Note('Title', "Line 1\n\nLine 2");

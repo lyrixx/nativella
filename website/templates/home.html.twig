@@ -11,7 +11,7 @@
     {slug: 'tray', name: 'Tray', description: 'An icon in the system tray, with a menu. The app lives on without windows.', example: "$tray->set('Notes')"},
     {slug: 'dialogs', name: 'Dialogs', description: 'Messages, questions, file pickers. The answer is a return value.', example: "$dialog->confirm('Sure?')"},
     {slug: 'notifications', name: 'Notifications', description: 'Desktop notifications, from any request. A click comes back as an event.', example: "$notification->send('Hi')"},
-    {slug: 'clipboard', name: 'Clipboard', description: 'Read and write text and HTML, from PHP.', example: '$clipboard->readText()'},
+    {slug: 'clipboard', name: 'Clipboard', description: 'Read and write text and images, and write HTML, from PHP.', example: '$clipboard->readText()'},
     {slug: 'global-shortcuts', name: 'Global shortcuts', description: 'Keyboard shortcuts that fire while the app is in the background.', example: 'GlobalShortcutPressed'},
     {slug: 'settings', name: 'Settings', description: 'A key-value store for preferences, kept as JSON in the data directory.', example: "$settings->get('theme')"},
     {slug: 'secrets', name: 'Secrets', description: 'Tokens and passwords in the keychain of the system, encrypted by it.', example: "$secrets->get('token')"},
@@ -27,7 +27,7 @@
     {slug: 'database', name: 'Database', description: 'SQLite in the data directory, migrated when the app starts.', example: 'NATIVELLA_DATA_DIR'},
     {slug: 'configuration', name: 'Deep links', description: 'notes://42 in a browser or a mail opens the app, and PHP gets the URL.', example: 'AppUrlsOpened $event'},
     {slug: 'building', name: 'Standalone build', description: 'One executable that carries your whole project and its PHP, a Debian package of it, and updates you sign.', example: 'nativella build notes'},
-    {slug: 'mobile', name: 'Android and iOS', description: 'The same project in an APK or an iOS app, experimentally.', example: 'castor mobile:android symfony'},
+    {slug: 'mobile', name: 'Android and iOS', description: 'The same project in an APK or an iOS app, experimentally.', example: 'nativella android --template <apk>'},
     {slug: 'phone-apis', name: 'Phone APIs', description: 'Vibrations, the location of the phone, fingerprint and face authentication, barcodes, NFC tags, the share sheet.', example: "$biometrics->authenticate('Unlock')"},
 ] %}
 <main id="content">
@@ -401,7 +401,7 @@
             <div class="split-text">
                 <p class="kicker">Android and iOS · experimental</p>
                 <h2 id="phone-title">The Notes demo on a phone.</h2>
-                <p>These screenshots show the Symfony demo, unchanged, built into an APK with <code>castor mobile:android symfony</code> and running on an Android 16 emulator. It has Doctrine migrations at boot, forms and sessions, Markdown, the phone’s clipboard and a native dialog opened by PHP. A note takes the phone’s location in one method call, and the other demos vibrate and ask for a fingerprint. The CI opens it on every change, in an Android emulator and in the iOS simulator.</p>
+                <p>These screenshots show the Symfony demo, unchanged, built into an APK with <code>castor mobile:android symfony</code> and running on an Android 16 emulator. It has Doctrine migrations at boot, forms and sessions, Markdown, the phone’s clipboard and a native dialog opened by PHP. A note takes the phone’s location in one method call, and the other demos vibrate and ask for a fingerprint. The CI opens it in an Android emulator and in the iOS simulator, on every change that can break it.</p>
                 <p class="phone-note">iOS runs in the simulator only for now. The PHP inside is the desktop’s, intl included, built for the phone by Nativella.</p>
                 <p><a class="link-arrow" href="docs/mobile/">Mobile documentation</a></p>
             </div>
@@ -431,7 +431,7 @@
             </div>
             <div class="stats">
                 <div class="stat"><strong>0</strong><span>ports opened</span></div>
-                <div class="stat"><strong>~5 ms</strong><span>a Symfony page with Twig and a session, kernel booted every time</span></div>
+                <div class="stat"><strong>~5 ms</strong><span>a Symfony page with Twig and a session, kernel booted every time, in the proof of concept</span></div>
                 <div class="stat"><strong>1</strong><span>executable for the whole project</span></div>
             </div>
             <div class="status-columns">

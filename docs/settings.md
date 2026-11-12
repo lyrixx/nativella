@@ -16,7 +16,7 @@ Values are anything JSON can hold: strings, numbers, booleans, null, and arrays 
 | `get(string $key, mixed $default = null): mixed` | The value of `$key`, or `$default` when there is none. |
 | `has(string $key): bool` | Whether `$key` is set, even to null. |
 | `set(string $key, mixed $value): void` | |
-| `forget(string $key): void` | Removes `$key`. |
+| `delete(string $key): void` | Removes `$key`. Nothing happens if there is no such key. |
 | `all(): array` | Every setting, by key. |
 | `clear(): void` | Removes every setting. |
 

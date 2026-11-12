@@ -12,7 +12,7 @@ use tauri::menu::{
 };
 use tauri::{AppHandle, Manager, Wry};
 
-use super::{Call, State, failed, lock, window};
+use super::{Call, NativeError, State, failed, invalid_payload, lock, not_found, window};
 use crate::events;
 
 /// A menu entry, as PHP describes it.
@@ -152,7 +152,7 @@ struct Popup {
     items: Vec<Item>,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     Some(match method {
         "set" => call.payload::<Set>().and_then(|payload| {
             let menu = build(call, &payload.items, Place::Application)?;
@@ -178,7 +178,7 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
 
 /// Updates the items with the id of `update`, in the application menu and the
 /// tray menu: an id may be in both. Context menus are gone once closed.
-fn update(call: &Call<'_>, update: &Update) -> Result<Value, String> {
+fn update(call: &Call<'_>, update: &Update) -> Result<Value, NativeError> {
     let tray_menu = lock(&call.state().tray_menu).clone();
     let mut items = Vec::new();
     for menu in [call.app.menu(), tray_menu].into_iter().flatten() {
@@ -186,20 +186,20 @@ fn update(call: &Call<'_>, update: &Update) -> Result<Value, String> {
     }
 
     if items.is_empty() {
-        return Err(format!(
+        return Err(not_found(format!(
             "There is no menu item \"{}\" in the application menu or the tray menu.",
             update.id
-        ));
+        )));
     }
     if update.checked.is_some()
         && items
             .iter()
             .any(|item| !matches!(item, MenuItemKind::Check(_)))
     {
-        return Err(format!(
+        return Err(invalid_payload(format!(
             "The menu item \"{}\" is not a checkbox: it cannot be checked.",
             update.id
-        ));
+        )));
     }
 
     for item in items {
@@ -236,7 +236,7 @@ fn find(
     items: Vec<MenuItemKind<Wry>>,
     id: &str,
     found: &mut Vec<MenuItemKind<Wry>>,
-) -> Result<(), String> {
+) -> Result<(), NativeError> {
     for item in items {
         if let MenuItemKind::Submenu(submenu) = &item {
             find(submenu.items().map_err(failed)?, id, found)?;
@@ -250,7 +250,11 @@ fn find(
 
 /// Builds a Tauri menu for `place`, remembering the links and checkboxes of
 /// its items in place of those of the menu it replaces.
-pub(crate) fn build(call: &Call<'_>, items: &[Item], place: Place) -> Result<Menu<Wry>, String> {
+pub(crate) fn build(
+    call: &Call<'_>,
+    items: &[Item],
+    place: Place,
+) -> Result<Menu<Wry>, NativeError> {
     let mut remembered = Items::default();
     let built = build_items(call.app, &mut remembered, items)?;
     let references: Vec<&dyn IsMenuItem<Wry>> = built.iter().map(AsRef::as_ref).collect();
@@ -264,65 +268,70 @@ fn build_items(
     app: &AppHandle,
     remembered: &mut Items,
     items: &[Item],
-) -> Result<Vec<Box<dyn IsMenuItem<Wry>>>, String> {
+) -> Result<Vec<Box<dyn IsMenuItem<Wry>>>, NativeError> {
     items
         .iter()
-        .map(|item| -> Result<Option<Box<dyn IsMenuItem<Wry>>>, String> {
-            Ok(Some(match item {
-                Item::Action {
-                    id,
-                    label,
-                    accelerator,
-                    enabled,
-                    url,
-                } => {
-                    remembered.actions.insert(id.clone(), url.clone());
-
-                    Box::new(
-                        MenuItem::with_id(app, id, label, *enabled, accelerator.as_deref())
-                            .map_err(failed)?,
-                    )
-                }
-                Item::Checkbox {
-                    id,
-                    label,
-                    checked,
-                    accelerator,
-                    enabled,
-                } => {
-                    let checkbox = CheckMenuItem::with_id(
-                        app,
+        .map(
+            |item| -> Result<Option<Box<dyn IsMenuItem<Wry>>>, NativeError> {
+                Ok(Some(match item {
+                    Item::Action {
                         id,
                         label,
-                        *enabled,
-                        *checked,
-                        accelerator.as_deref(),
-                    )
-                    .map_err(failed)?;
-                    remembered.checkboxes.insert(id.clone(), checkbox.clone());
+                        accelerator,
+                        enabled,
+                        url,
+                    } => {
+                        remembered.actions.insert(id.clone(), url.clone());
 
-                    Box::new(checkbox)
-                }
-                Item::Separator => Box::new(PredefinedMenuItem::separator(app).map_err(failed)?),
-                Item::Submenu {
-                    label,
-                    items,
-                    enabled,
-                } => {
-                    let children = build_items(app, remembered, items)?;
-                    let references: Vec<&dyn IsMenuItem<Wry>> =
-                        children.iter().map(AsRef::as_ref).collect();
+                        Box::new(
+                            MenuItem::with_id(app, id, label, *enabled, accelerator.as_deref())
+                                .map_err(failed)?,
+                        )
+                    }
+                    Item::Checkbox {
+                        id,
+                        label,
+                        checked,
+                        accelerator,
+                        enabled,
+                    } => {
+                        let checkbox = CheckMenuItem::with_id(
+                            app,
+                            id,
+                            label,
+                            *enabled,
+                            *checked,
+                            accelerator.as_deref(),
+                        )
+                        .map_err(failed)?;
+                        remembered.checkboxes.insert(id.clone(), checkbox.clone());
 
-                    Box::new(
-                        Submenu::with_items(app, label, *enabled, &references).map_err(failed)?,
-                    )
-                }
-                Item::Role { role } => match role_item(app, *role).map_err(failed)? {
-                    Some(item) => item,
-                    None => return Ok(None),
-                },
-            }))
-        })
+                        Box::new(checkbox)
+                    }
+                    Item::Separator => {
+                        Box::new(PredefinedMenuItem::separator(app).map_err(failed)?)
+                    }
+                    Item::Submenu {
+                        label,
+                        items,
+                        enabled,
+                    } => {
+                        let children = build_items(app, remembered, items)?;
+                        let references: Vec<&dyn IsMenuItem<Wry>> =
+                            children.iter().map(AsRef::as_ref).collect();
+
+                        Box::new(
+                            Submenu::with_items(app, label, *enabled, &references)
+                                .map_err(failed)?,
+                        )
+                    }
+                    Item::Role { role } => match role_item(app, *role).map_err(failed)? {
+                        Some(item) => item,
+                        None => return Ok(None),
+                    },
+                }))
+            },
+        )
         .filter_map(Result::transpose)
         .collect()
 }

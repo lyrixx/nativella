@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use tauri::image::Image;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
-use super::{Call, failed};
+use super::{Call, NativeError, failed, invalid_payload};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -29,7 +29,7 @@ struct WriteHtml {
     alt_text: Option<String>,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     let clipboard = call.app.clipboard();
 
     Some(match method {
@@ -55,9 +55,9 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
         "writeImage" => call.payload::<WriteImage>().and_then(|payload| {
             let bytes = BASE64_STANDARD
                 .decode(payload.png)
-                .map_err(|error| format!("The image is not base64: {error}."))?;
+                .map_err(|error| invalid_payload(format!("The image is not base64: {error}.")))?;
             let image = Image::from_bytes(&bytes)
-                .map_err(|error| format!("The image is not a PNG: {error}."))?;
+                .map_err(|error| invalid_payload(format!("The image is not a PNG: {error}.")))?;
             clipboard.write_image(&image).map_err(failed)?;
             Ok(json!({}))
         }),
@@ -67,7 +67,7 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
 }
 
 /// The image as a base64-encoded PNG.
-fn png(image: &Image<'_>) -> Result<String, String> {
+fn png(image: &Image<'_>) -> Result<String, NativeError> {
     let mut bytes = Vec::new();
     let mut encoder = png::Encoder::new(&mut bytes, image.width(), image.height());
     encoder.set_color(png::ColorType::Rgba);

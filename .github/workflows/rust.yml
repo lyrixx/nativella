@@ -7,9 +7,7 @@ name: Rust
 # projects, which the smoke tests serve through the runtime, but not their
 # tests, which they do not load; and the Castor tasks and the Docker stack,
 # which every task goes through. Not on the documentation alone. Weekly too.
-# The builder has the Rust stable of the day its image was built, which the
-# build cache keeps until the Dockerfile changes: with the monthly updates of
-# Dependabot, at least.
+# The builder has the Rust its Dockerfile pins (RUST_VERSION).
 #
 # Its cache, the cargo registry and the build of the dependencies, is the one
 # of main: main saves it, a pull request restores it (see
@@ -82,10 +80,14 @@ jobs:
             - name: "Set up the Docker stack"
               uses: ./.github/actions/stack
 
+            # The version of the workspace, in every file that repeats it
+            - name: "Check the versions"
+              run: "castor qa:versions"
+
             - name: "Build the builder"
               run: "castor docker:build --service=builder"
 
-            # The Rust of the image, which moves when the image is built again
+            # The Rust of the image, which moves with RUST_VERSION in its Dockerfile
             - name: "Read the version of Rust"
               id: rust
               shell: bash
@@ -147,3 +149,9 @@ jobs:
               with:
                   key: ${{ steps.cargo.outputs.cache-primary-key }}
                   prefix: cargo-debug-
+
+            # Last, once the build is saved. Weekly, and by hand: a new advisory
+            # is no fault of a pull request
+            - name: "Check the crates against the advisories of RustSec"
+              if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+              run: "castor qa:rust-audit"

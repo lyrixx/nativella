@@ -44,6 +44,8 @@ if (null !== $path) {
 
 A cancelled dialog returns null, or an empty list. `$directory` is where the dialog starts, `$fileName` the name `saveFile()` suggests.
 
+On phones, `openDirectory()` and `saveFile()` throw a `NativeCallException`. `openFile()` and `openFiles()` work, and the path PHP gets is a copy of the picked file, in the application's cache directory. Nativella removes these copies at the next start, so move or copy a file you want to keep.
+
 `Nativella\Dialog\FileFilter` restricts the choice to some extensions, without the dot:
 
 ```php

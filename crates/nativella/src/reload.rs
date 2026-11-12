@@ -12,6 +12,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+use notify::event::ModifyKind;
 use notify::{Event, EventKind, RecursiveMode, Watcher};
 use tauri::{AppHandle, Manager};
 
@@ -67,8 +68,14 @@ pub(crate) fn watch(app: &AppHandle, dir: &Path, data_dir: &Path) {
         .map(|path| dir.join(path))
         .chain([data_dir.to_owned()])
         .collect();
-    // Each entry on its own: a recursive watch of the project would watch
-    // the thousands of directories of vendor/ too.
+    // The project itself, for its files and the directories it gets: a
+    // watch on a file is lost when an editor saves it by replacing it. Then
+    // each directory on its own: a recursive watch of the project would
+    // watch the thousands of directories of vendor/ too.
+    if let Err(error) = watcher.watch(&dir, RecursiveMode::NonRecursive) {
+        eprintln!("[reload] Cannot watch {}: {error}.", dir.display());
+        return;
+    }
     let entries = match dir.read_dir() {
         Ok(entries) => entries,
         Err(error) => {
@@ -77,32 +84,22 @@ pub(crate) fn watch(app: &AppHandle, dir: &Path, data_dir: &Path) {
         }
     };
     for entry in entries.flatten() {
-        let path = entry.path();
-        if left_out.contains(&path) {
-            continue;
-        }
-        let mode = if path.is_dir() {
-            RecursiveMode::Recursive
-        } else {
-            RecursiveMode::NonRecursive
-        };
-        if let Err(error) = watcher.watch(&path, mode) {
-            eprintln!("[reload] Cannot watch {}: {error}.", path.display());
-        }
+        watch_directory(&mut watcher, &entry.path(), &left_out);
     }
 
     let app = app.clone();
     let spawned = thread::Builder::new()
         .name("reload".to_owned())
         .spawn(move || {
-            // Lives as long as the thread.
-            let _watcher = watcher;
             while let Ok(event) = events.recv() {
+                watch_created(&mut watcher, &event, &dir, &left_out);
                 let Some(changed) = changed(event, &left_out) else {
                     continue;
                 };
                 // Until the files stop changing.
-                while events.recv_timeout(QUIET).is_ok() {}
+                while let Ok(event) = events.recv_timeout(QUIET) {
+                    watch_created(&mut watcher, &event, &dir, &left_out);
+                }
 
                 eprintln!(
                     "[reload] {} changed: reloading the windows.",
@@ -117,6 +114,42 @@ pub(crate) fn watch(app: &AppHandle, dir: &Path, data_dir: &Path) {
         });
     if let Err(error) = spawned {
         eprintln!("[reload] Cannot watch the project: {error}.");
+    }
+}
+
+/// Watches `path` and what it holds, when it is a directory that is not
+/// left out.
+fn watch_directory(watcher: &mut impl Watcher, path: &Path, left_out: &[PathBuf]) {
+    if !path.is_dir() || left_out.iter().any(|left_out| left_out == path) {
+        return;
+    }
+    if let Err(error) = watcher.watch(path, RecursiveMode::Recursive) {
+        eprintln!("[reload] Cannot watch {}: {error}.", path.display());
+    }
+}
+
+/// Watches the directories `event` says the project `dir` got since it
+/// started.
+fn watch_created(
+    watcher: &mut impl Watcher,
+    event: &notify::Result<Event>,
+    dir: &Path,
+    left_out: &[PathBuf],
+) {
+    let Ok(event) = event else {
+        return;
+    };
+    // Made, or moved there.
+    if !matches!(
+        event.kind,
+        EventKind::Create(_) | EventKind::Modify(ModifyKind::Name(_))
+    ) {
+        return;
+    }
+    for path in &event.paths {
+        if path.parent() == Some(dir) {
+            watch_directory(watcher, path, left_out);
+        }
     }
 }
 
@@ -147,7 +180,7 @@ fn changed(event: notify::Result<Event>, left_out: &[PathBuf]) -> Option<PathBuf
 
 #[cfg(test)]
 mod tests {
-    use notify::event::{AccessKind, CreateKind, ModifyKind};
+    use notify::event::{AccessKind, CreateKind};
 
     use super::*;
 

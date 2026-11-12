@@ -33,7 +33,7 @@ Labels are made of letters, digits, `-`, `/`, `:` and `_`.
 
 `open(string $window, ?WindowOptions $options = null): WindowInfo` opens the window labelled `$window` and returns its [`WindowInfo`](#window-info). If a window with that label is already open, `open()` focuses it instead, and ignores the options.
 
-The `main` window starts from the [`window`](configuration.md#window) options in `composer.json`, and the options you pass complete them. `$window->open('main')` opens it again exactly as at startup.
+The `main` window starts from the [`window`](configuration.md#window) options in `composer.json`, and the options you pass complete them. `$window->open('main')` opens it again with them, [where the user left it](#what-a-window-remembers).
 
 The new window's first request waits for the current one to finish, since one PHP thread serves them all.
 
@@ -43,7 +43,7 @@ The new window's first request waits for the current one to finish, since one PH
 
 | Option | Type | Default | |
 |---|---|---|---|
-| `url` | `?string` | `'/'` | An application path (`/settings`), or an absolute URL. |
+| `url` | `?string` | `'/'` | An application path (`/settings`). The window does not load another website: see [What a window loads](#what-a-window-loads). |
 | `title` | `?string` | The application name | |
 | `width`, `height` | `?float` | 1024 × 768 | The size of the page area, in logical pixels. |
 | `minWidth`, `minHeight` | `?float` | | Applied when both are set. |
@@ -58,6 +58,12 @@ The new window's first request waits for the current one to finish, since one PH
 | `focused` | `?bool` | `true` | Whether the window takes the focus when it opens. |
 | `visible` | `?bool` | `true` | `false` opens it hidden, until `show()`. |
 | `skipTaskbar` | `?bool` | `false` | Leaves the window out of the taskbar. |
+
+### What a window remembers
+
+On computers, a window opens again where the user left it. For each label, Nativella keeps the window's size, its position, whether it was maximized or in full screen, and whether it had decorations. It applies them when a window with that label opens again, in the same run or at the next start. They win over `width`, `height`, `x`, `y`, `center`, `maximized`, `fullscreen` and `decorations`, in `WindowOptions` and in `composer.json`, so these options only count the first time a label opens. The position is restored only when its display is still there.
+
+The state is written when the application quits, to `.window-state.json` in the application's configuration directory, [`Directory::AppConfig`](app.md#directories): `~/.config/<identifier>` on Linux. Delete the file to open the windows from their options again.
 
 ## Driving windows
 
@@ -83,8 +89,10 @@ The new window's first request waits for the current one to finish, since one PH
 | `setProgress(?int $percent, ?string $window = null): void` | Shows a progress bar, from 0 to 100, on the window's icon in the taskbar or the dock (Windows, macOS, GNOME with libunity). Null removes it. Desktop only. |
 | `print(?string $window = null): void` | Opens the system print dialog, which can also print to PDF, for the window's page. |
 | `printToPdf(string $path, ?string $window = null): void` | Writes the window's page to a PDF file, at an absolute path, without a dialog, for an invoice or a report. `@media print` styles apply. Linux only, for now. |
-| `navigate(string $url, ?string $window = null): void` | Loads an application path (`/notes/42`), or an absolute URL. |
+| `navigate(string $url, ?string $window = null): void` | Loads an application path (`/notes/42`). The URL of another website opens in the system browser, as a link to it does. |
 | `openDevtools(?string $window = null): void` | Opens the window's web inspector. Debug builds of Nativella only. Elsewhere it throws. |
+
+On phones, a window fills the screen, so `center()`, `minimize()`, `maximize()`, `unmaximize()`, `setAlwaysOnTop()`, `setFullscreen()`, `setProgress()`, `print()` and `printToPdf()` throw a `NativeCallException` there, and the size, position and decoration options are ignored. See [What runs where](platforms.md).
 
 ## Window info
 

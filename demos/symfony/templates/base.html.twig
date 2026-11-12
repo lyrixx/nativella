@@ -25,6 +25,9 @@
                 {% else %}
                     <p class="muted empty-list">No note.</p>
                 {% endfor %}
+                {% if notes.hasMore %}
+                    <p class="muted empty-list">Only the {{ notes|length }} most recent notes are listed: search to find the others.</p>
+                {% endif %}
             </nav>
             <footer class="sidebar-actions">
                 <a class="button primary" href="{{ path('note_new') }}">New note</a>
@@ -38,6 +41,9 @@
         <main>
             {% for message in app.flashes('success') %}
                 <p class="flash" role="status">{{ message }}</p>
+            {% endfor %}
+            {% for message in app.flashes('error') %}
+                <p class="flash error" role="alert">{{ message }}</p>
             {% endfor %}
             {% if not nativella_is_native() %}
                 <p class="flash warning">Running in a browser: native features (dialogs, clipboard, export…) need Nativella.</p>

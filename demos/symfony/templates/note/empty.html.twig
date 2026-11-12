@@ -3,10 +3,12 @@
 {% block body %}
     <section class="empty">
         <h1>No notes yet</h1>
-        {% if nativella_is_mobile() %}
+        {% if not nativella_is_native() %}
+            <p>Write your first note.</p>
+        {% elseif nativella_is_mobile() %}
             <p>Write your first note, or import Markdown files.</p>
         {% else %}
-            <p>Write your first note, import Markdown files{% if nativella_is_native() %}, or drop them on this window{% endif %}.</p>
+            <p>Write your first note, import Markdown files, or drop them on this window.</p>
             <p class="shortcuts">
                 <kbd>Ctrl</kbd> <kbd>N</kbd> new note ·
                 <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>N</kbd> quick note, from anywhere

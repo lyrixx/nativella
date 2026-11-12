@@ -3,6 +3,7 @@
 namespace Nativella\Symfony\Tests\DataCollector;
 
 use Nativella\Client\FakeClient;
+use Nativella\Exception\ErrorKind;
 use Nativella\Exception\NativeCallException;
 use Nativella\Notification;
 use Nativella\Secrets;
@@ -18,7 +19,7 @@ final class NativellaDataCollectorTest extends TestCase
     public function testTheCallsOfTheRequest(): void
     {
         $fake = new FakeClient();
-        $fake->respond('notification.send', new NativeCallException('notification.send', new \RuntimeException('No notification server.')));
+        $fake->fail('notification.send', ErrorKind::Failed, 'No notification server.');
         $client = new TraceableClient($fake);
         try {
             new Notification($client)->send('Saved');

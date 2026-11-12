@@ -4,10 +4,17 @@ namespace App\Tests\EventListener;
 
 use App\Native\Desktop;
 use App\Tests\NotesTestCase;
-use Nativella\Exception\NativeCallException;
+use Nativella\Exception\ErrorKind;
 
 final class NativeEventsTest extends NotesTestCase
 {
+    protected function tearDown(): void
+    {
+        unset($_SERVER['NATIVELLA_PLATFORM']);
+
+        parent::tearDown();
+    }
+
     public function testTheApplicationSetsItselfUpAtBoot(): void
     {
         $this->sendNativeEvent('app.booted');
@@ -17,9 +24,29 @@ final class NativeEventsTest extends NotesTestCase
         $this->assertSame('Nativella Notes: 0 notes', $this->fakeClient()->calls('tray.set')[0]->payload['tooltip']);
     }
 
+    public function testQuitEndsTheFileMenu(): void
+    {
+        $this->sendNativeEvent('app.booted');
+
+        $items = $this->fakeClient()->calls('menu.set')[0]->payload['items'];
+        $this->assertSame(['File', 'Edit', 'View', 'Window', 'Help'], array_column($items, 'label'));
+        $this->assertSame(['type' => 'role', 'role' => 'quit'], $items[0]['items'][array_key_last($items[0]['items'])]);
+    }
+
+    public function testOnMacOsTheApplicationMenuComesFirst(): void
+    {
+        $_SERVER['NATIVELLA_PLATFORM'] = 'macos';
+
+        $this->sendNativeEvent('app.booted');
+
+        $items = $this->fakeClient()->calls('menu.set')[0]->payload['items'];
+        $this->assertSame(['Nativella Notes', 'File', 'Edit', 'View', 'Window', 'Help'], array_column($items, 'label'));
+        $this->assertNotContains(['type' => 'role', 'role' => 'quit'], $items[1]['items']);
+    }
+
     public function testATakenShortcutStillOpensTheWindow(): void
     {
-        $this->fakeClient()->respond('globalShortcut.register', new NativeCallException('globalShortcut.register', new \RuntimeException('Already taken.')));
+        $this->fakeClient()->fail('globalShortcut.register', ErrorKind::Failed, 'Already taken.');
 
         $this->sendNativeEvent('app.booted');
 
@@ -42,6 +69,16 @@ final class NativeEventsTest extends NotesTestCase
         $this->assertEquals(['event' => 'notes.changed', 'detail' => (object) ['deleted' => $id], 'window' => null], $this->fakeClient()->calls('page.dispatch')[0]->payload);
     }
 
+    public function testPinFromTheContextMenuReloadsThePages(): void
+    {
+        $note = $this->createNote();
+
+        $this->sendNativeEvent('menu.itemClicked', ['id' => "note.pin:{$note->getId()}", 'checked' => null]);
+
+        $this->assertTrue($this->notes()->find($note->getId())?->isPinned());
+        $this->assertCount(1, $this->fakeClient()->calls('page.dispatch'));
+    }
+
     public function testAContextMenuOfADeletedNoteDoesNothing(): void
     {
         $this->sendNativeEvent('menu.itemClicked', ['id' => 'note.delete:999999', 'checked' => null]);
@@ -60,14 +97,39 @@ final class NativeEventsTest extends NotesTestCase
 
         $this->assertSame(['Pancakes'], array_map(static fn ($note) => $note->getTitle(), $this->notes()->findAll()));
         $this->assertSame(
-            ['title' => 'Nativella Notes', 'body' => 'Imported "Pancakes". Skipped photo.png: only Markdown and text files up to 1 MB are supported.', 'reference' => null],
+            ['title' => 'Nativella Notes', 'body' => 'Imported "Pancakes". Skipped photo.png: only Markdown and text files in UTF-8, up to 1 MB, are supported.', 'reference' => null],
             $this->fakeClient()->calls('notification.send')[0]->payload,
         );
     }
 
+    public function testDroppedFilesThatAreNotUtf8TextAreSkipped(): void
+    {
+        $fixtures = \dirname(__DIR__).'/Fixtures';
+
+        $this->sendNativeEvent('window.filesDropped', ['window' => 'main', 'paths' => ["$fixtures/latin1.txt", "$fixtures/binary.txt"]]);
+
+        $this->assertSame([], $this->notes()->findAll());
+        $this->assertSame(
+            'No note imported. Skipped latin1.txt, binary.txt: only Markdown and text files in UTF-8, up to 1 MB, are supported.',
+            $this->fakeClient()->calls('notification.send')[0]->payload['body'],
+        );
+        $this->assertSame([], $this->fakeClient()->calls('page.dispatch'));
+    }
+
+    public function testAnExportFromTheContextMenuThatCannotBeWrittenIsShown(): void
+    {
+        $note = $this->createNote();
+        $this->fakeClient()->respond('dialog.saveFile', ['path' => __FILE__.'/groceries.md']);
+
+        $this->sendNativeEvent('menu.itemClicked', ['id' => "note.export:{$note->getId()}", 'checked' => null]);
+
+        $this->assertSame('error', $this->fakeClient()->calls('dialog.message')[0]->payload['kind']);
+        $this->assertSame([], $this->fakeClient()->calls('notification.send'));
+    }
+
     public function testDeveloperToolsThatDoNotExistAreExplained(): void
     {
-        $this->fakeClient()->respond('window.openDevtools', new NativeCallException('window.openDevtools', new \RuntimeException('Developer tools only exist in debug builds.')));
+        $this->fakeClient()->fail('window.openDevtools', ErrorKind::Unavailable, 'Developer tools only exist in debug builds.');
 
         $this->sendNativeEvent('menu.itemClicked', ['id' => 'view.devtools', 'checked' => null]);
 

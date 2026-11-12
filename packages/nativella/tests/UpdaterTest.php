@@ -6,8 +6,10 @@ use Nativella\Client\FakeClient;
 use Nativella\Event\EventFactory;
 use Nativella\Event\UpdaterFailed;
 use Nativella\Event\UpdaterInstalled;
+use Nativella\Exception\UnexpectedResponseException;
 use Nativella\Updater;
 use Nativella\Updater\Update;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class UpdaterTest extends TestCase
@@ -36,10 +38,28 @@ final class UpdaterTest extends TestCase
 
     public function testADateThatIsNotRfc3339IsRefused(): void
     {
-        $this->expectException(\UnexpectedValueException::class);
+        $this->expectException(UnexpectedResponseException::class);
         $this->expectExceptionMessage('The "pub_date" of the release, "27/10/2026", is not an RFC 3339 date, as "2026-10-27T10:00:00Z".');
 
         Update::fromArray(['version' => '1.3.0', 'notes' => null, 'date' => '27/10/2026']);
+    }
+
+    #[DataProvider('provideImpossibleDates')]
+    public function testADateThatIsNoDayOrTimeOfTheCalendarIsRefused(string $date): void
+    {
+        $this->expectException(UnexpectedResponseException::class);
+
+        Update::fromArray(['version' => '1.3.0', 'notes' => null, 'date' => $date]);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function provideImpossibleDates(): iterable
+    {
+        yield 'a 13th month' => ['2026-13-01T10:00:00Z'];
+        yield 'February 30th' => ['2026-02-30T10:00:00Z'];
+        yield 'a 25th hour' => ['2026-10-27T25:00:00Z'];
     }
 
     public function testTheLatestRelease(): void

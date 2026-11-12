@@ -190,6 +190,7 @@ impl Manifest {
             .unwrap_or_else(|| "app".to_owned());
 
         let name = section.name.unwrap_or_else(|| title_case(&slug));
+        validate_name(&name)?;
         let identifier = section
             .identifier
             .unwrap_or_else(|| format!("dev.nativella.{}", identifier_segment(&slug)));
@@ -225,6 +226,21 @@ impl Manifest {
             updates: section.updates,
         })
     }
+}
+
+/// The name goes under the icon of the application, and in one line of its
+/// desktop entry and of the control file of its Debian package.
+fn validate_name(name: &str) -> io::Result<()> {
+    if !name.trim().is_empty() && !name.contains(char::is_control) {
+        return Ok(());
+    }
+
+    Err(io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!(
+            "{name:?} cannot name an application: set extra.nativella.name in composer.json to a name, on one line."
+        ),
+    ))
 }
 
 /// The identifier names directories: keep it to what a reverse domain name
@@ -394,6 +410,19 @@ mod tests {
         assert_eq!(manifest.identifier, "com.acme.notes");
         assert_eq!(manifest.version, "2.0.0");
         assert_eq!(manifest.window.get("width"), Some(&json!(400)));
+    }
+
+    #[test]
+    fn rejects_a_name_that_is_empty_or_not_on_one_line() {
+        for name in ["", "  ", "Notes\nPro", "Notes\tPro"] {
+            let error =
+                manifest(json!({ "extra": { "nativella": { "name": name } } })).unwrap_err();
+
+            assert_eq!(error.kind(), io::ErrorKind::InvalidData, "{name:?}");
+            assert!(error.to_string().contains("extra.nativella.name"));
+        }
+        // A package name that title case makes nothing of.
+        assert!(manifest(json!({ "name": "acme/_" })).is_err());
     }
 
     #[test]

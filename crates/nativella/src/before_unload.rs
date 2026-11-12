@@ -52,7 +52,8 @@ pub(crate) fn close(window: WebviewWindow) {
     });
 }
 
-/// Quits, once the pages of every window let them go or the user confirms.
+/// Quits, once the pages of every window let them go or the user confirms,
+/// and PHP has answered what they sent before.
 #[cfg(target_os = "linux")]
 pub(crate) fn quit(app: &tauri::AppHandle) {
     use std::time::Instant;
@@ -74,7 +75,7 @@ pub(crate) fn quit(app: &tauri::AppHandle) {
         {
             return;
         }
-        app.exit(0);
+        crate::quit(&app);
     });
 }
 

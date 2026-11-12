@@ -10,7 +10,7 @@ The [Tasks demo](../demos/laravel) is a complete Laravel application built with 
 composer require nativella/laravel
 ```
 
-It brings `nativella/nativella`, the native APIs. Package discovery registers `Nativella\Laravel\NativellaServiceProvider`. Then run the application, with the [`nativella` command](installation.md):
+It brings `nativella/nativella`, the native APIs. The package needs PHP 8.4 or later, and Laravel 12 or 13. Package discovery registers `Nativella\Laravel\NativellaServiceProvider`. Then run the application, with the [`nativella` command](installation.md):
 
 ```bash
 nativella run .
@@ -40,7 +40,7 @@ Some facades share their name with Laravel's: `Nativella\Laravel\Facades\App` an
 
 ## Native events are Laravel events
 
-The package routes `POST /_nativella/event` outside the `web` middleware group (no session, no CSRF token), and dispatches the event object through the event dispatcher. Listeners in `app/Listeners` are discovered by the type of their `handle()` method, as usual:
+The package routes `POST /_nativella/event` outside the `web` middleware group, and dispatches the event object through the event dispatcher. A listener of a native event has no session and no authenticated user, so `session()` and `auth()->user()` give nothing there. Listeners in `app/Listeners` are discovered by the type of their `handle()` method, as usual:
 
 ```php title="app/Listeners/SetApplicationMenu.php"
 namespace App\Listeners;
@@ -101,11 +101,15 @@ final readonly class RunMenuAction
 
 The route answers 404 to anything but the runtime. It checks `$_SERVER['NATIVELLA_INTERNAL']`, which a page cannot set. Every event and its properties are listed in [Lifecycle and events](lifecycle.md#native-events).
 
+After its own class, every event is also dispatched as a `Nativella\Event\NativeEvent`, with its `name` and its raw `payload`. Listen to it for all the events, or for one this version of the package has no class for.
+
+A native call that fails throws a `NativeCallException`, which says why with a `kind`. See [Errors](plain-php.md#errors).
+
 ## The database
 
-In Nativella, the package points the `sqlite` connection at `database.sqlite` in the [data directory](configuration.md#the-data-directory), creates the file, and makes `sqlite` the default connection, whatever `.env` says. Outside Nativella (`php artisan`, `php artisan serve`, the tests), your database configuration applies unchanged.
+In Nativella, the package points the `sqlite` connection at `database.sqlite` in the [data directory](configuration.md#the-data-directory), creates the file, and makes `sqlite` the default connection, whatever `.env` says: it ignores `DB_URL`, and the failed jobs and the job batches of the queue go to that connection too. Outside Nativella (`php artisan`, `php artisan serve`, the tests), your database configuration applies unchanged.
 
-When the application starts, on `AppBooted`, the package runs `migrate --force` before the application's listeners, so every user's database follows the code, with no deployment step. Write migrations as usual. See [Database](database.md).
+When the application starts, on `AppBooted`, the package runs `migrate --force` before the application's listeners, so every user's database follows the code, with no deployment step. Write migrations as usual. On a new database, a schema dump of `php artisan schema:dump` (`database/schema/sqlite-schema.sql`) is loaded first, through PDO, because users' machines have no `sqlite3` command. See [Database](database.md).
 
 To work on the application's database from the command line, give Artisan the same data directory:
 
@@ -115,7 +119,7 @@ NATIVELLA_DATA_DIR=~/.local/share/com.acme.tasks php artisan tinker
 
 ## The encryption key
 
-The `.env` file ships with the application, and its `APP_KEY` with it, so every user would have the same key and anyone holding the application could forge any installation's cookies. In Nativella, the package replaces `app.key` with the secret the runtime creates for each installation (`NATIVELLA_SECRET`). There is nothing to configure.
+The `.env` file ships with the application, and its `APP_KEY` with it, so every user would have the same key and anyone holding the application could forge any installation's cookies. In Nativella, the package replaces `app.key` with the secret the runtime creates for each installation (`NATIVELLA_SECRET`), and empties `app.previous_keys`. There is nothing to configure.
 
 ## Configuration
 
@@ -143,15 +147,24 @@ php artisan vendor:publish --tag=nativella-config
 @endnative
 ```
 
+`@unlessnative … @endnative` shows it only outside Nativella:
+
+```blade
+<form method="post" action="{{ route('tasks.destroy', $task) }}" @unlessnative onsubmit="return confirm('Delete this task?')" @endnative>
+```
+
 The `Nativella\Laravel\Http\Middleware\EnsureNative` middleware hides a route outside Nativella, with a 404:
 
 ```php title="routes/web.php"
+use App\Http\Controllers\ExportTasksController;
 use Nativella\Laravel\Http\Middleware\EnsureNative;
 
-Route::post('/tasks/export', ExportTasks::class)->name('tasks.export')->middleware(EnsureNative::class);
+Route::post('/tasks/export', ExportTasksController::class)->name('tasks.export')->middleware(EnsureNative::class);
 ```
 
 Laravel builds absolute URLs (`route()`, `url()`, `asset()`) from the request, so they point to `http://localhost/…` in Nativella. The runtime rewrites them to the window's address in the HTML URL attributes and CSS `url()` that PHP answers, and links, forms and assets work as usual. In JSON and scripts, use relative URLs (`route('notes.show', $note, absolute: false)`), because only `fetch()`, `XMLHttpRequest` and `EventSource` requests to `http://localhost/` are brought back to the application. See [Pages and JavaScript](javascript.md#links-and-absolute-urls).
+
+In a [standalone build](building.md#what-ships), the `public/storage` link of `php artisan storage:link` ships as an empty directory, so the files of the public disk are not served through it. Serve them from a route instead.
 
 ## Testing
 

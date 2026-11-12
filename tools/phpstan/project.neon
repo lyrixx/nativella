@@ -5,6 +5,10 @@
 # an extension) adds a phpstan.dist.neon that includes this file.
 parameters:
     level: 8
+    # The packages promise PHP 8.4 (their composer.json), the builder has 8.5
+    phpVersion:
+        min: 80400
+        max: 80599
     # Set by castor qa:phpstan: a cache per project, as they share no class
     tmpDir: %env.PHPSTAN_TMP_DIR%
     inferPrivatePropertyTypeFromConstructor: true

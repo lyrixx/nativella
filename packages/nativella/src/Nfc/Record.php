@@ -2,6 +2,8 @@
 
 namespace Nativella\Nfc;
 
+use Nativella\Exception\UnexpectedResponseException;
+
 /**
  * A record of a tag's NDEF message. $type, $id and $payload are bytes, and
  * text() and uri() read the records most tags hold.
@@ -72,7 +74,7 @@ final readonly class Record
     {
         $bytes = base64_decode($base64, true);
         if (false === $bytes) {
-            throw new \UnexpectedValueException(\sprintf('The runtime sent bytes of an NFC record that are not base64: "%s".', $base64));
+            throw new UnexpectedResponseException(\sprintf('The runtime sent bytes of an NFC record that are not base64: "%s".', $base64));
         }
 
         return $bytes;

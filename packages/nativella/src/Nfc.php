@@ -16,7 +16,8 @@ final readonly class Nfc
     }
 
     /**
-     * Whether the phone has NFC, turned on.
+     * Whether the phone has NFC, turned on. False on a computer, and on a
+     * phone whose application does not ask for "nfc".
      */
     public function isAvailable(): bool
     {

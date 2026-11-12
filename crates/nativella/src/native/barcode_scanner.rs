@@ -25,7 +25,7 @@ use tauri::plugin::{Builder, PermissionState, PluginHandle, TauriPlugin};
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Manager, Wry};
 
-use super::{Call, failed, lock};
+use super::{Call, NativeError, failed, lock, not_found, timeout};
 
 // Nothing of the crate is used by name, but its build script asks for the Swift
 // library that holds the symbol below: rustc leaves out the link directives of
@@ -79,7 +79,7 @@ struct Scan {
 /// How a scan ends.
 enum Outcome {
     /// What the plugin answered.
-    Scanned(Result<Scanned, String>),
+    Scanned(Result<Scanned, NativeError>),
     /// The user cancelled: the page already told the plugin.
     Cancelled,
 }
@@ -139,7 +139,7 @@ pub(crate) fn plugin() -> TauriPlugin<Wry> {
         .build()
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     Some(match method {
         "scan" => call
             .payload::<Scan>()
@@ -149,7 +149,7 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
 }
 
 /// The barcode, or null when the user does not allow the camera or cancels.
-fn scan(call: &Call<'_>, payload: Scan) -> Result<Value, String> {
+fn scan(call: &Call<'_>, payload: Scan) -> Result<Value, NativeError> {
     if !camera_allowed(call.app)? {
         return Ok(json!({ "barcode": null }));
     }
@@ -175,7 +175,7 @@ fn scan(call: &Call<'_>, payload: Scan) -> Result<Value, String> {
 
 /// Shows the camera in `window`, starts it, and waits for a code, the user
 /// cancelling, or the end of the time.
-fn read(app: &AppHandle, window: &str, payload: Scan) -> Result<Outcome, String> {
+fn read(app: &AppHandle, window: &str, payload: Scan) -> Result<Outcome, NativeError> {
     let (sender, receiver) = mpsc::channel();
     let scanner = app.state::<Scanner>();
     *lock(&scanner.session) = Some(Session {
@@ -187,7 +187,7 @@ fn read(app: &AppHandle, window: &str, payload: Scan) -> Result<Outcome, String>
 
     let window = app
         .get_webview_window(window)
-        .ok_or_else(|| format!("There is no \"{window}\" window."))?;
+        .ok_or_else(|| not_found(format!("There is no \"{window}\" window.")))?;
     if let Err(error) =
         overlay(Some(&payload.cancel_label)).and_then(|script| window.eval(script).map_err(failed))
     {
@@ -235,10 +235,10 @@ fn read(app: &AppHandle, window: &str, payload: Scan) -> Result<Outcome, String>
         Ok(outcome) => Ok(outcome),
         Err(_) => {
             stop(app);
-            Err(format!(
+            Err(timeout(format!(
                 "The phone read no barcode within {} seconds.",
                 SCAN_TIMEOUT.as_secs()
-            ))
+            )))
         }
     }
 }
@@ -276,12 +276,12 @@ pub(crate) async fn nativella_cancel_scan(app: AppHandle) -> Result<(), String> 
         .run_mobile_plugin_async::<Value>("cancel", ())
         .await
         .map(|_| ())
-        .map_err(failed)
+        .map_err(|error| error.to_string())
 }
 
 /// Whether the user lets the application use the camera: asked the first
 /// time.
-fn camera_allowed(app: &AppHandle) -> Result<bool, String> {
+fn camera_allowed(app: &AppHandle) -> Result<bool, NativeError> {
     let (sender, receiver) = mpsc::channel();
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -291,14 +291,14 @@ fn camera_allowed(app: &AppHandle) -> Result<bool, String> {
     });
 
     receiver.recv_timeout(PERMISSION_TIMEOUT).map_err(|_| {
-        format!(
+        timeout(format!(
             "The user did not answer whether the application may use the camera within {} seconds.",
             PERMISSION_TIMEOUT.as_secs()
-        )
+        ))
     })?
 }
 
-async fn permission(handle: &PluginHandle<Wry>) -> Result<bool, String> {
+async fn permission(handle: &PluginHandle<Wry>) -> Result<bool, NativeError> {
     let mut status: Permissions = handle
         .run_mobile_plugin_async("checkPermissions", ())
         .await
@@ -318,7 +318,7 @@ async fn permission(handle: &PluginHandle<Wry>) -> Result<bool, String> {
 
 /// The script that shows the frame and the button of the page with
 /// `cancel_label`, or takes them away.
-fn overlay(cancel_label: Option<&str>) -> Result<String, String> {
+fn overlay(cancel_label: Option<&str>) -> Result<String, NativeError> {
     // JSON is valid JavaScript: the label needs no other escaping.
     let label = serde_json::to_string(&cancel_label).map_err(failed)?;
 

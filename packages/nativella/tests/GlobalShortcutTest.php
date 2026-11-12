@@ -6,6 +6,7 @@ use Nativella\Client\Call;
 use Nativella\Client\FakeClient;
 use Nativella\Event\EventFactory;
 use Nativella\Event\GlobalShortcutPressed;
+use Nativella\Exception\ErrorKind;
 use Nativella\Exception\NativeCallException;
 use Nativella\GlobalShortcut;
 use PHPUnit\Framework\TestCase;
@@ -36,7 +37,7 @@ final class GlobalShortcutTest extends TestCase
     public function testAShortcutAnotherApplicationHolds(): void
     {
         $client = new FakeClient();
-        $client->respond('globalShortcut.register', new NativeCallException('globalShortcut.register', new \RuntimeException('Already taken.')));
+        $client->fail('globalShortcut.register', ErrorKind::Failed, 'Already taken.');
 
         $this->expectException(NativeCallException::class);
 

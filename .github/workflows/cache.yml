@@ -18,6 +18,12 @@ name: Push docker image to registry
             - "infrastructure/docker/**"
     workflow_dispatch:
 
+# The cache of the latest push is the one to keep: a run before it would
+# push an older one over it
+concurrency:
+    group: cache
+    cancel-in-progress: true
+
 permissions:
     contents: read
     packages: write

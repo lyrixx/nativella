@@ -2,9 +2,11 @@
 
 namespace App\Tests\Controller;
 
+use App\Entity\Note;
+use App\Repository\NoteRepository;
 use App\Tests\NotesTestCase;
 use Nativella\Client\Call;
-use Nativella\Exception\NativeCallException;
+use Nativella\Exception\ErrorKind;
 
 final class NoteControllerTest extends NotesTestCase
 {
@@ -47,6 +49,14 @@ final class NoteControllerTest extends NotesTestCase
         $this->assertSelectorNotExists('.markdown a[href^="javascript:"]');
     }
 
+    public function testTheFieldsOfTheFormHaveAName(): void
+    {
+        $this->client->request('GET', '/notes/new');
+
+        $this->assertSelectorExists('input[name="note[title]"][aria-label="Title"]');
+        $this->assertSelectorExists('textarea[name="note[body]"][aria-label="Note, in Markdown"]');
+    }
+
     public function testATitleIsRequired(): void
     {
         $this->client->request('GET', '/notes/new');
@@ -76,6 +86,17 @@ final class NoteControllerTest extends NotesTestCase
 
         $this->assertResponseRedirects("/notes/{$note->getId()}");
         $this->assertTrue($this->notes()->find($note->getId())?->isPinned());
+    }
+
+    public function testUnpinAPinnedNote(): void
+    {
+        $note = $this->createNote();
+        $note->togglePin();
+        $this->entityManager()->flush();
+
+        $this->post("/notes/{$note->getId()}/pin");
+
+        $this->assertFalse($this->notes()->find($note->getId())?->isPinned());
     }
 
     public function testDeletingANoteAsksFirst(): void
@@ -135,6 +156,59 @@ final class NoteControllerTest extends NotesTestCase
         $this->assertSelectorTextContains('.note-link', 'Holidays');
     }
 
+    public function testSearchTakesWildcardsLiterally(): void
+    {
+        $this->createNote('Sales', '50% off');
+        $this->createNote('Code', 'my_var');
+        $this->createNote('Other', '500 myXvar');
+
+        $this->client->request('GET', '/notes', ['q' => '50%']);
+        $this->assertSelectorCount(1, '.note-link');
+        $this->assertSelectorTextContains('.note-link', 'Sales');
+
+        $this->client->request('GET', '/notes', ['q' => 'my_var']);
+        $this->assertSelectorCount(1, '.note-link');
+        $this->assertSelectorTextContains('.note-link', 'Code');
+    }
+
+    public function testSearchFindsAccentedCapitals(): void
+    {
+        $this->createNote('École', 'Rentrée');
+
+        $this->client->request('GET', '/notes', ['q' => 'École']);
+
+        $this->assertSelectorCount(1, '.note-link');
+    }
+
+    public function testTheSidebarListsTheMostRecentNotesOnly(): void
+    {
+        for ($i = 0; $i <= NoteRepository::LIST_LIMIT; ++$i) {
+            $this->notes()->add(new Note("Note $i", 'Body'));
+        }
+        $this->entityManager()->flush();
+
+        $this->client->request('GET', '/notes/new');
+
+        $this->assertSelectorCount(NoteRepository::LIST_LIMIT, '.note-link');
+        $this->assertSelectorTextContains('.sidebar nav', 'Only the 100 most recent notes are listed');
+
+        $this->client->request('GET', '/notes', ['q' => 'Note']);
+
+        $this->assertSelectorTextContains('h1', 'More than 100 notes match');
+    }
+
+    public function testTheSidebarShowsPinnedNotesFirst(): void
+    {
+        $pinned = $this->createNote('Pinned');
+        $pinned->togglePin();
+        $this->entityManager()->flush();
+        $this->createNote('Recent');
+
+        $crawler = $this->client->request('GET', '/notes/new');
+
+        $this->assertSame(['● Pinned', 'Recent'], $crawler->filter('.note-title')->each(static fn ($title) => trim($title->text())));
+    }
+
     public function testCopyAsRichText(): void
     {
         $note = $this->createNote('Title', 'Some *emphasis*');
@@ -179,7 +253,7 @@ final class NoteControllerTest extends NotesTestCase
         $this->post("/notes/{$note->getId()}/location");
         $this->client->followRedirect();
 
-        $this->assertSelectorTextContains('.flash', 'Notes may not know where you are');
+        $this->assertSelectorTextContains('.flash.error[role=alert]', 'Notes may not know where you are');
         $this->assertSame('Bring a blanket.', $this->notes()->find($note->getId())?->getBody());
     }
 
@@ -187,12 +261,12 @@ final class NoteControllerTest extends NotesTestCase
     {
         $_SERVER['NATIVELLA_PLATFORM'] = 'android';
         $note = $this->createNote('Picnic', 'Bring a blanket.');
-        $this->fakeClient()->respond('geolocation.currentPosition', new NativeCallException('geolocation.currentPosition', new \RuntimeException('Location services are disabled.')));
+        $this->fakeClient()->fail('geolocation.currentPosition', ErrorKind::Failed, 'Location services are disabled.');
 
         $this->post("/notes/{$note->getId()}/location");
         $this->client->followRedirect();
 
-        $this->assertSelectorTextContains('.flash', 'Notes cannot find where you are: Location services are disabled.');
+        $this->assertSelectorTextContains('.flash.error[role=alert]', 'Notes cannot find where you are: Location services are disabled.');
     }
 
     public function testAPhoneSharesTheNote(): void
@@ -265,12 +339,12 @@ final class NoteControllerTest extends NotesTestCase
     {
         $_SERVER['NATIVELLA_PLATFORM'] = 'android';
         $note = $this->createNote('Shopping', 'Milk.');
-        $this->fakeClient()->respond('barcodeScanner.scan', new NativeCallException('barcodeScanner.scan', new \RuntimeException('The phone read no barcode within 120 seconds.')));
+        $this->fakeClient()->fail('barcodeScanner.scan', ErrorKind::Timeout, 'The phone read no barcode within 120 seconds.');
 
         $this->post("/notes/{$note->getId()}/scan");
         $this->client->followRedirect();
 
-        $this->assertSelectorTextContains('.flash', 'Notes cannot read a code: The phone read no barcode within 120 seconds.');
+        $this->assertSelectorTextContains('.flash.error[role=alert]', 'Notes cannot read a code: The phone read no barcode within 120 seconds.');
     }
 
     public function testComputersHaveNoBarcodeScanner(): void
@@ -297,6 +371,20 @@ final class NoteControllerTest extends NotesTestCase
         $this->assertSame(['dialog.saveFile', 'notification.send'], $this->nativeMethods());
     }
 
+    public function testAnExportThatCannotBeWrittenIsReported(): void
+    {
+        $note = $this->createNote();
+        // A file stands where the directory should be.
+        $path = __FILE__.'/groceries.md';
+        $this->fakeClient()->respond('dialog.saveFile', ['path' => $path]);
+
+        $this->post("/notes/{$note->getId()}/export");
+        $this->client->followRedirect();
+
+        $this->assertSelectorTextContains('.flash.error', "The note could not be written to \"{$path}\".");
+        $this->assertSame(['dialog.saveFile', 'window.setTitle'], $this->nativeMethods());
+    }
+
     public function testACancelledExportWritesNothing(): void
     {
         $note = $this->createNote();
@@ -305,6 +393,46 @@ final class NoteControllerTest extends NotesTestCase
 
         $this->assertResponseRedirects();
         $this->assertSame(['dialog.saveFile'], $this->nativeMethods());
+    }
+
+    public function testImportShowsTheNoteOfThePickedFile(): void
+    {
+        $path = $this->client->getKernel()->getCacheDir().'/import/recipe.md';
+        @mkdir(\dirname($path), recursive: true);
+        file_put_contents($path, "# Pancakes\n\nFlour, eggs, milk.");
+        $this->fakeClient()->respond('dialog.openFiles', ['paths' => [$path]]);
+
+        $this->post('/notes/import');
+
+        $note = $this->notes()->findOneBy(['title' => 'Pancakes']);
+        $this->assertNotNull($note);
+        $this->assertResponseRedirects("/notes/{$note->getId()}");
+    }
+
+    public function testImportingAFileThatIsNotUtf8CreatesNoNote(): void
+    {
+        $this->fakeClient()->respond('dialog.openFiles', ['paths' => [\dirname(__DIR__).'/Fixtures/latin1.txt']]);
+
+        $this->post('/notes/import');
+
+        $this->assertResponseRedirects('/');
+        $this->assertSame([], $this->notes()->findAll());
+        $this->client->followRedirect();
+        $this->assertSelectorTextContains('.flash', 'Skipped latin1.txt');
+    }
+
+    public function testPhonesHaveNoExportNorContextMenu(): void
+    {
+        $_SERVER['NATIVELLA_PLATFORM'] = 'android';
+        $note = $this->createNote();
+
+        $this->post("/notes/{$note->getId()}/export");
+        $this->assertResponseStatusCodeSame(404);
+
+        $this->post("/notes/{$note->getId()}/context-menu");
+        $this->assertResponseStatusCodeSame(404);
+
+        $this->assertSame([], $this->nativeMethods());
     }
 
     public function testTheContextMenuIsNative(): void

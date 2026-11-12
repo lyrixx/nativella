@@ -43,8 +43,19 @@ Then the locks, in the builder, never on the host:
 castor builder -- composer update 'nativella/*' -d demos/<demo> --no-interaction   # each demo
 ```
 
-`Cargo.lock` follows on the next cargo command. Check that the lock diffs only move the versions
-and references of `nativella/*`.
+`Cargo.lock` does not follow by itself any more: the builds are `--locked`. Update it in the
+builder, then check that the lock diffs only move the versions and references of `nativella/*`,
+and that every file agrees:
+
+```bash
+castor builder -- cargo update --workspace
+castor qa:versions                 # Cargo.toml, Cargo.lock, tauri.conf.json, the composer.json files
+castor qa:versions --tag=vX.Y.Z    # and the tag to come
+```
+
+The Release workflow runs the same check first, against the tag: a tag is `vX.Y.Z`, or
+`vX.Y.Z-alphaN`, `-betaN`, `-rcN` (no dot before N), which it publishes as a prerelease. Any
+other tag fails there, and gitsplit splits no package for it.
 
 ## 3. Draft the notes
 
@@ -81,6 +92,10 @@ git tag -a vX.Y.Z -m "Nativella X.Y.Z" && git push origin vX.Y.Z
 The tag runs `release.yml` again, which publishes the release with generic notes: once its
 "Publish the release" job is done, replace them, then check that the split repositories reached
 Packagist.
+
+The tag also runs `gitsplit.yml` at once: the PHP packages reach Packagist one to two hours
+before the executables, and stay there if the Release workflow fails. Run it again on the tag
+until the release is published, rather than leaving the packages alone.
 
 ```bash
 gh release edit vX.Y.Z --notes-file .claude/tmp/release-notes-X.Y.Z.md

@@ -47,11 +47,26 @@ final readonly class NoteImporter
                 continue;
             }
 
+            if (!self::isText($content)) {
+                $skipped[] = $file->getFilename();
+
+                continue;
+            }
+
             $note = Note::fromFile($file->getFilename(), $content);
             $this->notes->add($note);
             $imported[] = $note;
         }
 
         return new ImportResult($imported, $skipped);
+    }
+
+    /**
+     * Text in another encoding (Windows-1252, UTF-16…) cannot be rendered as
+     * Markdown nor sent to the runtime: the note would never show.
+     */
+    private static function isText(string $content): bool
+    {
+        return mb_check_encoding($content, 'UTF-8') && !str_contains($content, "\0");
     }
 }

@@ -7,6 +7,8 @@ use App\Snippet\SnippetInput;
 use App\Snippet\SnippetSummary;
 use App\View\Flash;
 use App\View\View;
+use Nativella\Client\FakeClient;
+use Nativella\Nativella;
 use PHPUnit\Framework\TestCase;
 
 final class ViewTest extends TestCase
@@ -15,7 +17,7 @@ final class ViewTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->view = new View(new CsrfToken(), '/', new Flash(), \dirname(__DIR__, 2).'/templates');
+        $this->view = new View(new CsrfToken(), '/', new Flash(), new Nativella(new FakeClient()), \dirname(__DIR__, 2).'/templates');
     }
 
     protected function tearDown(): void
@@ -59,7 +61,7 @@ final class ViewTest extends TestCase
         $this->assertStringContainsString('<pre>Content…</pre>', $html);
     }
 
-    public function testOnlyDesktopsImportFiles(): void
+    public function testPhonesImportFilesButTakeNoDrop(): void
     {
         $parameters = ['hasMore' => false, 'isNative' => true, 'query' => '', 'snippets' => []];
 
@@ -69,7 +71,7 @@ final class ViewTest extends TestCase
 
         $mobile = $this->view->render('snippets/index', ['isMobile' => true] + $parameters);
         $this->assertStringNotContainsString('Drop text files', $mobile);
-        $this->assertStringNotContainsString('/snippets/import', $mobile);
+        $this->assertStringContainsString('action="/snippets/import"', $mobile);
     }
 
     public function testOnMobileThePageKnowsItGoesUnderTheStatusBar(): void

@@ -2,7 +2,9 @@
 
 namespace App\EventListener;
 
+use App\Entity\Note;
 use App\Native\Desktop;
+use App\Note\Exception\ExportFailed;
 use App\Note\NoteActions;
 use App\Repository\NoteRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -78,6 +80,16 @@ final readonly class MenuListener
         $this->actions->notifyPages(['created' => $result->notes[0]->getId()]);
     }
 
+    private function export(Note $note): void
+    {
+        try {
+            $this->actions->export($note);
+        } catch (ExportFailed $e) {
+            $this->logger->warning('The note could not be exported.', ['exception' => $e]);
+            $this->dialog->message($e->getMessage(), 'Export failed', MessageKind::Error);
+        }
+    }
+
     private function onNote(string $action, int $id): void
     {
         // The note may be gone since its menu opened: deleted from another window.
@@ -105,14 +117,10 @@ final readonly class MenuListener
                 $this->actions->notifyPages(['created' => $copy->getId()]);
                 break;
             case 'export':
-                $this->actions->export($note);
+                $this->export($note);
                 break;
             case 'pin':
-                if ($note->isPinned()) {
-                    $note->unpin();
-                } else {
-                    $note->pin();
-                }
+                $note->togglePin();
                 $this->entityManager->flush();
                 $this->actions->notifyPages();
                 break;

@@ -21,7 +21,11 @@ final class Runtime
     {
     }
 
-    public static function isNative(): bool
+    /**
+     * Whether PHP runs in Nativella. To offer native features, ask
+     * Nativella::isNative() instead, which is also true under a FakeClient.
+     */
+    public static function isAvailable(): bool
     {
         return \function_exists('nativella_call');
     }

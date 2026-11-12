@@ -33,8 +33,35 @@ env:
     REGISTRY: "ghcr.io/lyrixx/nativella"
 
 jobs:
+    # First: once published, a release is immutable, and its tag cannot move
+    versions:
+        name: Check the versions
+        runs-on: ubuntu-26.04
+        timeout-minutes: 5
+        env:
+            # Castor reads the files itself: no image to build
+            CASTOR_CONTEXT: host
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false
+
+            - name: "Set up Castor"
+              uses: ./.github/actions/castor
+
+            - name: "Check the versions"
+              if: github.ref_type != 'tag'
+              run: "castor qa:versions"
+
+            # vX.Y.Z, with an optional -alphaN, -betaN or -rcN: the tags that
+            # gitsplit.yml splits the packages for (.gitsplit.yml)
+            - name: "Check the versions against the tag"
+              if: github.ref_type == 'tag'
+              run: castor qa:versions --tag="${GITHUB_REF_NAME}"
+
     linux:
         name: Build for Linux x86_64
+        needs: versions
         runs-on: ubuntu-26.04
         timeout-minutes: 60
         steps:
@@ -50,14 +77,18 @@ jobs:
               uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/buildroot
-                  key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
-                  # An older one too: static-php:build builds again only if the
-                  # versions or the extensions changed, not the rest of the file
+                  key: static-php-${{ runner.os }}-${{ runner.arch }}-latest
                   restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
 
             # The builder installs and stages the projects
             - name: "Build the builder"
               run: "castor docker:build --service=builder"
+
+            # Before the builds: the executables of the demos carry their
+            # dependencies. It installs the projects, not the QA tools, which
+            # the release has no use for: staging installs what it ships
+            - name: "Check Security issues"
+              run: "castor qa:security-audit"
 
             - name: "Build the static image"
               run: "castor docker:build --service=static"
@@ -86,16 +117,12 @@ jobs:
                       cargo-static-
 
             # static-php-cli asks the GitHub API for its downloads: without a
-            # token, the runners share its rate limit
+            # token, the runners share its rate limit. It downloads the
+            # libraries again, and builds again if one has a new release
             - name: "Build PHP as a static library"
-              run: "castor static-php:build"
+              run: "castor static-php:build --update-libraries"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            # Staging copies the .env of a Laravel demo, which castor install
-            # creates (with its key)
-            - name: "Install the projects"
-              run: "castor install"
 
             - name: "Build the executables"
               run: "castor nativella:build"
@@ -114,6 +141,7 @@ jobs:
 
     macos:
         name: Build for macOS arm64
+        needs: versions
         runs-on: macos-26
         timeout-minutes: 90
         env:
@@ -135,22 +163,21 @@ jobs:
                   extensions: intl, pdo_sqlite, sqlite3
                   # The Composer of the builder: keep in sync with the
                   # Dockerfile of infrastructure/docker/services/php/
-                  tools: composer:2.10.0@sha256:a346538851988ead111d11e3cbd7d372eeba44abd0af412e09890d3c21ea6c31
+                  tools: composer:2.10.3@sha256:7a2d379d5b8ffdaa028580ef26494c36d2feef4b178d3dd1473a4dbc5e17c8d6
 
             # The one of macos.yml, from main: its path and its key
             - name: "Restore static PHP"
               uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/buildroot
-                  key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
-                  # An older one too: static-php:build builds again only if the
-                  # versions or the extensions changed, not the rest of the file
+                  key: static-php-${{ runner.os }}-${{ runner.arch }}-latest
                   restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
 
             # static-php-cli asks the GitHub API for its downloads: without a
-            # token, the runners share its rate limit
+            # token, the runners share its rate limit. It downloads the
+            # libraries again, and builds again if one has a new release
             - name: "Build PHP as a static library"
-              run: "castor static-php:build"
+              run: "castor static-php:build --update-libraries"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -169,6 +196,7 @@ jobs:
 
     android:
         name: Build the template APK for Android arm64
+        needs: versions
         runs-on: ubuntu-26.04
         timeout-minutes: 90
         steps:
@@ -185,12 +213,8 @@ jobs:
               uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/android-arm64/buildroot
-                  key: static-php-android-arm64-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('.castor/static-php.php', '.castor/static-php-mobile.php', 'crates/nativella/tauri.android.conf.json') }}
-                  # An older one too: static-php:android builds again only if
-                  # what it is built from changed
-                  restore-keys: |
-                      static-php-android-arm64-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
-                      static-php-android-arm64-
+                  key: static-php-android-arm64-latest
+                  restore-keys: static-php-android-arm64-
 
             # Downloads the sources of PHP
             - name: "Build the builder"
@@ -224,11 +248,11 @@ jobs:
                       android-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
                       android-
 
-            # PHP for Android, unless restored. static-php-cli asks the GitHub
-            # API for the sources of PHP: without a token, the runners share
-            # its rate limit
+            # PHP for Android, unless restored, and none of its libraries has
+            # a new release. static-php-cli asks the GitHub API for the
+            # sources of PHP: without a token, the runners share its rate limit
             - name: "Build the template APK"
-              run: "castor mobile:android-template --release --output=release/nativella-android-template-arm64.apk"
+              run: "castor mobile:android-template --release --update-libraries --output=release/nativella-android-template-arm64.apk"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -242,6 +266,7 @@ jobs:
     # Both on one runner, for one SHA256SUMS-ios
     ios:
         name: Build the template apps for iOS arm64 (experimental)
+        needs: versions
         runs-on: macos-26
         # PHP for iOS, when it builds again, takes half an hour
         timeout-minutes: 150
@@ -284,11 +309,6 @@ jobs:
                       ios-${{ steps.rust.outputs.version }}-
                       ios-
 
-            - name: "Read the version of Xcode"
-              id: xcode
-              shell: bash
-              run: echo "version=$(xcodebuild -version | awk 'NR == 1 { version = $2 } NR == 2 { build = $3 } END { print version "-" build }')" >> "${GITHUB_OUTPUT}"
-
             # The one of the iOS template job of mobile.yml, from main: its
             # paths and its key
             - name: "Restore PHP for iOS"
@@ -297,23 +317,20 @@ jobs:
                   path: |
                       static-php/ios-arm64/buildroot
                       static-php/ios-simulator-arm64/buildroot
-                  key: static-php-ios-${{ steps.xcode.outputs.version }}-${{ hashFiles('.castor/static-php.php', '.castor/static-php-mobile.php') }}
-                  # An older one too: static-php:ios builds again only if what
-                  # it is built from changed
-                  restore-keys: |
-                      static-php-ios-${{ steps.xcode.outputs.version }}-
-                      static-php-ios-
+                  key: static-php-ios-latest
+                  restore-keys: static-php-ios-
 
-            # Then PHP for the target, unless restored. static-php-cli asks the
-            # GitHub API for the sources of PHP: without a token, the runners
-            # share its rate limit
+            # Then PHP for the target, unless restored, and none of its
+            # libraries has a new release. static-php-cli asks the GitHub API
+            # for the sources of PHP: without a token, the runners share its
+            # rate limit
             - name: "Build the template app for the simulator"
-              run: "castor mobile:ios-template --release --output=release/nativella-ios-template-iphonesimulator-arm64.zip"
+              run: "castor mobile:ios-template --release --update-libraries --output=release/nativella-ios-template-iphonesimulator-arm64.zip"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: "Build the template app for devices"
-              run: "castor mobile:ios-template --device --release --output=release/nativella-ios-template-iphoneos-arm64.zip"
+              run: "castor mobile:ios-template --device --release --update-libraries --output=release/nativella-ios-template-iphoneos-arm64.zip"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -329,7 +346,7 @@ jobs:
     # again on its tag, after a failure, finishes the draft
     publish:
         name: Publish the release
-        if: github.ref_type == 'tag'
+        if: startsWith(github.ref, 'refs/tags/v')
         needs: [linux, macos, android, ios]
         runs-on: ubuntu-26.04
         timeout-minutes: 15
@@ -399,9 +416,15 @@ jobs:
                   run yet.
                   EOF
 
+                  # An alpha, a beta or a release candidate is not the latest release
+                  prerelease=()
+                  case "${GITHUB_REF_NAME}" in
+                      *-*) prerelease=(--prerelease) ;;
+                  esac
+
                   if ! draft="$(gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --json isDraft --jq .isDraft)"; then
                       gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --draft \
-                          --title "${GITHUB_REF_NAME}" --notes-file "${RUNNER_TEMP}/notes.md" --verify-tag
+                          --title "${GITHUB_REF_NAME}" --notes-file "${RUNNER_TEMP}/notes.md" --verify-tag "${prerelease[@]}"
                   elif [ "${draft}" != "true" ]; then
                       echo "The release ${GITHUB_REF_NAME} is published already: its files cannot change." >&2
                       exit 1

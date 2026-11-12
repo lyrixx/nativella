@@ -1,7 +1,8 @@
 // The context menu of a note is a native one, opened by PHP.
 document.addEventListener('contextmenu', (event) => {
     const link = event.target.closest('[data-context-menu]');
-    if (!link || !document.documentElement.dataset.native) {
+    // Phones have no context menu.
+    if (!link || !document.documentElement.dataset.native || document.documentElement.dataset.mobile) {
         return;
     }
 
@@ -23,7 +24,7 @@ window.addEventListener('nativella:notes.changed', (event) => {
 
     if (created) {
         location.href = `/notes/${created}`;
-    } else if (deleted && location.pathname.startsWith(`/notes/${deleted}`)) {
+    } else if (deleted && new RegExp(`^/notes/${deleted}(/|$)`).test(location.pathname)) {
         location.href = '/';
     } else {
         location.reload();

@@ -10,7 +10,7 @@ The [Notes demo](../demos/symfony) is a complete Symfony application built with 
 composer require nativella/symfony-bundle
 ```
 
-It brings `nativella/nativella`, the native APIs.
+It brings `nativella/nativella`, the native APIs. The bundle needs PHP 8.4 or later, and Symfony 7.4 or 8.
 
 > [!IMPORTANT]
 > `composer require` does not enable the bundle, because there is no Flex recipe yet. Add it to `config/bundles.php` yourself, or the native APIs are not services and no native event reaches your listeners.
@@ -62,7 +62,6 @@ The bundle answers `POST /_nativella/event` before the router and the firewall r
 
 > [!NOTE]
 > Native events are handled before the firewall and the locale listeners, so there is no user (`getUser()` is null), and translations use the default locale. The session is there, though (the runtime sends its cookie with native events too), so read what you need from it.
-
 
 ```php title="src/EventListener/BootListener.php"
 namespace App\EventListener;
@@ -134,6 +133,10 @@ final readonly class MenuListener
 
 Only the runtime reaches that endpoint, because the bundle checks `$_SERVER['NATIVELLA_INTERNAL']`, which a page cannot set. Every event and its properties are listed in [Lifecycle and events](lifecycle.md#native-events).
 
+After its own class, every event is also dispatched as a `Nativella\Event\NativeEvent`, with its `name` and its raw `payload`. Listen to it for all the events, or for one this version of the package has no class for.
+
+A native call that fails throws a `NativeCallException`, which says why with a `kind`. See [Errors](plain-php.md#errors).
+
 ## The database
 
 Point Doctrine at the [data directory](configuration.md#the-data-directory). In `.env`:
@@ -145,6 +148,8 @@ DATABASE_URL="sqlite:///${NATIVELLA_DATA_DIR:-%kernel.project_dir%/var}/app.db"
 In Nativella, the database is `app.db` in the application's data directory; outside it (`bin/console`, `symfony serve`, the tests), it falls back to `var/app.db`.
 
 With `doctrine/doctrine-migrations-bundle` installed, the bundle runs the pending migrations when the application starts, on `AppBooted`, before the application's listeners. A desktop application has no deployment step, so every user's database follows the code. Write migrations as usual, with `bin/console make:migration` or `doctrine:migrations:diff`. See [Database](database.md).
+
+When a migrations directory of the configuration does not exist, no migration runs, and the bundle logs a warning. Git keeps no empty directory, so a new project may have none yet.
 
 ## The secret
 
@@ -227,8 +232,22 @@ final class NoteControllerTest extends WebTestCase
 }
 ```
 
-[Testing](testing.md) explains the fake client and its default answers.
+To test a listener of a native event, post the event as the runtime does:
+
+```php
+$client->request(
+    'POST',
+    '/_nativella/event',
+    server: ['NATIVELLA_INTERNAL' => '1', 'CONTENT_TYPE' => 'application/json'],
+    content: json_encode(['name' => 'menu.itemClicked', 'payload' => ['id' => 'app.quit', 'checked' => null]]),
+);
+
+$this->assertResponseStatusCodeSame(204);
+$this->assertCount(1, $native->calls('app.quit'));
+```
+
+The names and the payloads are those of [Lifecycle and events](lifecycle.md#native-events). [Testing](testing.md) explains the fake client and its default answers.
 
 ## Running in a browser
 
-The application still runs with `symfony serve` or any web server, which is handy for working on templates. The native APIs throw a `RuntimeUnavailableException` there. Guard what must keep working with `isNative()` on the `Nativella\Nativella` service in PHP, and `nativella_is_native()` in Twig. Both are true under the fake client, unlike `Nativella\Runtime::isNative()`, so the tests go through the native code.
+The application still runs with `symfony serve` or any web server, which is handy for working on templates. The native APIs throw a `RuntimeUnavailableException` there. Guard what must keep working with `isNative()` on the `Nativella\Nativella` service in PHP, and `nativella_is_native()` in Twig. Both are true under the fake client, so the tests go through the native code. `Nativella\Runtime::isAvailable()` only tells whether PHP runs in Nativella.

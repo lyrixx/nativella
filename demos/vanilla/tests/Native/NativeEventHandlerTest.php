@@ -15,7 +15,7 @@ use Nativella\Event\EventFactory;
 use Nativella\Event\GlobalShortcutPressed;
 use Nativella\Event\MenuItemClicked;
 use Nativella\Event\WindowFocused;
-use Nativella\Exception\NativeCallException;
+use Nativella\Exception\ErrorKind;
 use Nativella\Nativella;
 use PHPUnit\Framework\TestCase;
 
@@ -114,7 +114,7 @@ final class NativeEventHandlerTest extends TestCase
 
     public function testBootGoesOnWhenTheShortcutIsTaken(): void
     {
-        $this->client->respond('globalShortcut.register', new NativeCallException('globalShortcut.register', new \RuntimeException('HotKey already registered.')));
+        $this->client->fail('globalShortcut.register', ErrorKind::Failed, 'HotKey already registered.');
 
         $this->expectErrorLog();
         $this->handler->handle(new AppBooted());

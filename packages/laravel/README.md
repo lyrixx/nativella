@@ -8,7 +8,8 @@ the SQLite database in the application's data directory and migrates it when the
 composer require nativella/laravel
 ```
 
-Package discovery registers `Nativella\Laravel\NativellaServiceProvider`. The application runs with the `nativella`
+It needs PHP 8.4 or later, and Laravel 12 or 13. Package discovery registers
+`Nativella\Laravel\NativellaServiceProvider`. The application runs with the `nativella`
 command. See [Installation](https://lyrixx.github.io/nativella/docs/installation/) and
 [Laravel](https://lyrixx.github.io/nativella/docs/laravel/).
 

@@ -22,6 +22,7 @@ $notification->send('New message', 'From Alice', reference: 'message-42');
 
 ```php
 use Nativella\Event\NotificationClicked;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener]
 public function onClick(NotificationClicked $event): void
@@ -30,6 +31,8 @@ public function onClick(NotificationClicked $event): void
     $this->window->open('main');
 }
 ```
+
+This is a Symfony listener. [Lifecycle and events](lifecycle.md#handling-events) says how the other integrations route events.
 
 Clicks are reported on Linux only, for now. macOS and Windows show the notification, but do not report the click.
 

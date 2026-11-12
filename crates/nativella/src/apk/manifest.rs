@@ -298,6 +298,11 @@ impl Document {
         }
 
         let (strings, utf8) = strings.ok_or_else(corrupted)?;
+        // The resource map gives an ID to the first strings: it has no more
+        // IDs than there are strings.
+        if resource_ids.len() > strings.len() {
+            return Err(corrupted());
+        }
 
         Ok(Self {
             strings,
@@ -741,6 +746,28 @@ pub(super) mod tests {
                 io::ErrorKind::InvalidData
             );
         }
+    }
+
+    #[test]
+    fn a_resource_map_longer_than_the_pool_is_corrupted() {
+        let mut resource_map = Vec::new();
+        resource_map.extend(RESOURCE_MAP.to_le_bytes());
+        resource_map.extend(8_u16.to_le_bytes());
+        resource_map.extend(16_u32.to_le_bytes());
+        resource_map.extend(VERSION_CODE.to_le_bytes());
+        resource_map.extend(VERSION_NAME.to_le_bytes());
+        let xml = Document {
+            strings: vec!["versionCode".to_owned()],
+            utf8: false,
+            resource_ids: Vec::new(),
+            chunks: vec![resource_map],
+        }
+        .write()
+        .unwrap();
+
+        let error = Document::parse(&xml).err().unwrap();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
     }
 
     #[test]

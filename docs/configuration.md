@@ -33,6 +33,8 @@ The name of the product: the title of windows that set none, the "About" menu en
 
 Defaults to the package name of `composer.json`, title-cased: `acme/note-taker` becomes "Note Taker". Without a package name, the directory name is used the same way.
 
+The name is one line of text, and cannot be empty.
+
 ## `identifier`
 
 A reverse domain name, unique to the application: `com.acme.notes`. Letters, digits and dashes, separated by dots.
@@ -55,7 +57,7 @@ A PNG file, relative to the project. It is the icon of the windows, of the [tray
 
 The windows of a [standalone executable](building.md) take it from the project the executable carries, so the build refuses an icon that does not [ship](building.md#what-ships), such as one under `tests/`. An icon that cannot be read leaves the windows with the Nativella icon, and a warning.
 
-Make it square, 512 or 1024 pixels. Android shows it at up to 192 pixels, and `nativella android` warns below that. A rectangle is centered on a transparent square.
+Make it square, 512 or 1024 pixels. A [Debian package](building.md#debian-packages) draws it at up to 512 pixels and Android at up to 192, and `nativella deb` and `nativella android` warn about an image under 512 pixels. They refuse one whose longest side is over 4096 pixels. A rectangle is centered on a transparent square.
 
 ## `window`
 
@@ -67,12 +69,15 @@ The options of the main window, the one Nativella opens when PHP opens none whil
 
 Without `window`, the main window opens on `/`, 1024 by 768 pixels, titled after the application.
 
+The size and the position apply the first time the window opens. After that, a window opens where the user left it, at the size they gave it. See [What a window remembers](windows.md#what-a-window-remembers).
+
 ## `deepLinks`
 
-URL schemes that open the application. With `"deepLinks": ["notes"]`, a `notes://42` link in a browser, a mail or a terminal (`xdg-open notes://42`) starts the application, or wakes it up if it runs, and PHP gets the URL as an [`AppUrlsOpened`](lifecycle.md#native-events) event:
+URL schemes that open the application. With `"deepLinks": ["notes"]`, a `notes://42` link in a browser, a mail or a terminal (`xdg-open notes://42`) starts the application, or wakes it up if it runs, and PHP gets the URL as an [`AppUrlsOpened`](lifecycle.md#native-events) event. With Symfony:
 
 ```php
 use Nativella\Event\AppUrlsOpened;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener]
 public function __invoke(AppUrlsOpened $event): void
@@ -117,13 +122,13 @@ Nativella creates it at startup and prints it on the standard error output. PHP 
 |---|---|
 | `NATIVELLA_DATA_DIR` | Moves the data directory, which is handy to start from a clean state while developing, or to run two copies side by side. |
 | `NATIVELLA_RELOAD` | `0` stops `nativella run` from [reloading the windows](getting-started.md#reloading) when a file of the project changes. |
-| `NO_AT_BRIDGE` | Nativella sets it to `1` on Linux unless it is already set, to work around a WebKitGTK crash in the accessibility bridge. It sets it for itself, not for the [child processes](child-processes.md) and the browser it starts. See [Limitations](limitations.md#linux). |
+| `NO_AT_BRIDGE` | Nativella sets it to `1` on Linux unless it is already set, to work around a WebKitGTK crash in the accessibility bridge. It sets it for itself, with `NATIVELLA_NO_AT_BRIDGE` to remember that it did, and gives neither to the [child processes](child-processes.md) and the browser it starts. See [Limitations](limitations.md#linux). |
 
-Like PHP-FPM without `clear_env`, PHP gets the process environment in `$_SERVER`, so `APP_ENV=prod nativella run .` works as you would expect.
+Like PHP-FPM without `clear_env`, PHP gets the process environment in `$_SERVER`, so `APP_ENV=prod nativella run .` works as you would expect. Two variables are left out, `NATIVELLA_INTERNAL` and `NATIVELLA_WINDOW`, because only the runtime says who sent a request.
 
 ## What PHP sees
 
-On top of the usual CGI variables, the runtime sets these in `$_SERVER`. A request from a page cannot forge them, because its headers only ever become `HTTP_*` variables.
+On top of the usual CGI variables, the runtime sets these in `$_SERVER`. A request from a page cannot forge them, because its headers only ever become `HTTP_*` variables, and neither can the environment the application starts with.
 
 | Variable | Value |
 |---|---|
@@ -135,13 +140,13 @@ On top of the usual CGI variables, the runtime sets these in `$_SERVER`. A reque
 | `NATIVELLA_INTERNAL` | `1` when the runtime itself sent the request, to deliver a [native event](lifecycle.md#native-events). |
 | `SERVER_SOFTWARE` | `nativella` |
 | `REMOTE_ADDR` | `127.0.0.1` |
-| `HTTP_HOST` | `localhost` |
+| `HTTP_HOST` | `localhost`, or `php.localhost` on Windows and Android, where pages are served from `http://php.localhost/`. |
 
 `Nativella\Runtime` reads them for you:
 
 | Method | |
 |---|---|
-| `Runtime::isNative(): bool` | Whether PHP runs in Nativella, meaning `nativella_call()` exists. False under the [fake client](testing.md) of the tests, so guard native features with `Nativella::isNative()`, which asks the client. |
+| `Runtime::isAvailable(): bool` | Whether PHP runs in Nativella, meaning `nativella_call()` exists. False under the [fake client](testing.md) of the tests, so guard native features with `Nativella::isNative()`, which asks the client. |
 | `Runtime::dataDir(): ?string` | The data directory. |
 | `Runtime::secret(): ?string` | The installation's secret. |
 | `Runtime::platform(): ?string` | The platform. |
@@ -159,18 +164,23 @@ PHP reads Nativella's php.ini, [`crates/runtime/php.ini`](../crates/runtime/php.
 | Setting | Value |
 |---|---|
 | `display_errors` | `Off`: errors go to the standard error output, the terminal of `nativella run` (logcat on Android), not into the page. A fatal error answers a 500, which PHP only does when it does not display the error. |
+| `log_errors` | `On`, to that output. |
 | `zend.assertions` | `-1`, as in production. |
+| `output_buffering` | `4096`, as in `php.ini-production`. A `header()`, a `setcookie()` or a `session_start()` after a short output still works, and an error after it answers a 500, not a 200 with half a page. |
+| `short_open_tag` | `Off`, so that `<?xml` at the top of a template is not PHP. |
 | `post_max_size`, `upload_max_filesize` | `512M`, because PHP's default 2 MB is less than a phone photo. |
 | `hard_timeout` | `0`, see below. |
 
 An application changes the settings it needs with `ini_set()`, at the top of its front controller: `memory_limit`, `max_execution_time`… `ini_set()` cannot change the ones PHP reads before the script runs, like `post_max_size` and `upload_max_filesize`, nor the ones it reads only when it starts, like opcache's memory size. Those take a change to that file, in a `nativella` [of your own](custom-php.md).
 
-At startup, Nativella sets two more, which point at the system otherwise:
+At startup, Nativella sets a few more, which depend on the machine:
 
 | Setting | Value |
 |---|---|
 | `date.timezone` | The user's time zone, so that dates are local. |
 | `session.save_path` | `sessions/` in the application's cache directory. |
+| `opcache.revalidate_freq` | `0` under `nativella run`, so that a reloaded page runs the code that changed. |
+| `sys_temp_dir`, `upload_tmp_dir`, `opcache.lockfile_path` | The application's cache directory, on phones, which have no `/tmp`. |
 
 `max_execution_time` applies as usual, except that a native call that waited more than a second for the user starts its count again, so a user may leave a [dialog](dialogs.md) open as long as they like, as `sleep()` does not count on Linux either. Quick native calls do not restart it, so a loop of them still times out. The hard timeout is off, `hard_timeout = 0`, because PHP counts the time of the whole process and would kill it, and the application with it, two seconds after the limit.
 

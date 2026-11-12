@@ -9,7 +9,7 @@ use std::sync::OnceLock;
 
 use http::header::{CONTENT_TYPE, SET_COOKIE};
 use http::{Request, Response};
-use nativella_runtime::{PhpApp, PhpRuntime, RequestOrigin};
+use nativella_runtime::{ErrorKind, NativeError, PhpApp, PhpRuntime, RequestOrigin};
 use serde_json::json;
 
 const SCRIPT: &str = r#"<?php
@@ -61,6 +61,46 @@ switch ($_GET['case'] ?? '') {
             $_SERVER['HTTP_NATIVELLA_INTERNAL'] ?? null,
         ]);
         break;
+    case 'late-header':
+        set_error_handler(static function (int $level, string $message): bool {
+            echo $message;
+
+            return true;
+        });
+        while (ob_get_level() > 0) {
+            ob_end_flush();
+        }
+        echo 'Sent. ';
+        header('X-Late: 1');
+        break;
+    case 'early-output':
+        echo 'Created';
+        header('X-After: 1');
+        http_response_code(201);
+        break;
+    case 'feed':
+        require __DIR__.'/../feed.php';
+        break;
+    case 'loop':
+        header('Location: /?case=loop');
+        break;
+    case 'ini':
+        echo ini_get('user_agent');
+        break;
+    case 'login':
+        setcookie('session', 'abc');
+        header('Location: /?case=session');
+        break;
+    case 'session':
+        echo $_COOKIE['session'] ?? 'none';
+        break;
+    case 'native':
+        try {
+            echo nativella_call($_GET['method'], $_GET['payload'] ?? '{}');
+        } catch (Throwable $error) {
+            echo $error::class, ': ', $error->getMessage();
+        }
+        break;
     case 'form':
         $note = $_FILES['note'] ?? null;
         echo json_encode([
@@ -73,6 +113,9 @@ switch ($_GET['case'] ?? '') {
 }
 "#;
 
+/// What a php.ini reads otherwise between double quotes.
+const INI_VALUE: &str = r#"\\server\share "quoted" ${HOME} \"#;
+
 fn runtime() -> &'static PhpRuntime {
     static RUNTIME: OnceLock<PhpRuntime> = OnceLock::new();
 
@@ -83,12 +126,28 @@ fn runtime() -> &'static PhpRuntime {
         fs::create_dir_all(&uploads).unwrap();
         fs::write(project.join("public/index.php"), SCRIPT).unwrap();
         fs::write(project.join("public/avatar.png"), "PNG").unwrap();
+        fs::write(project.join("feed.php"), "<?xml version=\"1.0\"?><feed/>").unwrap();
+
+        // SAFETY: before PHP starts, and no other thread reads the environment.
+        unsafe {
+            std::env::set_var("NATIVELLA_INTERNAL", "1");
+            std::env::set_var("NATIVELLA_WINDOW", "forged");
+        }
 
         PhpRuntime::start(
             PhpApp::from_project_dir(&project)
                 .unwrap()
-                .with_ini("upload_tmp_dir", uploads.to_string_lossy()),
-            Box::new(|_| Ok(json!({}))),
+                .with_ini("upload_tmp_dir", uploads.to_string_lossy())
+                .with_ini("user_agent", INI_VALUE),
+            Box::new(|call| match call.method {
+                "fail" => Err("It failed.".into()),
+                "missing" => Err(NativeError::new(
+                    ErrorKind::NotFound,
+                    "There is no such thing.",
+                )),
+                "panic" => panic!("It panicked."),
+                _ => Ok(json!({ "window": call.window })),
+            }),
         )
     })
 }
@@ -160,6 +219,100 @@ fn an_invalid_header_is_dropped_alone() {
     assert_eq!(response.headers()["x-good"], "1");
     assert!(!response.headers().contains_key("x-latin-1"));
     assert_eq!(text(&response), "Headers");
+}
+
+#[test]
+fn a_header_after_the_output_is_reported_with_its_file() {
+    let response = get("/?case=late-header");
+
+    assert!(!response.headers().contains_key("x-late"));
+    assert!(
+        text(&response).contains("index.php:"),
+        "{}",
+        text(&response)
+    );
+}
+
+#[test]
+fn a_header_set_after_a_short_output_is_sent() {
+    let response = get("/?case=early-output");
+
+    assert_eq!(response.status(), 201);
+    assert_eq!(response.headers()["x-after"], "1");
+    assert_eq!(text(&response), "Created");
+}
+
+#[test]
+fn an_xml_declaration_is_not_php() {
+    let response = get("/?case=feed");
+
+    assert_eq!(text(&response), r#"<?xml version="1.0"?><feed/>"#);
+}
+
+#[test]
+fn a_fetch_gives_up_on_a_page_that_redirects_to_itself() {
+    assert_eq!(get("/?case=loop").status(), 508);
+}
+
+#[test]
+fn a_window_gives_up_on_a_page_that_redirects_to_itself() {
+    let navigate = || {
+        runtime().dispatch_blocking(
+            Request::get("php://localhost/?case=loop")
+                .header("Upgrade-Insecure-Requests", "1")
+                .body(Vec::new())
+                .unwrap(),
+            RequestOrigin::Webview {
+                window: "loop".to_owned(),
+            },
+        )
+    };
+
+    for _ in 0..20 {
+        let page = navigate();
+        assert_eq!(page.status(), 200);
+        assert!(text(&page).contains("location.replace"), "{}", text(&page));
+    }
+    assert_eq!(navigate().status(), 508);
+    assert_eq!(navigate().status(), 200, "The window may try again.");
+}
+
+#[test]
+fn a_setting_reaches_php_as_it_is() {
+    assert_eq!(text(&get("/?case=ini")), INI_VALUE);
+}
+
+#[test]
+fn the_cookie_of_a_redirect_reaches_its_target() {
+    assert_eq!(text(&get("/?case=login")), "abc");
+}
+
+#[test]
+fn a_native_call_answers_or_says_why_it_failed() {
+    assert_eq!(
+        text(&get("/?case=native&method=window.get")),
+        r#"{"result":{"window":"main"}}"#
+    );
+    assert_eq!(
+        text(&get("/?case=native&method=fail")),
+        r#"{"error":{"kind":"failed","message":"It failed."}}"#
+    );
+    assert_eq!(
+        text(&get("/?case=native&method=missing")),
+        r#"{"error":{"kind":"notFound","message":"There is no such thing."}}"#
+    );
+    assert!(
+        text(&get("/?case=native&method=window.get&payload=%7B")).starts_with(
+            r#"{"error":{"kind":"invalidPayload","message":"The payload of \"window.get\" is not valid JSON: "#
+        )
+    );
+
+    let panicked = text(&get("/?case=native&method=panic"));
+    assert!(
+        panicked.starts_with("Error: ") && panicked.contains("It panicked."),
+        "{panicked}"
+    );
+    assert_eq!(text(&get("/")), "Hello");
 }
 
 #[test]

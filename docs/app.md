@@ -28,9 +28,11 @@ $app->setBadgeCount(3);
 | `disableAutostart(): void` | |
 | `isAutostartEnabled(): bool` | |
 
-`hide()` and `show()` throw a `NativeCallException` on Linux and Windows. Hide and show the windows themselves there, with [`Window`](windows.md).
+`hide()` and `show()` only work on macOS. Elsewhere they throw a `NativeCallException`: hide and show the windows themselves, with [`Window`](windows.md).
 
 The badge shows up on macOS, and on the Linux desktops that implement Unity's launcher API. Windows has no badge count. A count of 0 removes the badge, as null does.
+
+On phones, `setBadgeCount()`, `enableAutostart()`, `disableAutostart()` and `path(Directory::Desktop)` throw, and `isAutostartEnabled()` answers false. See [What runs where](platforms.md).
 
 ## Directories
 

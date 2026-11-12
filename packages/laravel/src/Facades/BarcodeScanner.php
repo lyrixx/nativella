@@ -5,7 +5,7 @@ namespace Nativella\Laravel\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * @method static ?\Nativella\BarcodeScanner\Barcode scan(list<\Nativella\BarcodeScanner\Format> $formats = [], string $cancelLabel = 'Cancel')
+ * @method static ?\Nativella\BarcodeScanner\Barcode scan(array<\Nativella\BarcodeScanner\Format> $formats = [], string $cancelLabel = 'Cancel')
  *
  * @see \Nativella\BarcodeScanner
  */

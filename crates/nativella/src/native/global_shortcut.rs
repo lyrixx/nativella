@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
 
-use super::{Call, State, failed, lock};
+use super::{Call, NativeError, State, failed, invalid_payload, lock};
 use crate::events;
 
 #[derive(Deserialize)]
@@ -15,7 +15,7 @@ struct Accelerator {
     accelerator: String,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     let manager = call.app.global_shortcut();
 
     Some(match method {
@@ -65,8 +65,10 @@ pub(crate) fn on_shortcut(app: &AppHandle, shortcut: &Shortcut, event: ShortcutE
     );
 }
 
-fn parse(accelerator: &str) -> Result<Shortcut, String> {
-    accelerator
-        .parse()
-        .map_err(|error| format!("\"{accelerator}\" is not a valid accelerator: {error}."))
+fn parse(accelerator: &str) -> Result<Shortcut, NativeError> {
+    accelerator.parse().map_err(|error| {
+        invalid_payload(format!(
+            "\"{accelerator}\" is not a valid accelerator: {error}."
+        ))
+    })
 }

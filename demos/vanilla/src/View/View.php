@@ -4,6 +4,7 @@ namespace App\View;
 
 use App\Http\CsrfToken;
 use App\Http\Response;
+use Nativella\Nativella;
 use Nativella\Runtime;
 
 /**
@@ -19,6 +20,7 @@ final readonly class View
         /** Of the request, for the navigation. */
         private string $currentPath,
         private Flash $flash,
+        private Nativella $native,
         private string $templateDir,
     ) {
     }
@@ -31,7 +33,7 @@ final readonly class View
     public function page(string $title, string $template, array $parameters = [], int $status = 200): Response
     {
         $parameters['isMobile'] = Runtime::isMobile();
-        $parameters['isNative'] = Runtime::isNative();
+        $parameters['isNative'] = $this->native->isNative();
 
         return Response::html($this->render('layout', [
             'content' => $this->render($template, $parameters),

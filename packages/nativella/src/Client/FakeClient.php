@@ -3,6 +3,7 @@
 namespace Nativella\Client;
 
 use Nativella\Client;
+use Nativella\Exception\ErrorKind;
 use Nativella\Exception\NativeCallException;
 
 /**
@@ -42,7 +43,7 @@ final class FakeClient implements Client
         'secrets.get' => ['value' => null],
         'settings.all' => ['settings' => []],
         'settings.has' => ['has' => false],
-        'system.info' => ['os' => 'linux', 'family' => 'unix', 'arch' => 'x86_64', 'version' => '1.0.0', 'hostname' => 'localhost', 'locale' => 'en-US'],
+        'system.info' => ['platform' => 'linux', 'family' => 'unix', 'arch' => 'x86_64', 'version' => '1.0.0', 'hostname' => 'localhost', 'locale' => 'en-US'],
         'system.theme' => ['theme' => 'light'],
         'updater.check' => ['update' => null],
         'updater.install' => ['version' => null],
@@ -65,8 +66,20 @@ final class FakeClient implements Client
         $this->responses[$method][] = $result;
     }
 
+    /**
+     * Fails the next call to $method, as the native side does.
+     *
+     * @param string $reason a sentence, as the native side words it
+     */
+    public function fail(string $method, ErrorKind $kind, string $reason): void
+    {
+        $this->respond($method, new NativeCallException($method, $kind, $reason));
+    }
+
     public function call(string $method, array $payload = []): array
     {
+        // As the real client: what JSON cannot hold never reaches the runtime.
+        Payload::encode($method, $payload);
         $this->calls[] = new Call($method, $payload);
 
         if ([] !== ($this->responses[$method] ?? [])) {
@@ -86,7 +99,7 @@ final class FakeClient implements Client
         }
         if ('nfc.read' === $method) {
             // What the runtime does when NFC is not available, as nfc.isAvailable answers.
-            throw new NativeCallException($method, new \RuntimeException('NFC is not available: the phone has none, or it is turned off in its settings.'));
+            throw new NativeCallException($method, ErrorKind::Unavailable, 'NFC is not available: the phone has none, or it is turned off in its settings.');
         }
 
         return self::DEFAULTS[$method] ?? [];

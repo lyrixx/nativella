@@ -16,6 +16,10 @@ final readonly class Biometrics
     ) {
     }
 
+    /**
+     * False on a computer, and on a phone whose application does not ask for
+     * "biometrics".
+     */
     public function isAvailable(): bool
     {
         return $this->client->call('biometrics.isAvailable')['available'];

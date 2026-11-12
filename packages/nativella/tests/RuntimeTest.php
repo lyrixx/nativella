@@ -26,7 +26,7 @@ final class RuntimeTest extends TestCase
     {
         unset($_SERVER['NATIVELLA_DATA_DIR'], $_SERVER['NATIVELLA_PLATFORM']);
 
-        $this->assertFalse(Runtime::isNative());
+        $this->assertFalse(Runtime::isAvailable());
         $this->assertNull(Runtime::dataDir());
         $this->assertFalse(Runtime::isMobile());
     }

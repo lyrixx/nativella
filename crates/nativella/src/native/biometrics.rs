@@ -7,7 +7,7 @@ use tauri::plugin::mobile::PluginInvokeError;
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_biometric::{AuthOptions, Biometric, BiometricExt, Error};
 
-use super::{Call, failed};
+use super::{Call, NativeError, failed};
 
 /// Whether the application asks for `biometrics`: only then does lib.rs
 /// register the plugin.
@@ -33,7 +33,7 @@ struct Authenticate {
     title: Option<String>,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     let biometric = call.app.biometric();
 
     Some(match method {

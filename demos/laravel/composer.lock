@@ -2149,7 +2149,7 @@
             "dist": {
                 "type": "path",
                 "url": "../../packages/laravel",
-                "reference": "220c6c51f651787d53510b4fda48e993d866397f"
+                "reference": "7b9d1d033f7afe2ba88d36555658b22f1edd31e3"
             },
             "require": {
                 "laravel/framework": "^12.0 || ^13.0",
@@ -2185,13 +2185,24 @@
             "license": [
                 "MIT"
             ],
+            "authors": [
+                {
+                    "name": "Grégoire Pineau"
+                }
+            ],
             "description": "Runs Laravel applications as desktop and mobile applications with Nativella.",
+            "homepage": "https://lyrixx.github.io/nativella/",
             "keywords": [
                 "desktop",
                 "laravel",
                 "native",
                 "nativella"
             ],
+            "support": {
+                "docs": "https://lyrixx.github.io/nativella/docs/laravel/",
+                "issues": "https://github.com/lyrixx/nativella/issues",
+                "source": "https://github.com/lyrixx/nativella"
+            },
             "transport-options": {
                 "relative": true
             }
@@ -2202,9 +2213,10 @@
             "dist": {
                 "type": "path",
                 "url": "../../packages/nativella",
-                "reference": "ffd6acd6b87ab414810f05d39fdafec861c5346b"
+                "reference": "4c634c20529ec35d2463b580fc1fc535bc364e06"
             },
             "require": {
+                "composer-runtime-api": "^2.0",
                 "ext-mbstring": "*",
                 "php": ">=8.4"
             },
@@ -2230,13 +2242,24 @@
             "license": [
                 "MIT"
             ],
+            "authors": [
+                {
+                    "name": "Grégoire Pineau"
+                }
+            ],
             "description": "The native APIs of Nativella for PHP, on the desktop and on phones: windows, menus, dialogs, notifications, clipboard, tray…",
+            "homepage": "https://lyrixx.github.io/nativella/",
             "keywords": [
                 "desktop",
                 "native",
                 "nativella",
                 "tauri"
             ],
+            "support": {
+                "docs": "https://lyrixx.github.io/nativella/docs/",
+                "issues": "https://github.com/lyrixx/nativella/issues",
+                "source": "https://github.com/lyrixx/nativella"
+            },
             "transport-options": {
                 "relative": true
             }

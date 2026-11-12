@@ -22,13 +22,14 @@ final class SettingsController extends AbstractController
     public function __construct(
         private readonly App $app,
         private readonly Desktop $desktop,
+        private readonly Nativella $nativella,
     ) {
     }
 
     #[Route('/settings', name: 'settings', methods: ['GET'])]
-    public function index(Nativella $nativella, NoteRepository $notes, Screen $screen, System $system): Response
+    public function index(NoteRepository $notes, Screen $screen, System $system): Response
     {
-        $native = $nativella->isNative();
+        $native = $this->nativella->isNative();
 
         return $this->render('settings/index.html.twig', [
             'alwaysOnTop' => $native && $this->desktop->isAlwaysOnTop(),
@@ -47,6 +48,10 @@ final class SettingsController extends AbstractController
     #[IsCsrfTokenValid('submit')]
     public function save(Request $request): Response
     {
+        if (!$this->nativella->isNative() || Runtime::isMobile()) {
+            throw $this->createNotFoundException('Only computers start an application at login, or keep a window above the others.');
+        }
+
         $payload = $request->getPayload();
 
         if ($payload->getBoolean('autostart')) {
@@ -65,6 +70,10 @@ final class SettingsController extends AbstractController
     #[IsCsrfTokenValid('submit')]
     public function openDataDir(Shell $shell): Response
     {
+        if (!$this->nativella->isNative()) {
+            throw $this->createNotFoundException('Only Nativella has a data directory.');
+        }
+
         $shell->openPath($this->app->path(Directory::AppData));
 
         return $this->redirectToRoute('settings');

@@ -19,12 +19,14 @@ $tray->set(
 
 While the tray icon exists, closing the last window does not quit the application, which keeps running in the tray. Give the user a way out, with the `Quit` [role](menus.md#roles) or an item whose click calls `App::quit()`.
 
+`Tray` is desktop only. On a phone, it throws a `NativeCallException`.
+
 ## Methods
 
 | Method | |
 |---|---|
 | `set(?string $tooltip = null, list<MenuItem> $menu = [], ?string $icon = null, ?string $title = null): void` | Creates the tray icon, or updates it. |
-| `remove(): void` | Removes the tray icon. Closing the last window quits the application again. |
+| `remove(): void` | Removes the tray icon. Closing the last window quits the application again, and so does removing the icon when no window is open, once the current request is answered. |
 
 `set()` replaces everything at once, so call it again with new values to change the tooltip, the icon or the menu. [`Menu::update()`](menus.md#methods) changes one item of its menu.
 
@@ -37,13 +39,14 @@ While the tray icon exists, closing the last window does not quit the applicatio
 
 ## Clicks
 
-A click on the icon dispatches `Nativella\Event\TrayClicked`, whose `button` is `left`, `right` or `middle`. Typically, a left click brings the main window back:
+A click on the icon dispatches `Nativella\Event\TrayClicked`, whose `button` is a `Nativella\Tray\MouseButton`: `Left`, `Middle` or `Right`. Typically, a left click brings the main window back:
 
 ```php
 use Nativella\Event\TrayClicked;
+use Nativella\Tray\MouseButton;
 
-if ($event instanceof TrayClicked && 'left' === $event->button) {
-    // Focuses the main window, or opens it again, as composer.json describes it.
+if ($event instanceof TrayClicked && MouseButton::Left === $event->button) {
+    // Focuses the main window, or opens it again.
     $window->open('main');
 }
 ```
@@ -77,4 +80,4 @@ if ($event instanceof MenuItemClicked) {
 }
 ```
 
-Opened again, the main window starts from the [`window`](configuration.md#window) options in `composer.json`. Starting the application a second time brings it back too. See [A second launch](lifecycle.md#a-second-launch).
+Opened again, the main window starts from the [`window`](configuration.md#window) options in `composer.json`, at the size and the position [the user left it](windows.md#what-a-window-remembers). Starting the application a second time brings it back too. See [A second launch](lifecycle.md#a-second-launch).

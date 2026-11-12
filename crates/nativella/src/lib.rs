@@ -46,7 +46,7 @@ use std::path::PathBuf;
 
 use nativella_runtime::{PhpApp, PhpRuntime, RequestOrigin};
 use serde_json::json;
-use tauri::{App, Builder, Manager, RunEvent, WindowEvent, Wry};
+use tauri::{App, AppHandle, Builder, Manager, RunEvent, WindowEvent, Wry};
 
 use crate::native::State;
 pub use crate::project::{Manifest, Project};
@@ -61,6 +61,16 @@ pub(crate) const APP_URL: &str = "http://php.localhost/";
 
 /// The label of the window opened when PHP opens none at boot.
 pub(crate) const MAIN_WINDOW: &str = "main";
+
+/// How long the user who quits waits for the requests PHP still has: a save
+/// goes through, a request that hangs does not hold the application.
+#[cfg(all(desktop, unix))]
+const QUIT_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Set with `NO_AT_BRIDGE` when it is Nativella's own: an application that
+/// restarts inherits both, and still knows whose it is.
+#[cfg(target_os = "linux")]
+pub(crate) const OWN_NO_AT_BRIDGE: &str = "NATIVELLA_NO_AT_BRIDGE";
 
 /// Whether Nativella set `NO_AT_BRIDGE` for itself, see [`start`].
 #[cfg(target_os = "linux")]
@@ -145,9 +155,12 @@ fn start(
     // PHP: see examples/plain.rs. Disabling the bridge avoids it, at the cost
     // of screen reader support, in the application only.
     #[cfg(target_os = "linux")]
-    if env::var_os("NO_AT_BRIDGE").is_none() {
+    if env::var_os("NO_AT_BRIDGE").is_none() || env::var_os(OWN_NO_AT_BRIDGE).is_some() {
         // SAFETY: no other thread exists yet.
-        unsafe { env::set_var("NO_AT_BRIDGE", "1") };
+        unsafe {
+            env::set_var("NO_AT_BRIDGE", "1");
+            env::set_var(OWN_NO_AT_BRIDGE, "1");
+        }
         SETS_NO_AT_BRIDGE.store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
@@ -205,8 +218,23 @@ fn start(
                     let _ = window.unminimize();
                     let _ = window.set_focus();
                 }
+                // Not from this callback: on Windows it runs on the main
+                // thread, where building a window deadlocks.
                 None => {
-                    if let Err(error) = native::window::open(app, MAIN_WINDOW, Default::default()) {
+                    let app = app.clone();
+                    let spawned =
+                        std::thread::Builder::new()
+                            .name("reopen".to_owned())
+                            .spawn(move || {
+                                if let Err(error) =
+                                    native::window::open(&app, MAIN_WINDOW, Default::default())
+                                {
+                                    eprintln!(
+                                        "[nativella] Could not open the main window: {error}"
+                                    );
+                                }
+                            });
+                    if let Err(error) = spawned {
                         eprintln!("[nativella] Could not open the main window: {error}");
                     }
                 }
@@ -220,7 +248,16 @@ fn start(
                 .with_handler(native::global_shortcut::on_shortcut)
                 .build(),
         )
-        .plugin(tauri_plugin_window_state::Builder::new().build())
+        // Without VISIBLE: the plugin would show and focus every window it has
+        // no state for, and so the ones PHP opens hidden or unfocused.
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::all()
+                        - tauri_plugin_window_state::StateFlags::VISIBLE,
+                )
+                .build(),
+        )
         .on_menu_event(native::menu::on_menu_event)
         .manage(downloads::Pending::default());
 
@@ -336,6 +373,8 @@ fn start(
             // previous build runs no more.
             if extracted {
                 embedded::remove_other_builds(&project.dir);
+                #[cfg(desktop)]
+                native::updater::remove_leftovers();
             }
             let php_app = PhpApp::from_project_dir(&project.dir).map_err(|error| {
                 format!(
@@ -356,6 +395,10 @@ fn start(
             // has its own, and phones have no /tmp. Opcache locks its shared
             // memory with a file there, without thread safety.
             let cache_dir = app.path().app_cache_dir()?;
+            // The files picked in dialogs during the previous run: see
+            // native/dialog.rs.
+            #[cfg(mobile)]
+            native::dialog::forget_picked(&cache_dir);
             let session_dir = cache_dir.join("sessions");
             fs::create_dir_all(&session_dir)?;
             let mut php_app = php_app.with_ini("session.save_path", session_dir.to_string_lossy());
@@ -501,12 +544,7 @@ fn start(
             code: None, api, ..
         } => {
             api.prevent_exit();
-            let handle = app.clone();
-            app.state::<PhpRuntime>().after_queued(move || {
-                if !handle.state::<State>().has_tray() && handle.webview_windows().is_empty() {
-                    handle.exit(0);
-                }
-            });
+            quit_unless_shown(app);
         }
         // The processes PHP started do not outlive the application.
         #[cfg(desktop)]
@@ -515,6 +553,51 @@ fn start(
     });
 
     Ok(())
+}
+
+/// Quits when the application shows nothing any more, neither a window nor
+/// a tray icon, once PHP has handled what is queued: it may still open a
+/// window, or set a tray.
+pub(crate) fn quit_unless_shown(app: &AppHandle) {
+    let handle = app.clone();
+    app.state::<PhpRuntime>().after_queued(move || {
+        if !handle.state::<State>().has_tray() && handle.webview_windows().is_empty() {
+            handle.exit(0);
+        }
+    });
+}
+
+/// Quits as the user asks, from a menu or with a signal: once PHP has
+/// answered the requests it has, a form being saved for one, or after
+/// [`QUIT_GRACE`].
+#[cfg(all(desktop, unix))]
+pub(crate) fn quit(app: &AppHandle) {
+    use std::sync::mpsc::{self, RecvTimeoutError};
+
+    // A signal may come before PHP starts.
+    let Some(runtime) = app.try_state::<PhpRuntime>() else {
+        app.exit(0);
+        return;
+    };
+    let (answered, waiting) = mpsc::channel::<()>();
+    runtime.after_queued(move || drop(answered));
+
+    let handle = app.clone();
+    let spawned = std::thread::Builder::new()
+        .name("quit".to_owned())
+        .spawn(move || {
+            if waiting.recv_timeout(QUIT_GRACE) == Err(RecvTimeoutError::Timeout) {
+                eprintln!(
+                    "[nativella] PHP is still busy after {} seconds: quitting anyway.",
+                    QUIT_GRACE.as_secs()
+                );
+            }
+            handle.exit(0);
+        });
+    if let Err(error) = spawned {
+        eprintln!("[nativella] Quitting without waiting for PHP: {error}.");
+        app.exit(0);
+    }
 }
 
 /// Tauri hands Android requests as `php://localhost/…` while the page lives
@@ -589,7 +672,7 @@ fn utf8_paths(paths: &[PathBuf]) -> Vec<String> {
 /// Registered here, not in the thread: PHP must find the handlers when it
 /// starts.
 #[cfg(all(desktop, unix))]
-fn quit_on_signals(app: &tauri::AppHandle) {
+fn quit_on_signals(app: &AppHandle) {
     use signal_hook::consts::{SIGHUP, SIGINT, SIGTERM};
 
     let mut signals = match signal_hook::iterator::Signals::new([SIGHUP, SIGINT, SIGTERM]) {
@@ -610,7 +693,7 @@ fn quit_on_signals(app: &tauri::AppHandle) {
                 }
                 eprintln!("[nativella] Signal {signal}: quitting.");
                 quitting = true;
-                app.exit(0);
+                quit(&app);
             }
         });
     if let Err(error) = spawned {

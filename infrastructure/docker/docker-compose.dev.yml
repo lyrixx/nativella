@@ -1,6 +1,9 @@
 services:
     router:
-        build: services/router
+        build:
+            context: services/router
+            args:
+                PROJECT_NAME: "${PROJECT_NAME}"
         volumes:
             - "/var/run/docker.sock:/var/run/docker.sock:ro"
             - "./services/router/certs:/etc/ssl/certs"

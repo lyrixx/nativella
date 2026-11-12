@@ -4,7 +4,7 @@
 
 {% block body %}
     <section class="empty">
-        <h1>{{ notes|length }} {{ notes|length == 1 ? 'note matches' : 'notes match' }} “{{ q }}”</h1>
+        <h1>{{ notes.hasMore ? 'More than ' }}{{ notes|length }} {{ notes|length == 1 ? 'note matches' : 'notes match' }} “{{ q }}”</h1>
         <p class="muted">Pick one on the left.</p>
     </section>
 {% endblock %}

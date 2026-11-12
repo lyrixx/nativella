@@ -37,10 +37,10 @@ The executable is not signed. Downloaded with a browser, it is quarantined, and 
 
 ### Checking the download
 
-Each file of a release has a provenance attestation, signed by GitHub, which says that the repository's Release workflow built it from the release tag. The [GitHub CLI](https://cli.github.com) checks it:
+Each file of a release has a provenance attestation, signed by GitHub, which says that the repository's Release workflow built it from the release tag. The [GitHub CLI](https://cli.github.com) checks it, before you move the file, or where you moved it:
 
 ```bash
-gh attestation verify nativella --repo lyrixx/nativella
+gh attestation verify /usr/local/bin/nativella --repo lyrixx/nativella
 ```
 
 The same goes for the Android and iOS templates. `SHA256SUMS-<platform>`, next to each platform's files, holds their checksums.
@@ -53,11 +53,11 @@ The executable carries PHP 8.5, linked statically, built with [static-php-cli](h
 nativella --version
 ```
 
-`nativella --help` lists the commands: `run` opens a project in a window, `build` makes a [standalone executable](building.md) of it, `deb` a [Debian package](building.md#debian-packages) on Linux, `android` and `ios` make an [Android or iOS application](mobile.md) of it, `licenses` prints the [licenses](building.md#licenses) of the software the executable contains, PHP and its libraries included.
+`nativella -V` is the short form. `nativella --help` lists the commands: `run` opens a project in a window, `build` makes a [standalone executable](building.md) of it, `deb` a [Debian package](building.md#debian-packages) on Linux, `android` and `ios` make an [Android or iOS application](mobile.md) of it, `licenses` prints the [licenses](building.md#licenses) of the software the executable contains, PHP and its libraries included.
 
 ## The PHP package
 
-The native APIs are a Composer package, `nativella/nativella`. The Symfony bundle and the Laravel package require it, so add the one your application needs.
+The native APIs are a Composer package, `nativella/nativella`. The Symfony bundle and the Laravel package require it, so add the one your application needs. They need PHP 8.4 or later on the machine that runs Composer. The bundle is for Symfony 7.4 and 8, and the Laravel package for Laravel 12 and 13.
 
 ```bash
 composer require nativella/symfony-bundle   # Symfony
@@ -67,7 +67,7 @@ composer require nativella/nativella        # plain PHP, or another framework
 
 [Symfony](symfony.md), [Laravel](laravel.md) and [Plain PHP](plain-php.md) go on from there.
 
-Composer writes a constraint such as `^0.5`, which stays on 0.5.x, because before 1.0, a minor version can break things. The packages and the `nativella` command are released together, with the same version number, so upgrade them together.
+Composer writes a constraint such as `^0.5`, which stays on 0.5.x, because before 1.0, a minor version can break things. The packages and the `nativella` command are released together, with the same version number, so upgrade them together. When they are not of the same release line (0.5.x with 0.5.x before 1.0, the same major version after), the first native call throws a `Nativella\Exception\VersionMismatchException`, which says which one to upgrade. See [Errors](plain-php.md#errors).
 
 To work on Nativella itself, the repository's demos take the packages from `packages/` through a [path repository](https://getcomposer.org/doc/05-repositories.md#path). See [Developing Nativella](development.md).
 

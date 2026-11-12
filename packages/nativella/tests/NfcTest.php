@@ -4,6 +4,7 @@ namespace Nativella\Tests;
 
 use Nativella\Client\FakeClient;
 use Nativella\Exception\NativeCallException;
+use Nativella\Exception\UnexpectedResponseException;
 use Nativella\Nfc;
 use Nativella\Nfc\Record;
 use Nativella\Nfc\TypeNameFormat;
@@ -20,7 +21,7 @@ final class NfcTest extends TestCase
 
     public function testBytesThatAreNotBase64AreRefused(): void
     {
-        $this->expectException(\UnexpectedValueException::class);
+        $this->expectException(UnexpectedResponseException::class);
         $this->expectExceptionMessage('The runtime sent bytes of an NFC record that are not base64: "not base64!".');
 
         Record::fromArray(['tnf' => 1, 'type' => base64_encode('T'), 'id' => '', 'payload' => 'not base64!']);

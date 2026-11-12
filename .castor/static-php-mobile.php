@@ -14,10 +14,13 @@ use function Castor\io;
 use function Castor\run;
 use function Castor\variable;
 use function docker\builder_path;
-use function docker\docker_compose_run;
+use function docker\capture_in_builder;
 use function docker\run_in_builder;
 use function mobile\ndk_home;
+use function static_php\downloaded_sources;
 use function static_php\spc;
+use function static_php\stamp;
+use function static_php\stamped_sources;
 
 use const static_php\EXTENSIONS;
 use const static_php\PHP_RELEASE;
@@ -103,8 +106,10 @@ function android(
     string $abi = 'arm64-v8a',
     #[AsOption(description: 'Build again, even if nothing changed')]
     bool $force = false,
+    #[AsOption(description: 'Build again if a library PHP links has a newer release than the one it was built with')]
+    bool $updateLibraries = false,
 ): void {
-    build(Target::android($abi), $force);
+    build(Target::android($abi), $force, $updateLibraries);
 }
 
 /**
@@ -119,21 +124,25 @@ function android(
 function ios(
     #[AsOption(description: 'Build again, even if nothing changed')]
     bool $force = false,
+    #[AsOption(description: 'Build again if a library PHP links has a newer release than the one it was built with')]
+    bool $updateLibraries = false,
 ): void {
     foreach ([Target::iphoneos(), Target::iphonesimulator()] as $target) {
-        build($target, $force);
+        build($target, $force, $updateLibraries);
     }
 }
 
 /**
  * Builds PHP for $target, unless it is built already from the same versions,
- * extensions, toolchain and recipes.
+ * extensions, toolchain and recipes. static-php-cli downloads the latest
+ * release of each library: the stamp of the build records them, and with
+ * $updateLibraries, it builds again when one of them has a newer one.
  *
  * @return string the buildroot, from the root of the repository: lib/ with
  *                libphp.a and the libraries it needs, include/php/,
  *                bin/php-config
  */
-function build(Target $target, bool $force = false): string
+function build(Target $target, bool $force = false, bool $updateLibraries = false): string
 {
     $root = variable('root_dir');
     $dir = "static-php/{$target->name}";
@@ -144,13 +153,22 @@ function build(Target $target, bool $force = false): string
     // The recipes too, which are these, not static-php-cli's
     $identity = implode(' ', [SPC_VERSION, PHP_RELEASE, $target->name, $toolchain->version, EXTENSIONS, hash_file('xxh128', __FILE__)]);
 
-    if (!$force && is_file($stamp) && file_get_contents($stamp) === $identity) {
-        return $buildroot;
+    $libraries = libraries();
+    $recorded = stamped_sources($stamp);
+
+    if (!$force && is_file($stamp) && file_get_contents($stamp) === stamp($identity, $recorded)) {
+        if (!$updateLibraries) {
+            return $buildroot;
+        }
+
+        download(['php-src', ...$libraries], $libraries);
+        if (downloaded_sources($libraries) === $recorded) {
+            return $buildroot;
+        }
     }
 
     io()->title(\sprintf('Building PHP %s as a static library for %s', PHP_RELEASE, $target->name));
 
-    $libraries = libraries();
     $archives = download(['php-src', ...$libraries]);
 
     fs()->remove(["{$root}/{$buildroot}", "{$root}/{$dir}/source"]);
@@ -182,7 +200,7 @@ function build(Target $target, bool $force = false): string
     $build->run([...$toolchain->strip, ...array_map(static fn (\SplFileInfo $library): string => $library->getFilename(), $built)], "{$buildroot}/lib");
 
     fs()->remove("{$root}/{$dir}/source");
-    fs()->dumpFile($stamp, $identity);
+    fs()->dumpFile($stamp, stamp($identity, downloaded_sources($libraries)));
 
     io()->success("PHP for {$target->name} is ready in {$buildroot}/.");
 
@@ -227,15 +245,16 @@ function libraries(): array
  * desktop, as long as both share these downloads.
  *
  * @param list<string> $sources the names of static-php-cli
+ * @param list<string> $refresh the ones to download again, in their latest release
  *
  * @return array<string, string> the archive of each source, from the root of
  *                               the repository
  */
-function download(array $sources): array
+function download(array $sources, array $refresh = []): array
 {
     io()->section('Downloading the sources');
 
-    \static_php\download([builder_path(spc()), 'download', implode(',', $sources)], builder_path('static-php'));
+    \static_php\download([builder_path(spc()), 'download', implode(',', $sources)], builder_path('static-php'), refresh: $refresh);
 
     $lock = json_decode((string) file_get_contents(variable('root_dir').'/static-php/downloads/.lock.json'), true, flags: \JSON_THROW_ON_ERROR);
 
@@ -436,7 +455,7 @@ function missing_prerequisites(Target $target): array
 function environment_variable(Target $target, string $name): string
 {
     if ($target->isAndroid() && !context()['run_on_host']) {
-        return trim(docker_compose_run(['printenv', $name], context()->withQuiet(), service: 'android')->getOutput());
+        return capture_in_builder(['printenv', $name], 'android');
     }
 
     return (string) getenv($name);
@@ -449,7 +468,7 @@ function environment_variable(Target $target, string $name): string
 function build_triple(Target $target): string
 {
     if ($target->isAndroid() && !context()['run_on_host']) {
-        return trim(docker_compose_run(['cc', '-dumpmachine'], context()->withQuiet(), service: 'android')->getOutput());
+        return capture_in_builder(['cc', '-dumpmachine'], 'android');
     }
 
     return trim(capture(['cc', '-dumpmachine']));

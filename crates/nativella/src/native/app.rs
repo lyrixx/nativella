@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tauri::Manager;
 
-use super::{Call, failed};
+use super::{Call, NativeError, failed};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,7 +39,7 @@ struct SetBadgeCount {
     count: Option<i64>,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     let app = call.app;
 
     Some(match method {
@@ -106,7 +106,9 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
             Ok(json!({}))
         }),
         #[cfg(mobile)]
-        "setBadgeCount" => Err("Badges are not available on mobile yet.".to_owned()),
+        "setBadgeCount" => Err(super::unavailable(
+            "Badges are not available on mobile yet.",
+        )),
         "enableAutostart" => autostart::enable(app).map(|()| json!({})),
         "disableAutostart" => autostart::disable(app).map(|()| json!({})),
         "isAutostartEnabled" => {
@@ -117,23 +119,27 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
 }
 
 #[cfg(target_os = "macos")]
-fn hide(app: &tauri::AppHandle) -> Result<(), String> {
+fn hide(app: &tauri::AppHandle) -> Result<(), NativeError> {
     app.hide().map_err(failed)
 }
 
 #[cfg(not(target_os = "macos"))]
-fn hide(_app: &tauri::AppHandle) -> Result<(), String> {
-    Err("Hiding the application is only possible on macOS: hide its windows instead.".to_owned())
+fn hide(_app: &tauri::AppHandle) -> Result<(), NativeError> {
+    Err(super::unavailable(
+        "Hiding the application is only possible on macOS: hide its windows instead.",
+    ))
 }
 
 #[cfg(target_os = "macos")]
-fn show(app: &tauri::AppHandle) -> Result<(), String> {
+fn show(app: &tauri::AppHandle) -> Result<(), NativeError> {
     app.show().map_err(failed)
 }
 
 #[cfg(not(target_os = "macos"))]
-fn show(_app: &tauri::AppHandle) -> Result<(), String> {
-    Err("Showing the application is only possible on macOS: show its windows instead.".to_owned())
+fn show(_app: &tauri::AppHandle) -> Result<(), NativeError> {
+    Err(super::unavailable(
+        "Showing the application is only possible on macOS: show its windows instead.",
+    ))
 }
 
 /// Starting with the user session only exists on desktop.
@@ -142,17 +148,17 @@ mod autostart {
     use tauri::AppHandle;
     use tauri_plugin_autostart::ManagerExt;
 
-    use super::failed;
+    use super::{NativeError, failed};
 
-    pub(super) fn enable(app: &AppHandle) -> Result<(), String> {
+    pub(super) fn enable(app: &AppHandle) -> Result<(), NativeError> {
         app.autolaunch().enable().map_err(failed)
     }
 
-    pub(super) fn disable(app: &AppHandle) -> Result<(), String> {
+    pub(super) fn disable(app: &AppHandle) -> Result<(), NativeError> {
         app.autolaunch().disable().map_err(failed)
     }
 
-    pub(super) fn is_enabled(app: &AppHandle) -> Result<bool, String> {
+    pub(super) fn is_enabled(app: &AppHandle) -> Result<bool, NativeError> {
         app.autolaunch().is_enabled().map_err(failed)
     }
 }
@@ -161,17 +167,20 @@ mod autostart {
 mod autostart {
     use tauri::AppHandle;
 
+    use super::NativeError;
+    use crate::native::unavailable;
+
     const UNAVAILABLE: &str = "Autostart is not available on mobile.";
 
-    pub(super) fn enable(_app: &AppHandle) -> Result<(), String> {
-        Err(UNAVAILABLE.to_owned())
+    pub(super) fn enable(_app: &AppHandle) -> Result<(), NativeError> {
+        Err(unavailable(UNAVAILABLE))
     }
 
-    pub(super) fn disable(_app: &AppHandle) -> Result<(), String> {
-        Err(UNAVAILABLE.to_owned())
+    pub(super) fn disable(_app: &AppHandle) -> Result<(), NativeError> {
+        Err(unavailable(UNAVAILABLE))
     }
 
-    pub(super) fn is_enabled(_app: &AppHandle) -> Result<bool, String> {
+    pub(super) fn is_enabled(_app: &AppHandle) -> Result<bool, NativeError> {
         Ok(false)
     }
 }

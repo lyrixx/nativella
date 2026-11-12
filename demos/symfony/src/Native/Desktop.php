@@ -6,6 +6,7 @@ use App\Repository\NoteRepository;
 use Nativella\Menu;
 use Nativella\Menu\MenuItem;
 use Nativella\Menu\Role;
+use Nativella\Runtime;
 use Nativella\Settings;
 use Nativella\Tray;
 use Nativella\Window;
@@ -56,23 +57,31 @@ final readonly class Desktop
             $view[] = MenuItem::action('view.devtools', 'Developer tools', 'CmdOrCtrl+Alt+I');
         }
 
-        $this->menu->set(
-            MenuItem::appMenu('Nativella Notes'),
-            MenuItem::submenu(
-                'File',
-                MenuItem::link('file.new', 'New note', '/notes/new', 'CmdOrCtrl+N'),
-                MenuItem::action('file.import', 'Import…', 'CmdOrCtrl+O'),
-                MenuItem::separator(),
-                MenuItem::link('file.settings', 'Settings', '/settings', 'CmdOrCtrl+,'),
-            ),
+        $file = [
+            MenuItem::link('file.new', 'New note', '/notes/new', 'CmdOrCtrl+N'),
+            MenuItem::action('file.import', 'Import…', 'CmdOrCtrl+O'),
+            MenuItem::separator(),
+            MenuItem::link('file.settings', 'Settings', '/settings', 'CmdOrCtrl+,'),
+        ];
+
+        // On macOS, the first submenu is named after the application, and
+        // holds Quit; elsewhere, Quit goes at the end of File.
+        if ('macos' === Runtime::platform()) {
+            $menu = [MenuItem::appMenu('Nativella Notes')];
+        } else {
+            $menu = [];
+            $file[] = MenuItem::separator();
+            $file[] = MenuItem::role(Role::Quit);
+        }
+
+        $this->menu->set(...[
+            ...$menu,
+            MenuItem::submenu('File', ...$file),
             MenuItem::editMenu(),
             MenuItem::submenu('View', ...$view),
             MenuItem::windowMenu(),
-            MenuItem::submenu(
-                'Help',
-                MenuItem::action('help.website', 'Nativella on GitHub'),
-            ),
-        );
+            MenuItem::submenu('Help', MenuItem::action('help.website', 'Nativella on GitHub')),
+        ]);
     }
 
     /**

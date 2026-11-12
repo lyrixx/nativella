@@ -47,7 +47,7 @@ class Note
     {
         $content = str_replace("\r\n", "\n", $content);
 
-        if (preg_match('/\A\s*#\s+(?<title>[^\n]+)\n?(?<body>.*)\z/s', $content, $matches)) {
+        if (preg_match('/\A\s*#[ \t]+(?<title>\S[^\n]*)\n?(?<body>.*)\z/s', $content, $matches)) {
             return new self(self::truncate(trim($matches['title'])), trim($matches['body']));
         }
 
@@ -102,14 +102,9 @@ class Note
         $this->edit($this->title, '' === $body ? $code : "{$body}\n\n{$code}");
     }
 
-    public function pin(): void
+    public function togglePin(): void
     {
-        $this->pinned = true;
-    }
-
-    public function unpin(): void
-    {
-        $this->pinned = false;
+        $this->pinned = !$this->pinned;
     }
 
     public function toMarkdown(): string

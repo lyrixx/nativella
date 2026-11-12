@@ -5,7 +5,7 @@ namespace Nativella\Laravel\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * @method static int                                          start(string $alias, list<string> $command, ?string $cwd = null, array<string, string> $env = [])
+ * @method static int                                          start(string $alias, non-empty-array<string> $command, ?string $cwd = null, array<string, string> $env = [])
  * @method static void                                         write(string $alias, string $data)
  * @method static void                                         closeInput(string $alias)
  * @method static void                                         stop(string $alias)

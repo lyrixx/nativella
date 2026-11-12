@@ -2,6 +2,8 @@
 
 namespace Nativella\Power;
 
+use Nativella\Exception\UnexpectedResponseException;
+
 final readonly class Battery
 {
     public function __construct(
@@ -20,6 +22,6 @@ final readonly class Battery
      */
     public static function fromArray(array $data): self
     {
-        return new self((float) $data['level'], BatteryState::from($data['state']), $data['timeToEmpty'], $data['timeToFull']);
+        return new self((float) $data['level'], BatteryState::tryFrom($data['state']) ?? throw UnexpectedResponseException::unknownValue('battery state', $data['state']), $data['timeToEmpty'], $data['timeToFull']);
     }
 }

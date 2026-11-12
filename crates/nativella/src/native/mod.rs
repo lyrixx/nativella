@@ -50,6 +50,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use nativella_runtime::NativeCall;
+pub(crate) use nativella_runtime::{ErrorKind, NativeError};
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 #[cfg(desktop)]
@@ -162,14 +163,18 @@ pub(crate) struct Call<'a> {
 
 impl Call<'_> {
     /// The payload as `T`, or an error naming the method.
-    pub(crate) fn payload<T: DeserializeOwned>(&self) -> Result<T, String> {
-        serde_json::from_value(self.payload.clone())
-            .map_err(|error| format!("The payload of \"{}\" is invalid: {error}.", self.method))
+    pub(crate) fn payload<T: DeserializeOwned>(&self) -> Result<T, NativeError> {
+        serde_json::from_value(self.payload.clone()).map_err(|error| {
+            invalid_payload(format!(
+                "The payload of \"{}\" is invalid: {error}.",
+                self.method
+            ))
+        })
     }
 
     /// The window the payload names, or the one that made the call, or the
     /// focused one, or the main one.
-    pub(crate) fn target_window(&self, label: Option<&str>) -> Result<WebviewWindow, String> {
+    pub(crate) fn target_window(&self, label: Option<&str>) -> Result<WebviewWindow, NativeError> {
         let windows = self.app.webview_windows();
 
         let window = match label.or(self.window) {
@@ -182,9 +187,11 @@ impl Call<'_> {
                 .cloned(),
         };
 
-        window.ok_or_else(|| match label.or(self.window) {
-            Some(label) => format!("There is no \"{label}\" window."),
-            None => "There is no window.".to_owned(),
+        window.ok_or_else(|| {
+            not_found(match label.or(self.window) {
+                Some(label) => format!("There is no \"{label}\" window."),
+                None => "There is no window.".to_owned(),
+            })
         })
     }
 
@@ -195,7 +202,7 @@ impl Call<'_> {
 
 /// Runs on the PHP thread: blocking here (a modal dialog) is fine, the main
 /// thread keeps the UI alive.
-pub(crate) fn call(app: &AppHandle, call: NativeCall<'_>) -> Result<Value, String> {
+pub(crate) fn call(app: &AppHandle, call: NativeCall<'_>) -> Result<Value, NativeError> {
     let Some((domain, method)) = call.method.split_once('.') else {
         return Err(unknown(call.method));
     };
@@ -249,13 +256,18 @@ pub(crate) fn call(app: &AppHandle, call: NativeCall<'_>) -> Result<Value, Strin
         "window" => window::call(&call, method),
         #[cfg(mobile)]
         "childProcess" | "globalShortcut" | "menu" | "power" | "secrets" | "tray" | "updater" => {
-            Some(Err(format!(
+            Some(Err(unavailable(format!(
                 "\"{full_method}\" is not available on mobile: check Nativella\\Runtime::isMobile() first."
-            )))
+            ))))
+        }
+        // A phone API this build lacks is not available, which is an answer.
+        // Keep in sync with the isAvailable() of packages/nativella/src/.
+        _ if matches!(full_method, "biometrics.isAvailable" | "nfc.isAvailable") => {
+            Some(Ok(serde_json::json!({ "available": false })))
         }
         // The APIs of phones this build lacks. A guard, not a pattern: the
         // arms above take the ones it has.
-        _ if PHONE_DOMAINS.contains(&domain) => Some(Err(if cfg!(mobile) {
+        _ if PHONE_DOMAINS.contains(&domain) => Some(Err(unavailable(if cfg!(mobile) {
             format!(
                 "\"{full_method}\" needs \"{domain}\" in the permissions of the application: see extra.nativella in its composer.json."
             )
@@ -263,7 +275,7 @@ pub(crate) fn call(app: &AppHandle, call: NativeCall<'_>) -> Result<Value, Strin
             format!(
                 "\"{full_method}\" is only available on phones: check Nativella\\Runtime::isMobile() first."
             )
-        })),
+        }))),
         _ => None,
     };
 
@@ -281,8 +293,9 @@ const PHONE_DOMAINS: &[&str] = &[
     "share",
 ];
 
-pub(crate) fn unknown(method: &str) -> String {
-    format!("Unknown native method \"{method}\".")
+/// A method this version of Nativella does not have.
+pub(crate) fn unknown(method: &str) -> NativeError {
+    unavailable(format!("Unknown native method \"{method}\"."))
 }
 
 pub(crate) fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -293,7 +306,47 @@ pub(crate) fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// Turns a Tauri or plugin error into the message PHP throws.
-pub(crate) fn failed(error: impl std::fmt::Display) -> String {
-    error.to_string()
+/// A Tauri or plugin error, as the plain failure PHP throws.
+pub(crate) fn failed(error: impl std::fmt::Display) -> NativeError {
+    NativeError::new(ErrorKind::Failed, error.to_string())
+}
+
+pub(crate) fn invalid_payload(message: impl Into<String>) -> NativeError {
+    NativeError::new(ErrorKind::InvalidPayload, message)
+}
+
+pub(crate) fn not_found(message: impl Into<String>) -> NativeError {
+    NativeError::new(ErrorKind::NotFound, message)
+}
+
+// Only printing to PDF, on Linux, and the phone APIs wait with a limit
+#[cfg(any(target_os = "linux", mobile, test))]
+pub(crate) fn timeout(message: impl Into<String>) -> NativeError {
+    NativeError::new(ErrorKind::Timeout, message)
+}
+
+pub(crate) fn unavailable(message: impl Into<String>) -> NativeError {
+    NativeError::new(ErrorKind::Unavailable, message)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_helper_says_its_kind() {
+        assert_eq!(failed("The disk is full.").kind, ErrorKind::Failed);
+        assert_eq!(invalid_payload("").kind, ErrorKind::InvalidPayload);
+        assert_eq!(not_found("").kind, ErrorKind::NotFound);
+        assert_eq!(timeout("").kind, ErrorKind::Timeout);
+        assert_eq!(unavailable("").kind, ErrorKind::Unavailable);
+    }
+
+    #[test]
+    fn a_method_nativella_does_not_have_is_unavailable() {
+        assert_eq!(
+            unknown("window.teleport"),
+            unavailable("Unknown native method \"window.teleport\".")
+        );
+    }
 }

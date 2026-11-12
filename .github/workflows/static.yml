@@ -7,7 +7,7 @@ name: Static PHP
 # A pull request runs it on the changes of the Rust workflow: a demo can need
 # an extension that the static PHP lacks. And on mobile/php/php, which
 # describes the static PHP to ext-php-rs. Weekly too. The static image has
-# the Rust stable of the day it was built, as in rust.yml.
+# the Rust its Dockerfile pins, as the builder.
 #
 # A pull request does not build the executables (3 minutes): main builds
 # them once merged, as the release does, and the smoke test links the
@@ -91,17 +91,22 @@ jobs:
               uses: ./.github/actions/stack
 
             # Built once, then as long as the version of PHP, its extensions,
-            # static-php-cli and the glibc stay the same. release.yml restores
-            # it too: keep the path and the key in sync
+            # static-php-cli, the glibc and the libraries it links stay the
+            # same: the key of a build is the hash of its stamp, known once
+            # built, so the latest one is restored. release.yml restores it
+            # too: keep the path and the key in sync
             - name: "Restore static PHP"
               id: static-php
               uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/buildroot
-                  key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
-                  # An older one too: static-php:build builds again only if the
-                  # versions or the extensions changed, not the rest of the file
+                  key: static-php-${{ runner.os }}-${{ runner.arch }}-latest
                   restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
+
+            - name: "Read the stamp of the PHP restored"
+              id: restored-php
+              shell: bash
+              run: echo "stamp=${{ hashFiles('static-php/buildroot/.nativella-build') }}" >> "${GITHUB_OUTPUT}"
 
             # The builder installs and stages the projects
             - name: "Build the builder"
@@ -135,27 +140,27 @@ jobs:
                       ${{ github.ref != 'refs/heads/main' && 'cargo-static-' || '' }}
 
             # static-php-cli asks the GitHub API for its downloads: without a
-            # token, the runners share its rate limit
+            # token, the runners share its rate limit. On main, it downloads
+            # the libraries again, and builds again if one has a new release
             - name: "Build PHP as a static library"
-              run: "castor static-php:build"
+              run: "castor static-php:build${{ github.ref == 'refs/heads/main' && ' --update-libraries' || '' }}"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            # Main only, as soon as built, whatever fails next: the key stays
-            # until .castor/static-php.php changes, with what it holds
+            # Main only, as soon as built again, whatever fails next
             - name: "Save static PHP"
               id: save-static-php
-              if: github.ref == 'refs/heads/main' && steps.static-php.outputs.cache-hit != 'true'
+              if: github.ref == 'refs/heads/main' && hashFiles('static-php/buildroot/.nativella-build') != steps.restored-php.outputs.stamp
               uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/buildroot
-                  key: ${{ steps.static-php.outputs.cache-primary-key }}
+                  key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('static-php/buildroot/.nativella-build') }}
 
             - name: "Delete the static PHP it replaces"
               if: steps.save-static-php.outcome == 'success'
               uses: ./.github/actions/delete-replaced-caches
               with:
-                  key: ${{ steps.static-php.outputs.cache-primary-key }}
+                  key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('static-php/buildroot/.nativella-build') }}
                   prefix: static-php-${{ runner.os }}-${{ runner.arch }}-
 
             # The smoke tests serve the demos, with their vendor/

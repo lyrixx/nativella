@@ -15,6 +15,9 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
  *     #[AsEventListener]
  *     public function __invoke(MenuItemClicked $event): void
  *
+ * Every event also comes as a Nativella\Event\NativeEvent, with its name and
+ * its raw payload.
+ *
  * Only the runtime can reach it, because it sets NATIVELLA_INTERNAL for its
  * own requests, which a page cannot do (headers only become HTTP_* variables).
  */
@@ -37,7 +40,9 @@ final readonly class NativeEventListener
             return;
         }
 
-        $this->dispatcher->dispatch(EventFactory::fromJson($request->getContent()));
+        foreach (EventFactory::allFromJson($request->getContent()) as $nativeEvent) {
+            $this->dispatcher->dispatch($nativeEvent);
+        }
 
         $event->setResponse(new Response(status: Response::HTTP_NO_CONTENT));
     }

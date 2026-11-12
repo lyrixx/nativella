@@ -23,8 +23,16 @@ use http::{HeaderName, HeaderValue, Request, Response, StatusCode};
 use crate::bridge;
 use crate::runtime::{PhpApp, RequestOrigin};
 
+unsafe extern "C" {
+    /// Zend/zend.h: what PHP's own SAPIs report their errors with (`php_error`).
+    fn zend_error(kind: c_int, format: *const c_char, ...);
+}
+
 /// `SG(request_info).proto_num` for HTTP/1.1, encoded the way PHP's own SAPIs do.
 const HTTP_1_1: c_int = 1001;
+
+/// The server variables that tell PHP who sent a request (`RequestOrigin`).
+const ORIGIN_VARIABLES: [&str; 2] = ["NATIVELLA_INTERNAL", "NATIVELLA_WINDOW"];
 
 /// The php.ini of Nativella, which PHP reads before the settings of the
 /// application.
@@ -34,7 +42,7 @@ const PHP_INI: &str = include_str!("../php.ini");
 pub(crate) struct Engine {
     module: *mut SapiModule,
     /// `module.ini_entries`, which PHP reads at startup and never frees.
-    ini_entries: Option<CString>,
+    _ini_entries: CString,
 }
 
 impl Engine {
@@ -46,6 +54,10 @@ impl Engine {
         // never frees it: hand PHP the one the request context owns instead.
         module.read_cookies = Some(read_cookies);
         module.activate = Some(activate);
+        // The one of ext-php-rs hands zend_error() its va_list where the
+        // values go, and prints the message to the standard output: "headers
+        // already sent by (output started at %s:%d)" named no file.
+        module.sapi_error = Some(zend_error);
 
         // The static PHP looks for /usr/local/etc/php/php.ini and its conf.d/,
         // where static-php-cli built it to, and for PHPRC and PHP_INI_SCAN_DIR:
@@ -60,12 +72,10 @@ impl Engine {
         // which override it
         let entries: String = ini
             .iter()
-            .map(|(name, value)| format!("{name}=\"{}\"\n", value.replace('"', "")))
+            .map(|(name, value)| format!("{name}=\"{}\"\n", ini_escaped(value)))
             .collect();
-        let ini_entries = Some(
-            CString::new(format!("{PHP_INI}\n{entries}"))
-                .expect("INI settings contain no NUL byte."),
-        );
+        let ini_entries = CString::new(format!("{PHP_INI}\n{entries}"))
+            .expect("INI settings contain no NUL byte.");
         let module = Box::into_raw(Box::new(module));
 
         unsafe {
@@ -73,9 +83,7 @@ impl Engine {
             sapi_startup(module);
             // sapi_startup() resets them: php_module_startup() reads them,
             // after php.ini, as the embed SAPI does.
-            if let Some(entries) = &ini_entries {
-                (*module).ini_entries = entries.as_ptr();
-            }
+            (*module).ini_entries = ini_entries.as_ptr();
         }
 
         // PHP 8 starts in the C locale, as its functions expect, whatever the
@@ -91,7 +99,7 @@ impl Engine {
 
         Self {
             module,
-            ini_entries,
+            _ini_entries: ini_entries,
         }
     }
 
@@ -155,7 +163,6 @@ impl Drop for Engine {
             cleanup_sapi_allocations(self.module);
             drop(Box::from_raw(self.module));
         }
-        drop(self.ini_entries.take());
     }
 }
 
@@ -272,6 +279,10 @@ impl RequestContext {
         // Like the CLI and php-fpm without clear_env, $_SERVER starts with the
         // process environment: that is where APP_ENV and friends come from.
         let mut server_variables: Vec<(String, String)> = env::vars_os()
+            // Only the runtime says who sent the request: an application
+            // started with one of them in its environment would take every
+            // page for the runtime, or for another window.
+            .filter(|(name, _)| !ORIGIN_VARIABLES.iter().any(|variable| name == variable))
             .filter_map(|(name, value)| {
                 if let (Some(name), Some(value)) = (name.to_str(), value.to_str()) {
                     return Some((name.to_owned(), value.to_owned()));
@@ -517,6 +528,21 @@ extern "C" fn read_cookies() -> *mut c_char {
     unsafe { context.as_ref() }
         .and_then(|context| context.cookie.as_ref())
         .map_or(ptr::null_mut(), |cookie| cookie.as_ptr().cast_mut())
+}
+
+/// `value` as it goes between the double quotes of a php.ini, where PHP
+/// reads these three as the end of the string, an escape and a variable: a
+/// path of Windows ("\\server\share") would lose a backslash.
+fn ini_escaped(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        if matches!(character, '"' | '\\' | '$') {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+
+    escaped
 }
 
 fn as_ptr(value: &Option<CString>) -> *const c_char {

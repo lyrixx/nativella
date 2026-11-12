@@ -33,6 +33,7 @@ Once the file is saved, PHP and the pages get `window.downloaded`, with the labe
 
 ```php
 use Nativella\Event\WindowDownloaded;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener]
 public function __invoke(WindowDownloaded $event): void
@@ -40,6 +41,8 @@ public function __invoke(WindowDownloaded $event): void
     $this->notification->send('Export saved', basename($event->path));
 }
 ```
+
+This is a Symfony listener. [Lifecycle and events](lifecycle.md#handling-events) says how the other integrations route events.
 
 To write a file PHP already holds without a link, call [`Dialog::saveFile()`](dialogs.md) and write it yourself.
 

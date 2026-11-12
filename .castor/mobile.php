@@ -18,7 +18,7 @@ use function Castor\run;
 use function Castor\variable;
 use function docker\builder_path;
 use function docker\builder_platform;
-use function docker\docker_compose_run;
+use function docker\capture_in_builder;
 use function docker\run_in_builder;
 use function nativella\stage;
 use function project\demo;
@@ -53,6 +53,15 @@ const PHONE_APIS = ['barcode-scanner', 'biometrics', 'geolocation', 'haptics', '
 const TAURI_CLI_VERSION = '2.12.2';
 
 /**
+ * The SHA-256 of the Gradle distributions the Android project of Tauri asks
+ * for, as https://services.gradle.org/distributions/gradle-<version>-bin.zip.sha256
+ * gives them: its wrapper downloads Gradle, and checks nothing by itself.
+ */
+const GRADLE_SHA256 = [
+    '9.6.1' => '9c0f7faeeb306cb14e4279a3e084ca6b596894089a0638e68a07c945a32c9e14',
+];
+
+/**
  * The archive of the Tauri command for each platform, and its SHA-256, as its
  * release gives them: `gh release view tauri-cli-v<TAURI_CLI_VERSION> --repo
  * tauri-apps/tauri --json assets --jq '.assets[] | .name + " " + .digest'`.
@@ -82,7 +91,7 @@ function android(
     io()->title("Making the APK of {$project->path}");
 
     $apk = android_apk($demo, $abi);
-    run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--', 'android', stage($project), '--template', builder_path($template), '-o', builder_path($apk)]);
+    run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--locked', '--', 'android', stage($project), '--template', builder_path($template), '-o', builder_path($apk)]);
 
     io()->success("The APK: {$apk}");
 }
@@ -105,6 +114,8 @@ function android_template(
     ?string $output = null,
     #[AsOption(description: 'The ABI: arm64-v8a, for phones, or x86_64, for the emulators of x86_64 computers')]
     string $abi = 'arm64-v8a',
+    #[AsOption(description: 'Build PHP again if a library it links has a newer release than the one it was built with')]
+    bool $updateLibraries = false,
 ): string {
     check_tauri_cli_version();
     $onHost = context()['run_on_host'];
@@ -115,7 +126,7 @@ function android_template(
 
     // PHP for Android first, in the android service, which it builds
     $target = PhpTarget::android($abi);
-    $php = php_build($target);
+    $php = php_build($target, updateLibraries: $updateLibraries);
 
     io()->title("Building the template APK ({$abi})");
 
@@ -153,9 +164,14 @@ function android_template(
         run_in_builder(['cargo', 'tauri', 'android', 'init', '--ci'], $workDir, $environment, $service);
         fs()->dumpFile("{$root}/crates/nativella/gen/android/.nativella-generation", $generation);
     }
+    android_gradle_checksum("{$root}/crates/nativella/gen/android/gradle/wrapper/gradle-wrapper.properties");
     android_page_permissions("{$root}/crates/nativella/gen/android/app/src/main/AndroidManifest.xml");
     android_bundled_barcode_model("{$root}/crates/nativella/gen/android/app/build.gradle.kts");
     android_libraries_compile_sdk("{$root}/crates/nativella/gen/android/build.gradle.kts");
+
+    // The Tauri command has no --locked to hand to cargo: the template is
+    // built from Cargo.lock as it is committed, or not at all
+    run_in_builder(['cargo', 'fetch', '--locked']);
 
     $variant = $release ? 'release' : 'debug';
     $build = static fn () => run_in_builder([
@@ -299,7 +315,7 @@ function ios(
     io()->title("Making the iOS app of {$project->path}");
 
     $app = ios_app($demo);
-    run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--', 'ios', stage($project), '--template', builder_path($template), '-o', builder_path($app)]);
+    run_in_builder(['cargo', 'run', '-q', '-p', 'nativella', '--locked', '--', 'ios', stage($project), '--template', builder_path($template), '-o', builder_path($app)]);
 
     io()->success("The app: {$app}");
 }
@@ -326,6 +342,8 @@ function ios_template(
     bool $release = false,
     #[AsOption(description: 'Where to copy it, from the root of the repository, with its third-party notices and their checksums in SHA256SUMS-ios next to it')]
     ?string $output = null,
+    #[AsOption(description: 'Build PHP again if a library it links has a newer release than the one it was built with')]
+    bool $updateLibraries = false,
 ): string {
     if (!context()['macos']) {
         throw new \RuntimeException('An iOS build needs macOS, with Xcode: on another machine, take a template of a release, or of the Mobile workflow, with --template.');
@@ -334,7 +352,7 @@ function ios_template(
 
     // PHP for the target first, on this Mac
     $target = $device ? PhpTarget::iphoneos() : PhpTarget::iphonesimulator();
-    $php = php_build($target);
+    $php = php_build($target, updateLibraries: $updateLibraries);
     $sdk = $target->abi;
     $root = variable('root_dir');
 
@@ -723,7 +741,7 @@ function missing_android_prerequisites(): array
 function ndk_home(): string
 {
     if (!context()['run_on_host']) {
-        return trim(docker_compose_run(['printenv', 'NDK_HOME'], context()->withQuiet(), service: 'android')->getOutput());
+        return capture_in_builder(['printenv', 'NDK_HOME'], 'android');
     }
 
     if ($ndk = getenv('NDK_HOME')) {
@@ -797,6 +815,24 @@ function cargo_env(array $environment): string
     }
 
     return $toml;
+}
+
+/**
+ * Makes the wrapper of the generated Android project check the Gradle it
+ * downloads against GRADLE_SHA256. Does nothing when it does already.
+ */
+function android_gradle_checksum(string $properties): void
+{
+    $content = (string) file_get_contents($properties);
+    if (str_contains($content, 'distributionSha256Sum=')) {
+        return;
+    }
+    if (!preg_match('{^distributionUrl=.*/gradle-([\d.]+)-bin\.zip$}m', $content, $matches)) {
+        throw new \RuntimeException(\sprintf('%s has no distributionUrl of a Gradle distribution: Tauri changed its template.', $properties));
+    }
+
+    $sha256 = GRADLE_SHA256[$matches[1]] ?? throw new \RuntimeException(\sprintf('The Android project of Tauri asks for Gradle %s: add its SHA-256 to GRADLE_SHA256 in %s.', $matches[1], __FILE__));
+    fs()->dumpFile($properties, rtrim($content)."\ndistributionSha256Sum={$sha256}\n");
 }
 
 /**

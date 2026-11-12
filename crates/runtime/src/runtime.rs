@@ -11,7 +11,7 @@ use http::{Request, Response, StatusCode};
 use crate::absolute_urls;
 use crate::bridge::{self, NativeHandler};
 use crate::cookies::CookieJar;
-use crate::redirects::{self, Next};
+use crate::redirects::{self, Chains, Next};
 use crate::sapi::Engine;
 use crate::static_files;
 
@@ -95,8 +95,10 @@ impl PhpApp {
 
 /// Who sent a request.
 ///
-/// PHP sees it in server variables, which a webview request cannot forge:
-/// headers only ever become `HTTP_*` variables.
+/// PHP sees it in server variables, which neither a webview request nor the
+/// environment of the application can forge: headers only ever become
+/// `HTTP_*` variables, and the runtime leaves these two out of the
+/// environment it copies.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequestOrigin {
     /// A page, form or asset loaded by a webview. PHP sees the label of its
@@ -127,7 +129,37 @@ enum Job {
 struct RequestJob {
     request: Request<Vec<u8>>,
     origin: RequestOrigin,
-    respond: Responder,
+    answer: Answer,
+}
+
+/// The answer a request waits for. Dropped without one, it sends a 503: the
+/// requests still queued when the PHP thread dies (PHP did not start, a
+/// responder panicked) would leave their window waiting forever.
+struct Answer {
+    respond: Option<Responder>,
+    pending: Arc<AtomicUsize>,
+}
+
+impl Answer {
+    fn send(mut self, response: Response<Vec<u8>>) {
+        self.finish(response);
+    }
+
+    fn finish(&mut self, response: Response<Vec<u8>>) {
+        if let Some(respond) = self.respond.take() {
+            self.pending.fetch_sub(1, Ordering::SeqCst);
+            respond(response);
+        }
+    }
+}
+
+impl Drop for Answer {
+    fn drop(&mut self) {
+        if self.respond.is_some() {
+            log!("[php] The PHP thread is gone: answering a request with a 503.");
+            self.finish(crate::empty_response(StatusCode::SERVICE_UNAVAILABLE));
+        }
+    }
 }
 
 /// Handle to the PHP thread. Cheap to clone; PHP shuts down once every handle
@@ -157,10 +189,9 @@ impl PhpRuntime {
         let pending = Arc::new(AtomicUsize::new(0));
 
         let php_app = Arc::clone(&app);
-        let php_pending = Arc::clone(&pending);
         thread::Builder::new()
             .name("php".to_owned())
-            .spawn(move || run(&php_app, &queue, &php_pending))
+            .spawn(move || run(&php_app, &queue))
             .expect("The OS can spawn the PHP thread.");
 
         Self { app, jobs, pending }
@@ -186,25 +217,18 @@ impl PhpRuntime {
             return;
         }
 
+        self.pending.fetch_add(1, Ordering::SeqCst);
         let job = Job::Request(Box::new(RequestJob {
             request,
             origin,
-            respond: Box::new(respond),
+            answer: Answer {
+                respond: Some(Box::new(respond)),
+                pending: Arc::clone(&self.pending),
+            },
         }));
 
-        self.pending.fetch_add(1, Ordering::SeqCst);
-        if let Err(mpsc::SendError(Job::Request(job))) = self.jobs.send(job) {
-            self.pending.fetch_sub(1, Ordering::SeqCst);
-            let RequestJob {
-                request, respond, ..
-            } = *job;
-            log!(
-                "[php] The PHP thread is gone, {} {} is not served.",
-                request.method(),
-                request.uri()
-            );
-            respond(crate::empty_response(StatusCode::SERVICE_UNAVAILABLE));
-        }
+        // Without a PHP thread, the job comes back and answers as it drops.
+        let _ = self.jobs.send(job);
     }
 
     /// Runs `callback` on the PHP thread once the requests queued before it
@@ -234,16 +258,17 @@ impl PhpRuntime {
 
         receiver
             .recv()
-            .expect("Every dispatched request gets a response.")
+            .expect("Every dispatched request gets a response, a 503 without PHP.")
     }
 }
 
-fn run(app: &PhpApp, queue: &mpsc::Receiver<Job>, pending: &AtomicUsize) {
+fn run(app: &PhpApp, queue: &mpsc::Receiver<Job>) {
     let engine = Engine::start(&app.ini);
     let mut cookies = app
         .cookie_file
         .clone()
         .map_or_else(CookieJar::default, CookieJar::load);
+    let mut chains = Chains::default();
 
     for job in queue {
         match job {
@@ -251,20 +276,19 @@ fn run(app: &PhpApp, queue: &mpsc::Receiver<Job>, pending: &AtomicUsize) {
                 let RequestJob {
                     request,
                     origin,
-                    respond,
+                    answer,
                 } = *job;
                 // One response that breaks the runtime must not stop the
                 // thread: every later request would get no answer.
                 let response = panic::catch_unwind(AssertUnwindSafe(|| {
-                    serve(&engine, app, &mut cookies, request, origin)
+                    serve(&engine, app, &mut cookies, &mut chains, request, origin)
                 }))
                 .unwrap_or_else(|_| {
                     log!("[php] The runtime failed on a request: answering 500.");
 
                     crate::empty_response(StatusCode::INTERNAL_SERVER_ERROR)
                 });
-                pending.fetch_sub(1, Ordering::SeqCst);
-                respond(response);
+                answer.send(response);
             }
             Job::Callback(callback) => callback(),
         }
@@ -277,10 +301,16 @@ fn serve(
     engine: &Engine,
     app: &PhpApp,
     cookies: &mut CookieJar,
+    chains: &mut Chains,
     mut request: Request<Vec<u8>>,
     origin: RequestOrigin,
 ) -> Response<Vec<u8>> {
     let navigation = redirects::is_navigation(&request);
+    // The host navigates no page: its chain stays empty.
+    let window = origin.window().unwrap_or_default();
+    if navigation {
+        chains.navigate(window, request.uri());
+    }
 
     for _ in 0..=redirects::MAX_REDIRECTS {
         cookies.add_to(&mut request);
@@ -302,9 +332,19 @@ fn serve(
 
         match redirects::next(request, response, navigation) {
             Next::Respond(mut response) => {
+                if navigation {
+                    chains.arrive(window);
+                }
                 absolute_urls::rewrite(&uri, &mut response);
 
                 return deliverable(response);
+            }
+            Next::Replace { page, target } => {
+                if !chains.redirect(window, target) {
+                    break;
+                }
+
+                return page;
             }
             Next::Follow(target) => {
                 // The target of a redirect may be a file of public/ too.

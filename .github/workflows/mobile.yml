@@ -78,20 +78,24 @@ jobs:
             - name: "Set up the Docker stack"
               uses: ./.github/actions/stack
 
-            # PHP for Android, keyed on the image, for its NDK, then on what it
-            # is built from: static-php-cli and the extensions, the recipes,
-            # the API level of the template. static-php:android builds it again
-            # only if one of them changed. release.yml restores it too: keep
-            # the path and the key in sync
+            # PHP for Android: static-php:android builds it again only if what
+            # it is built from changed, the NDK, static-php-cli, the extensions,
+            # the recipes, the API level of the template, the libraries. The
+            # key of a build is the hash of its stamp, known once built, so the
+            # latest one is restored. release.yml restores it too: keep the
+            # path and the key in sync
             - name: "Restore PHP for Android"
               id: static-php
               uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/android-arm64/buildroot
-                  key: static-php-android-arm64-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('.castor/static-php.php', '.castor/static-php-mobile.php', 'crates/nativella/tauri.android.conf.json') }}
-                  restore-keys: |
-                      static-php-android-arm64-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
-                      ${{ github.ref != 'refs/heads/main' && 'static-php-android-arm64-' || '' }}
+                  key: static-php-android-arm64-latest
+                  restore-keys: static-php-android-arm64-
+
+            - name: "Read the stamp of the PHP restored"
+              id: restored-php
+              shell: bash
+              run: echo "stamp=${{ hashFiles('static-php/android-arm64/buildroot/.nativella-build') }}" >> "${GITHUB_OUTPUT}"
 
             # Downloads the sources of PHP, and stages and bundles the demo, in
             # the builder
@@ -131,27 +135,28 @@ jobs:
                       ${{ github.ref != 'refs/heads/main' && 'android-' || '' }}
 
             # static-php-cli asks the GitHub API for the sources: without a
-            # token, the runners share its rate limit
+            # token, the runners share its rate limit. On main, it downloads
+            # the libraries again, and builds again if one has a new release
             - name: "Build PHP for Android"
-              run: "castor static-php:android"
+              run: "castor static-php:android${{ github.ref == 'refs/heads/main' && ' --update-libraries' || '' }}"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            # Main only, as soon as built, whatever fails next, as static.yml
-            # saves the static PHP of the desktop
+            # Main only, as soon as built again, whatever fails next, as
+            # static.yml saves the static PHP of the desktop
             - name: "Save PHP for Android"
               id: save-static-php
-              if: github.ref == 'refs/heads/main' && steps.static-php.outputs.cache-hit != 'true'
+              if: github.ref == 'refs/heads/main' && hashFiles('static-php/android-arm64/buildroot/.nativella-build') != steps.restored-php.outputs.stamp
               uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/android-arm64/buildroot
-                  key: ${{ steps.static-php.outputs.cache-primary-key }}
+                  key: static-php-android-arm64-${{ hashFiles('static-php/android-arm64/buildroot/.nativella-build') }}
 
             - name: "Delete the PHP for Android it replaces"
               if: steps.save-static-php.outcome == 'success'
               uses: ./.github/actions/delete-replaced-caches
               with:
-                  key: ${{ steps.static-php.outputs.cache-primary-key }}
+                  key: static-php-android-arm64-${{ hashFiles('static-php/android-arm64/buildroot/.nativella-build') }}
                   prefix: static-php-android-arm64-
 
             # The template APK, with the PHP built above, then the APK of the
@@ -298,18 +303,12 @@ jobs:
                       ios-${{ steps.rust.outputs.version }}-
                       ${{ github.ref != 'refs/heads/main' && 'ios-' || '' }}
 
-            # The Xcode of the runner, which its image updates: the version
-            # and the build
-            - name: "Read the version of Xcode"
-              id: xcode
-              shell: bash
-              run: echo "version=$(xcodebuild -version | awk 'NR == 1 { version = $2 } NR == 2 { build = $3 } END { print version "-" build }')" >> "${GITHUB_OUTPUT}"
-
-            # PHP for iOS and its simulator, keyed on the Xcode of the runner,
-            # then on what it is built from: static-php-cli and the
-            # extensions, the recipes. static-php:ios builds it again only if
-            # one of them changed. release.yml restores it too: keep the paths
-            # and the key in sync
+            # PHP for iOS and its simulator: static-php:ios builds it again
+            # only if what it is built from changed, the Xcode of the runner,
+            # static-php-cli, the extensions, the recipes, the libraries. The
+            # key of a build is the hash of its stamps, known once built, so
+            # the latest one is restored. release.yml restores it too: keep
+            # the paths and the key in sync
             - name: "Restore PHP for iOS"
               id: static-php
               uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -317,36 +316,41 @@ jobs:
                   path: |
                       static-php/ios-arm64/buildroot
                       static-php/ios-simulator-arm64/buildroot
-                  key: static-php-ios-${{ steps.xcode.outputs.version }}-${{ hashFiles('.castor/static-php.php', '.castor/static-php-mobile.php') }}
-                  restore-keys: |
-                      static-php-ios-${{ steps.xcode.outputs.version }}-
-                      ${{ github.ref != 'refs/heads/main' && 'static-php-ios-' || '' }}
+                  key: static-php-ios-latest
+                  restore-keys: static-php-ios-
+
+            - name: "Read the stamp of the PHP restored"
+              id: restored-php
+              shell: bash
+              run: echo "stamp=${{ hashFiles('static-php/ios-arm64/buildroot/.nativella-build', 'static-php/ios-simulator-arm64/buildroot/.nativella-build') }}" >> "${GITHUB_OUTPUT}"
 
             # For the device too, whose template only a release builds, but
             # which must build. static-php-cli asks the GitHub API for the
-            # sources of PHP: without a token, the runners share its rate limit
+            # sources of PHP: without a token, the runners share its rate
+            # limit. On main, it downloads the libraries again, and builds
+            # again if one has a new release
             - name: "Build PHP for iOS and its simulator"
-              run: "castor static-php:ios"
+              run: "castor static-php:ios${{ github.ref == 'refs/heads/main' && ' --update-libraries' || '' }}"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            # Main only, as soon as built, whatever fails next, as static.yml
-            # saves the static PHP of the desktop
+            # Main only, as soon as built again, whatever fails next, as
+            # static.yml saves the static PHP of the desktop
             - name: "Save PHP for iOS"
               id: save-static-php
-              if: github.ref == 'refs/heads/main' && steps.static-php.outputs.cache-hit != 'true'
+              if: github.ref == 'refs/heads/main' && hashFiles('static-php/ios-arm64/buildroot/.nativella-build', 'static-php/ios-simulator-arm64/buildroot/.nativella-build') != steps.restored-php.outputs.stamp
               uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: |
                       static-php/ios-arm64/buildroot
                       static-php/ios-simulator-arm64/buildroot
-                  key: ${{ steps.static-php.outputs.cache-primary-key }}
+                  key: static-php-ios-${{ hashFiles('static-php/ios-arm64/buildroot/.nativella-build', 'static-php/ios-simulator-arm64/buildroot/.nativella-build') }}
 
             - name: "Delete the PHP for iOS it replaces"
               if: steps.save-static-php.outcome == 'success'
               uses: ./.github/actions/delete-replaced-caches
               with:
-                  key: ${{ steps.static-php.outputs.cache-primary-key }}
+                  key: static-php-ios-${{ hashFiles('static-php/ios-arm64/buildroot/.nativella-build', 'static-php/ios-simulator-arm64/buildroot/.nativella-build') }}
                   prefix: static-php-ios-
 
             # With the PHP built above, and its third-party notices

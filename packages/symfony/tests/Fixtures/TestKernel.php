@@ -3,6 +3,7 @@
 namespace Nativella\Symfony\Tests\Fixtures;
 
 use Nativella\Event\MenuItemClicked;
+use Nativella\Event\NativeEvent;
 use Nativella\Symfony\NativellaBundle;
 use Nativella\Window;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
@@ -44,7 +45,8 @@ final class TestKernel extends Kernel
 
         $services = $container->services();
         $services->set(RecordingListener::class)->public()
-            ->tag('kernel.event_listener', ['event' => MenuItemClicked::class]);
+            ->tag('kernel.event_listener', ['event' => MenuItemClicked::class])
+            ->tag('kernel.event_listener', ['event' => NativeEvent::class]);
         // Unused services are removed from the container.
         $services->alias('test.'.Window::class, Window::class)->public();
     }

@@ -77,6 +77,11 @@ impl<'a> StringPool<'a> {
 }
 
 /// The string pool of `strings`, without styles.
+///
+/// In a pool of UTF-8, aapt2 writes the characters beyond the Basic
+/// Multilingual Plane as two surrogates of three bytes each (modified
+/// UTF-8), and this writes them in four bytes: it is for the manifest, whose
+/// pool aapt2 writes in UTF-16.
 pub fn write(strings: &[String], utf8: bool) -> io::Result<Vec<u8>> {
     let mut data = Vec::new();
     let mut offsets = Vec::with_capacity(strings.len() * 4);

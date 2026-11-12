@@ -10,11 +10,15 @@ use Symfony\Contracts\HttpClient\Exception\ExceptionInterface as HttpExceptionIn
 
 use function Castor\context;
 use function Castor\finder;
+use function Castor\fs;
 use function Castor\http_request;
 use function Castor\io;
+use function Castor\run;
 use function Castor\variable;
 use function docker\builder_path;
+use function docker\builder_platform;
 use function docker\docker_exit_code;
+use function download\verified;
 use function nativella\mirror;
 use function project\demo_names;
 use function project\install_if_missing as install_project_if_missing;
@@ -23,6 +27,20 @@ use function worktree\get_worktree_name;
 use function worktree\get_worktree_ports;
 
 const TOOLS = ['php-cs-fixer', 'phpstan', 'twig-cs-fixer'];
+
+/** cargo-audit, which checks Cargo.lock against the advisories of RustSec: tools/cargo-audit/ */
+const CARGO_AUDIT_VERSION = '0.23.0';
+
+/**
+ * The SHA-256 of the cargo-audit of each platform of the builder, as its
+ * release gives them: `gh release view cargo-audit/v<CARGO_AUDIT_VERSION>
+ * --repo rustsec/rustsec --json assets --jq '.assets[] | .name + " " + .digest'`.
+ */
+const CARGO_AUDIT_ARCHIVES = [
+    'linux-aarch64' => ['aarch64-unknown-linux-gnu', '00eff3158429b9629abe8748e971f29f99ee53d4cff54a25072cbb15167bdda8'],
+    'linux-x86_64' => ['x86_64-unknown-linux-musl', '4f01c74ed84b2dffd0b1d37012a62cdf2a92c96e25bdf8eec7fcc0d4d3eb7811'],
+    'macos-aarch64' => ['aarch64-apple-darwin', '84101204e5b8013c9a8d7251766aebdef3e7fa1a3ef040cde44d65b48b8c4056'],
+];
 
 /**
  * Every check of the CI but the frontend, which needs the stack up (castor
@@ -34,6 +52,7 @@ function all(
     #[AsOption(description: 'Only report coding standard violations, do not fix them')]
     bool $dryRun = false,
 ): int {
+    $versions = \versions\check();
     $securityAudit = securityAudit();
     $cs = cs($dryRun);
     $twigCs = twigCs($dryRun);
@@ -41,8 +60,9 @@ function all(
     $phpunit = phpunit();
     $phpunitLowest = phpunit_lowest();
     $rust = rust();
+    $rustAudit = rust_audit();
 
-    return max($securityAudit, $cs, $twigCs, $phpstan, $phpunit, $phpunitLowest, $rust);
+    return max($versions, $securityAudit, $cs, $twigCs, $phpstan, $phpunit, $phpunitLowest, $rust, $rustAudit);
 }
 
 #[AsTask(description: 'Installs tooling')]
@@ -51,7 +71,7 @@ function install(): void
     io()->title('Installing tooling');
 
     foreach (TOOLS as $tool) {
-        if (0 !== docker_exit_code(['composer', 'install', '-o'], workDir: builder_path("tools/{$tool}"))) {
+        if (0 !== docker_exit_code(['composer', 'install', '-n', '-o'], workDir: builder_path("tools/{$tool}"))) {
             throw new \RuntimeException(\sprintf('"composer install" failed in tools/%s.', $tool));
         }
     }
@@ -68,7 +88,7 @@ function install_zensical(): void
 {
     $commands = [
         ['python3', '-m', 'venv', '.venv'],
-        ['.venv/bin/pip', 'install', '--quiet', '--disable-pip-version-check', '-r', 'requirements.txt'],
+        ['.venv/bin/pip', 'install', '--quiet', '--disable-pip-version-check', '--require-hashes', '-r', 'requirements.txt'],
     ];
 
     foreach ($commands as $command) {
@@ -84,7 +104,7 @@ function update(): void
     io()->title('Updating QA tooling');
 
     foreach (TOOLS as $tool) {
-        if (0 !== docker_exit_code(['composer', 'update', '-o'], workDir: builder_path("tools/{$tool}"))) {
+        if (0 !== docker_exit_code(['composer', 'update', '-n', '-o'], workDir: builder_path("tools/{$tool}"))) {
             throw new \RuntimeException(\sprintf('"composer update" failed in tools/%s.', $tool));
         }
     }
@@ -234,6 +254,58 @@ function securityAudit(): int
     }
 
     return $exitCode;
+}
+
+/**
+ * The advisories cargo-audit leaves out, each with the reason.
+ */
+const CARGO_AUDIT_IGNORED = [
+    // The Marvin attack on rsa: it times a server that decrypts or signs
+    // for an attacker, many times. `nativella ios` signs an app once, on the
+    // machine of its developer. No rsa of the generation of cms 0.2 and
+    // pkcs12 0.1 fixes it (see .github/dependabot.yml)
+    'RUSTSEC-2023-0071',
+];
+
+/**
+ * The crates of Cargo.lock against the advisories of RustSec, which
+ * cargo-audit fetches into the cargo home: a vulnerability fails it, a
+ * crate without a maintainer is only reported.
+ */
+#[AsTask(name: 'rust-audit', description: 'Checks the Rust crates of Cargo.lock against the advisories of RustSec')]
+function rust_audit(): int
+{
+    io()->section('Auditing the crates of Cargo.lock...');
+
+    $ignored = [];
+    foreach (CARGO_AUDIT_IGNORED as $advisory) {
+        array_push($ignored, '--ignore', $advisory);
+    }
+
+    return docker_exit_code([builder_path(cargo_audit()), 'audit', '--file', builder_path('Cargo.lock'), ...$ignored], workDir: builder_path());
+}
+
+/**
+ * cargo-audit, for the platform of the builder, in tools/cargo-audit/bin/.
+ *
+ * @return string from the root of the repository
+ */
+function cargo_audit(): string
+{
+    [$target, $sha256] = CARGO_AUDIT_ARCHIVES[builder_platform()] ?? throw new \RuntimeException(\sprintf('cargo-audit has no archive for %s in CARGO_AUDIT_ARCHIVES.', builder_platform()));
+    $binary = 'tools/cargo-audit/bin/cargo-audit-'.CARGO_AUDIT_VERSION;
+    $root = variable('root_dir');
+
+    if (!is_file("{$root}/{$binary}")) {
+        $directory = \sprintf('cargo-audit-%s-v%s', $target, CARGO_AUDIT_VERSION);
+        $archive = "{$root}/tools/cargo-audit/bin/cargo-audit.tgz";
+        verified(\sprintf('https://github.com/rustsec/rustsec/releases/download/cargo-audit/v%s/%s.tgz', CARGO_AUDIT_VERSION, $directory), $archive, $sha256);
+        run(['tar', 'xzf', $archive, '-C', \dirname($archive), '--strip-components=1', "{$directory}/cargo-audit"], context: context()->withQuiet());
+        fs()->rename(\dirname($archive).'/cargo-audit', "{$root}/{$binary}");
+        fs()->remove($archive);
+    }
+
+    return $binary;
 }
 
 #[AsTask(description: 'Fixes Coding Style', aliases: ['cs'])]

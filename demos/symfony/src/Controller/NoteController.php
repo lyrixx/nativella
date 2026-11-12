@@ -6,6 +6,7 @@ use App\Entity\Note;
 use App\Form\NoteData;
 use App\Form\NoteType;
 use App\Native\Desktop;
+use App\Note\Exception\ExportFailed;
 use App\Note\NoteActions;
 use App\Repository\NoteRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -20,6 +21,7 @@ use Nativella\Nativella;
 use Nativella\Runtime;
 use Nativella\Share;
 use Nativella\Window;
+use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
@@ -36,6 +38,7 @@ final class NoteController extends AbstractController
         private readonly NoteActions $actions,
         private readonly Desktop $desktop,
         private readonly EntityManagerInterface $entityManager,
+        private readonly LoggerInterface $logger,
         private readonly Nativella $nativella,
         private readonly NoteRepository $notes,
     ) {
@@ -49,7 +52,7 @@ final class NoteController extends AbstractController
             return $this->redirectToRoute('note_show', ['id' => $latest->getId()]);
         }
 
-        return $this->render('note/empty.html.twig', ['notes' => []]);
+        return $this->render('note/empty.html.twig', ['notes' => $this->notes->findForSidebar()]);
     }
 
     #[Route('/notes', name: 'note_search', methods: ['GET'])]
@@ -140,11 +143,7 @@ final class NoteController extends AbstractController
     #[IsCsrfTokenValid('submit')]
     public function pin(Note $note): Response
     {
-        if ($note->isPinned()) {
-            $note->unpin();
-        } else {
-            $note->pin();
-        }
+        $note->togglePin();
         $this->entityManager->flush();
 
         return $this->redirectToRoute('note_show', ['id' => $note->getId()]);
@@ -176,12 +175,12 @@ final class NoteController extends AbstractController
             $position = $geolocation->currentPosition(Accuracy::High);
         } catch (NativeCallException $exception) {
             // Location turned off, or no fix: the message of the phone says which.
-            $this->addFlash('success', \sprintf('Notes cannot find where you are: %s', $exception->getPrevious()?->getMessage()));
+            $this->addFlash('error', \sprintf('Notes cannot find where you are: %s', $exception->reason));
 
             return $this->redirectToRoute('note_show', ['id' => $note->getId()]);
         }
         if (null === $position) {
-            $this->addFlash('success', 'Notes may not know where you are: allow it in the settings of the phone.');
+            $this->addFlash('error', 'Notes may not know where you are: allow it in the settings of the phone.');
         } else {
             $note->addLocation($position->latitude, $position->longitude);
             $this->entityManager->flush();
@@ -203,7 +202,7 @@ final class NoteController extends AbstractController
             $barcode = $barcodeScanner->scan(cancelLabel: 'Cancel');
         } catch (NativeCallException $exception) {
             // The camera failed, or saw no code: the message of the phone says which.
-            $this->addFlash('success', \sprintf('Notes cannot read a code: %s', $exception->getPrevious()?->getMessage()));
+            $this->addFlash('error', \sprintf('Notes cannot read a code: %s', $exception->reason));
 
             return $this->redirectToRoute('note_show', ['id' => $note->getId()]);
         }
@@ -222,6 +221,10 @@ final class NoteController extends AbstractController
     #[IsCsrfTokenValid('submit')]
     public function copy(Note $note, Clipboard $clipboard, #[Autowire(service: 'twig.markdown.default')] MarkdownInterface $markdown, Request $request): Response
     {
+        if (!$this->nativella->isNative()) {
+            throw $this->createNotFoundException('Only Nativella has a clipboard.');
+        }
+
         if ('html' === $request->getPayload()->getString('format')) {
             $clipboard->writeHtml($markdown->convert($note->getBody()), $note->getBody());
             $this->addFlash('success', 'Copied as rich text: paste it in a mail or a document.');
@@ -237,7 +240,18 @@ final class NoteController extends AbstractController
     #[IsCsrfTokenValid('submit')]
     public function export(Note $note): Response
     {
-        $path = $this->actions->export($note);
+        if (!$this->nativella->isNative() || Runtime::isMobile()) {
+            throw $this->createNotFoundException('Only computers have a dialog to save a file.');
+        }
+
+        try {
+            $path = $this->actions->export($note);
+        } catch (ExportFailed $e) {
+            $this->logger->warning('The note could not be exported.', ['exception' => $e]);
+            $this->addFlash('error', $e->getMessage());
+
+            return $this->redirectToRoute('note_show', ['id' => $note->getId()]);
+        }
         if (null !== $path) {
             $this->addFlash('success', \sprintf('Exported to %s.', $path));
         }
@@ -249,6 +263,10 @@ final class NoteController extends AbstractController
     #[IsCsrfTokenValid('submit')]
     public function import(): Response
     {
+        if (!$this->nativella->isNative()) {
+            throw $this->createNotFoundException('Only Nativella has a dialog to pick files.');
+        }
+
         $result = $this->actions->importWithDialog();
         $this->entityManager->flush();
 
@@ -273,6 +291,10 @@ final class NoteController extends AbstractController
     #[Route('/notes/{id}/context-menu', name: 'note_context_menu', requirements: ['id' => Requirement::DIGITS], methods: ['POST'])]
     public function contextMenu(Note $note, Menu $menu): Response
     {
+        if (!$this->nativella->isNative() || Runtime::isMobile()) {
+            throw $this->createNotFoundException('Only computers have context menus.');
+        }
+
         $id = $note->getId();
 
         $menu->popup(

@@ -12,7 +12,7 @@ On a phone there is no `nativella` executable to append the project to, because 
 - The library is built once per release, without any project, into templates: a template APK for Android, template apps for iOS. `nativella android` and `nativella ios` add the project to one, packed the same way `nativella build` does, as an asset in the APK or a file in the app. The application extracts it once per build, in its cache directory, at first launch.
 - PHP is linked statically, since phones have no PHP to share. The library build links the desktop PHP, built for the phone as a static `libphp.a`, with its libraries and its headers (see [PHP for the phone](#php-for-the-phone)).
 - Pages are served from `http://php.localhost/`, as Tauri does for custom schemes on Android. PHP sees that origin too.
-- Android's WebView drops the body of the requests it hands to the application, so Nativella injects a script that sends the body of forms, `fetch()` and `XMLHttpRequest` to the runtime first, through Tauri's IPC. Synchronous `XMLHttpRequest` bodies cannot be captured. When the IPC fails, the request fails as on a network error (`fetch()` rejects with a `TypeError`, `XMLHttpRequest` fires `error`), and a form is not submitted, rather than reach PHP empty. The page console says why.
+- Android's WebView drops the body of the requests it hands to the application, so Nativella injects a script that sends the body of forms, `fetch()` and `XMLHttpRequest` to the runtime first, through Tauri's IPC. That covers `form.submit()`, and `navigator.sendBeacon()`, which goes as a `fetch()` with `keepalive` and returns `true`; a beacon sent while the page unloads may be lost. Synchronous `XMLHttpRequest` bodies cannot be captured. When the IPC fails, the request fails as on a network error (`fetch()` rejects with a `TypeError`, `XMLHttpRequest` fires `error`), and a form is not submitted, rather than reach PHP empty. The page console says why.
 - What PHP writes to stderr goes to logcat, under the `nativella` tag.
 
 ## In PHP
@@ -31,11 +31,11 @@ if (!Runtime::isMobile()) {
 $window->open('main');
 ```
 
-Windows fill the screen, so their size, position and decoration options are ignored, and `Window::center()`, `minimize()`, `maximize()`, `unmaximize()`, `setAlwaysOnTop()`, `setFullscreen()`, `setProgress()` and `print()` throw. So do `Dialog::openDirectory()`, `Dialog::saveFile()`, `Shell::trash()`, `Secrets`, `ChildProcess`, `Power` and `App::path(Directory::Desktop)`.
+Windows fill the screen, so their size, position and decoration options are ignored, and `Window::center()`, `minimize()`, `maximize()`, `unmaximize()`, `setAlwaysOnTop()`, `setFullscreen()`, `setProgress()`, `print()` and `printToPdf()` throw. So do `Dialog::openDirectory()`, `Dialog::saveFile()`, `Shell::trash()`, `Shell::showInFolder()`, `Secrets`, `ChildProcess`, `Power` and `App::path(Directory::Desktop)`.
 
-`Dialog::openFile()` and `openFiles()` open the system file picker. It answers `content://` URIs, which PHP cannot read, so Nativella copies the picked files into the application's cache directory and hands PHP their path there. Message dialogs, notifications, the clipboard, settings, timers, the shell, the system information and the page events work as on the desktop.
+`Dialog::openFile()` and `openFiles()` open the system file picker. It answers `content://` URIs, which PHP cannot read, so Nativella copies the picked files into the application's cache directory and hands PHP their path there. The copies last until the application starts again, so move or copy a file you want to keep. Message dialogs, notifications, the clipboard, settings, timers, the shell, the system information and the page events work as on the desktop.
 
-Phones have APIs of their own: [haptics, geolocation, biometrics, a barcode scanner and the share sheet](phone-apis.md). An application asks for the first four in its `permissions`, as it does for the camera and the microphone of its pages.
+Phones have APIs of their own: [haptics, geolocation, biometrics, a barcode scanner, NFC tags and the share sheet](phone-apis.md). An application asks for the first five in its `permissions`, as it does for the camera and the microphone of its pages.
 
 Pages are drawn under the status and navigation bars, so add `viewport-fit=cover` to the viewport and pad the page with `env(safe-area-inset-*)`, as the Symfony demo does.
 
@@ -57,7 +57,7 @@ The template becomes your application, so check it against the release checksums
 The APK is the template, with:
 
 - the project bundle, as the asset `nativella.bundle`, which the application reads in place at startup. It is what [ships](building.md#what-ships) in a standalone executable, with the local overrides, credentials and SQLite databases left out and listed;
-- the project's identity, from the `extra.nativella` section of its `composer.json`, in its manifest: its application ID, which is what Android knows the application by, made from the `identifier`; the `name` under the icon; the `version` as the version name, and as the version code, `major × 1,000,000 + minor × 1,000 + patch`, which Android compares to accept an update;
+- the project's identity, from the `extra.nativella` section of its `composer.json`, in its manifest: its application ID, which is what Android knows the application by, made from the `identifier`; the `name` under the icon; the `version` as the version name, and as the version code, `major × 1,000,000 + minor × 1,000 + patch`, which Android compares to accept an update. The pre-release and build suffixes do not count, so `1.2.0-beta.1` and `1.2.0` have the same version code, and Android does not take one as an update of the other. `nativella android` refuses a minor version or a patch of 1000 or more, and a major version above 2100, the most Google Play accepts;
 - the Android permissions of the [phone APIs](phone-apis.md) the application asks for (`permissions`), and only those. The template has them all, and the application only registers the ones it asks for;
 - the project's [`icon`](configuration.md#icon) as its launcher icon, or the Nativella icon without one. It is drawn for each screen density, from 48 to 192 pixels, inside a margin, with rounded corners, as `tauri icon` draws Android launcher icons.
 
@@ -79,7 +79,7 @@ The template's classes keep their package, `dev.nativella.runtime`, which the li
 
 ### Licenses
 
-Like a [standalone executable](building.md#licenses), an APK contains other people's software, under their licenses: the phone's PHP and its libraries, the library's Rust crates, and the Java and Kotlin libraries of Tauri's Android project (AndroidX, Kotlin, Google Play services for geolocation, under Google's terms). The template carries their third-party notices, and so does every APK made from it, in the asset `THIRD_PARTY_NOTICES.txt`, which [`App::thirdPartyNotices()`](app.md#methods) returns, for an "about" page, since an application has no other place to show them. The releases attach them too, as `THIRD_PARTY_NOTICES-android.txt`. Add the licenses of what your project ships, as on the desktop.
+Like a [standalone executable](building.md#licenses), an APK contains other people's software, under their licenses: the phone's PHP and its libraries, the library's Rust crates, and the Java and Kotlin libraries of Tauri's Android project (AndroidX, Kotlin, and, under Google's terms, Google Play services for geolocation and ML Kit for the barcode scanner, with the Google libraries ML Kit depends on). The template is built with every phone API, so these libraries are in every APK, whatever its `permissions`. The template carries their third-party notices, and so does every APK made from it, in the asset `THIRD_PARTY_NOTICES.txt`, which [`App::thirdPartyNotices()`](app.md#methods) returns, for an "about" page, since an application has no other place to show them. The releases attach them too, as `THIRD_PARTY_NOTICES-android.txt`. Add the licenses of what your project ships, as on the desktop.
 
 The Rust crates and the Java libraries come from the template build, through cargo-about and the dependencies Gradle resolves, with the license their POM declares. PHP and its libraries come from [the build of PHP for the phone](#php-for-the-phone), where static-php-cli dumps the licenses of their sources, as for the desktop, and those of what php-src bundles. Like the desktop one, that PHP links [LGPL](building.md#licenses) code statically: libbcmath and libmbfl, inside php-src, and GNU libiconv. The notices give the version of each and the URL of its source archive, and `nativella android` can package an application again.
 
@@ -134,7 +134,7 @@ The app is the template app, with:
 
 - the project bundle, as the file `nativella.bundle`, next to its executable, which the app reads in place at startup. It is what [ships](building.md#what-ships) in a standalone executable, with the local overrides, credentials and SQLite databases left out and listed;
 - the project's identity, from the `extra.nativella` section of its `composer.json`, in its `Info.plist`: the `identifier` as its bundle ID, unchanged, since Apple allows letters, digits, dashes and dots there; the `name` under the icon; the `version`, which iOS compares to accept an update, as three integers, without its pre-release or build suffix (`1.2.0-beta.1` becomes `1.2.0`);
-- the reasons iOS gives the user when the app uses a [phone API](phone-apis.md) it asks for (`permissions`), and only for those: Face ID for `biometrics`, the location for `geolocation`, the camera for `barcodeScanner` and `camera`, the microphone for `microphone`. The template has all the plugins, and the app only registers the ones it asks for.
+- the reasons iOS gives the user when the app uses a [phone API](phone-apis.md) it asks for (`permissions`), and only for those: Face ID for `biometrics`, the location for `geolocation`, the camera for `barcodeScanner` and `camera`, the microphone for `microphone`, NFC for `nfc`. The template has all the plugins, and the app only registers the ones it asks for.
 
 It is signed ad hoc, because the simulator on a Mac with Apple silicon runs only signed code, and the signature binds the app's files, as Xcode's "Sign to Run Locally" does. The [Mobile workflow](development.md#continuous-integration) checks it with `codesign --verify` before it opens the app in a simulator.
 
@@ -149,9 +149,13 @@ An iPhone runs the apps signed by a developer that Apple knows, with a provision
     # Certificates, +, Apple Development: upload ios.csr, download development.cer
     openssl x509 -inform DER -in development.cer -out development.pem
     openssl pkcs12 -export -inkey ios-key.pem -in development.pem -out ios.p12
+    chmod 600 ios.p12
+    rm ios-key.pem
     ```
 
-    On a Mac, export the certificate with its key from Keychain Access, as a `.p12` file;
+    `-nodes` leaves `ios-key.pem` unencrypted. OpenSSL asks for a password when it writes `ios.p12`: give it one, then delete `ios-key.pem`, as the `.p12` file holds the key. Keep `ios.p12` yours only, and somewhere safe, because the certificate is of no use without it.
+
+    On a Mac, export the certificate with its key from Keychain Access, as a `.p12` file, instead;
 
 2. an App ID: the project's `identifier`, or a wildcard one, such as `dev.nativella.*`;
 
@@ -167,10 +171,12 @@ nativella ios path/to/project --template nativella-ios-template-iphoneos-arm64.z
 
 The certificate password comes from the variable `NATIVELLA_CERTIFICATE_PASSWORD`, not from an argument, which other users of the computer can see. The file may be encrypted as OpenSSL 3 does (AES), or as Keychain Access and `openssl pkcs12 -legacy` do (3DES and RC2).
 
+The template, the signature and the output go together. `nativella ios` refuses `--certificate` and `--profile` with the simulator template, the device template without them, and an output that does not end with `.app` for the simulator or `.ipa` for devices.
+
 `nativella ios` checks first that the profile is for iOS, has not expired, lists the certificate, and is for the app's bundle ID. The IPA is the app, as for the simulator, with:
 
 - the profile, as `embedded.mobileprovision`;
-- a signature as Xcode makes it: by the certificate, with the chain of Apple certificates that issued it, which `nativella` carries, and with the profile's entitlements, its application identifier made for the app's bundle ID when the App ID is a wildcard one.
+- a signature as Xcode makes it: by the certificate, with the chain of Apple certificates that issued it, which `nativella` carries, and with the profile's entitlements, its application identifier and its keychain access groups made for the app's bundle ID when the profile gives a wildcard (`<team>.*` becomes `<team>.<identifier>`).
 
 Install it on a device of the profile with Xcode's Devices and Simulators window, Apple Configurator or, on Linux, `ideviceinstaller` from [libimobiledevice](https://libimobiledevice.org/). Upload it, signed for distribution, to App Store Connect, for TestFlight and the App Store, with Transporter.
 
@@ -211,7 +217,7 @@ PHP answers a page when the runtime writes `[php] GET <url> 200`, which means th
 A phone's PHP is the same as on [the desktop](building.md#the-php-inside), built for the phone by Nativella, with the same sources, libraries and extensions, from the same list. Building the template builds it first, once (`castor static-php:android`, see [Developing Nativella](development.md#php-for-the-phones)):
 
 - PHP 8.5, without thread safety, as on the desktop: it runs on a thread of its own, one request at a time (see [How it works](how-it-works.md#one-php-thread));
-- the extensions a Symfony, Laravel or Doctrine application needs, intl included: bcmath, ctype, curl, dom, fileinfo, filter, iconv, intl, mbstring, opcache, openssl, pdo_sqlite, phar, session, simplexml, sodium, sqlite3, tokenizer, xml, xmlreader, xmlwriter, zip, zlib;
+- the extensions a Symfony, Laravel or Doctrine application needs, intl included: bcmath, ctype, curl, dom, fileinfo, filter, iconv, intl, mbstring, opcache, openssl, pdo, pdo_sqlite, phar, session, simplexml, sodium, sqlite3, tokenizer, xml, xmlreader, xmlwriter, zip, zlib;
 - for Android 9 (API level 28) and later, arm64; and x86_64, for emulators on x86_64 computers, which then run it without their ARM translation: `castor mobile:android symfony --abi=x86_64`. The releases publish the arm64 template only;
 - without JIT, for PCRE or opcache, because iOS runs no code it did not sign, and on Android, PCRE's JIT needs a function from clang's runtime that Rust does not link. PCRE interprets the regular expressions instead;
 - intl carries ICU and its data, for every locale. That is about 36 MB of the library (as in the desktop executables), which the APK stores uncompressed, as Android loads the library from there. A release template weighs about 80 MB and its library 71 MB, twice the 37 MB it weighed with NativePHP's PHP, which had no intl.
@@ -224,14 +230,14 @@ On iOS, `castor static-php:ios` builds the same PHP on a Mac, with Xcode, for iO
 
 ## Limitations
 
-- First launch is slow. The project is extracted, then the framework builds its cache on the phone (about 5 seconds for the Symfony demo on an emulator). The following requests take a few hundred milliseconds in a debug build.
-- Debug templates are big (about 290 MB), and so are the APKs made from them, because the library is not stripped. A release template weighs about 80 MB, and the Symfony demo APK made from it 84 MB. ICU and its data, for intl, are close to half of it (see [PHP for the phone](#php-for-the-phone)). The barcode scanner adds the ML Kit model and its library, about 6 MB per ABI. They ship in the APK, so that the scanner works on phones without Google Play services, and offline.
+- First launch is slow. The project is extracted, then the framework builds its cache on the phone (about 5 seconds for the Symfony demo on an emulator). When the system purges part of the cache, as Android does when storage runs low, the application extracts its project again at its next start. The following requests take a few hundred milliseconds in a debug build.
+- Debug templates are big (about 290 MB), and so are the APKs made from them, because the library is not stripped. A release template weighs about 80 MB, and the Symfony demo APK made from it 84 MB. ICU and its data, for intl, are close to half of it (see [PHP for the phone](#php-for-the-phone)). The barcode scanner adds the ML Kit model and its library, about 6 MB per ABI. They ship in every APK, with or without `barcodeScanner` in its `permissions`, so that the scanner works on phones without Google Play services, and offline.
 - A page gets 25 seconds. Android's webview, through wry, gives up on a page after 30 seconds and shows an error in its place. So when PHP takes longer, because the user left a dialog, the file picker or a fingerprint prompt open, Nativella answers first with a page that waits. Once PHP is done, that page loads the same page again for a `GET`, or the form's page for a `POST`. The response PHP finally gives is dropped, so a redirect after a form is lost, but not the form's work. A `fetch()` or an XHR gets a 504 instead, even one that asks for HTML, as Turbo does.
 - There is no adaptive icon. The launcher icon is a plain one, which launchers that shape icons, such as the Pixel one, shrink onto a white shape. There is no round icon either, nor a monochrome one for themed icons.
 - iOS apps have the template's icon. The `icon` of `extra.nativella` does not reach the iOS app yet.
 - There is no Google Play bundle. `nativella android` writes APKs, to install with `adb` or to open on the phone. Google Play asks for an Android App Bundle (AAB), which a Gradle build, in a Docker image, will make. Signing keys are EC P-256 keys in PEM files, and Java keystores are not supported yet.
-- Phone APIs are few: [haptics, geolocation, biometrics, a barcode scanner and the share sheet](phone-apis.md). There is no photo, video or microphone API and no push notifications yet, but the pages have the camera and the microphone with `getUserMedia()`.
+- Phone APIs are few: [haptics, geolocation, biometrics, a barcode scanner, NFC tags and the share sheet](phone-apis.md). There is no photo, video or microphone API and no push notifications yet, but the pages have the camera and the microphone with `getUserMedia()`.
 - iOS is experimental. In the simulator, the Symfony demo shows its first page, but the webview leaves the bottom of the screen black, and what the app writes reaches the system log in debug builds only. No device has run an [app for devices](#for-devices), and no phone API has been tried.
-- iOS apps get every entitlement of their profile (those of the capabilities of their App ID, as the Apple Developer website lists them), as re-signing tools give them, not the ones the app needs.
+- iOS apps get every entitlement of their profile (those of the capabilities of their App ID, as the Apple Developer website lists them), as re-signing tools give them, not the ones the app needs. So the entitlement an API needs, such as NFC Tag Reading for [`Nfc`](phone-apis.md#nfc), comes from the profile: turn the capability on for an explicit App ID. This is untested.
 - iOS apps link every phone API. App Store Connect may refuse an app whose code can use the location or Face ID without the reason in its `Info.plist` (ITMS-90683), which only the APIs it asks for have.
 - iOS apps have no nested code. `nativella ios` signs the executable and seals the other files. Frameworks and app extensions, which the template has none of, would need signing of their own.

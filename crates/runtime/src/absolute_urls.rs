@@ -3,9 +3,10 @@
 //! nothing listens. The ones pages and styles load or link to get the
 //! webview's own scheme back: `php://localhost/`.
 //!
-//! Only URL attributes of HTML (`href`, `src`, `action`…) and `url()` of CSS
-//! are rewritten: text, form values, scripts and JSON documents are the
-//! user's data, which may well mention `http://localhost`. The shell brings
+//! Only URL attributes of HTML (`href`, `src`, `action`…) and `url()` of CSS,
+//! in a style sheet or in a `style` attribute or element, are rewritten:
+//! text, form values, scripts and JSON documents are the user's data, which
+//! may well mention `http://localhost`. The shell brings
 //! back the requests scripts send there (`crates/nativella/src/absolute_urls.rs`).
 //!
 //! Where the webview itself uses HTTP (Windows, Android: `http://php.localhost/`),
@@ -83,20 +84,30 @@ fn replace_origin(haystack: &[u8], from: &[u8], to: &[u8], kind: Kind) -> Option
             && !haystack
                 .get(index + from.len())
                 .is_some_and(|&byte| byte.is_ascii_alphanumeric() || b".-_:@".contains(&byte))
-            && is_url_context(&haystack[..index], kind)
     };
 
+    // Where the page is at `index`, read once from its start: looking back
+    // from every URL would read a long text again and again.
+    let mut place = Place::Text;
     let mut result: Option<Vec<u8>> = None;
     let mut copied = 0;
     let mut index = 0;
     while index + from.len() <= haystack.len() {
-        if is_origin_at(index) {
+        let is_url_context = |before: &[u8]| match kind {
+            Kind::Css => ends_with_url_function(before),
+            Kind::Html => place.is_url_context(before),
+        };
+        if is_origin_at(index) && is_url_context(&haystack[..index]) {
             let result = result.get_or_insert_with(|| Vec::with_capacity(haystack.len() + 64));
             result.extend_from_slice(&haystack[copied..index]);
             result.extend_from_slice(to);
+            // An origin holds nothing that changes the place.
             index += from.len();
             copied = index;
         } else {
+            if kind == Kind::Html {
+                place = place.after(haystack, index);
+            }
             index += 1;
         }
     }
@@ -107,37 +118,105 @@ fn replace_origin(haystack: &[u8], from: &[u8], to: &[u8], kind: Kind) -> Option
     Some(result)
 }
 
-/// Whether what precedes a URL makes it one to load or link to: an HTML URL
-/// attribute (`href="`, `src='`, `action=`), a candidate of a `srcset` after
-/// the first one (`srcset="a.png 1x, `) or a CSS `url(`.
-fn is_url_context(before: &[u8], kind: Kind) -> bool {
+/// The elements whose content is text, whatever it looks like.
+const TEXT_ELEMENTS: &[&[u8]] = &[b"script", b"style", b"textarea", b"title"];
+
+/// Where a byte of an HTML page is.
+#[derive(Clone, Copy)]
+enum Place {
+    Text,
+    /// In a comment, until `-->`.
+    Comment,
+    /// In the content of one of `TEXT_ELEMENTS`, until its end tag.
+    TextElement(&'static [u8]),
+    /// In a tag, between its attributes.
+    Tag {
+        start: usize,
+    },
+    /// In the value of an attribute, after the quote at `quote`.
+    Value {
+        tag: usize,
+        quote: usize,
+    },
+}
+
+impl Place {
+    /// The place after the byte at `index`, given the one before it.
+    fn after(self, page: &[u8], index: usize) -> Self {
+        let byte = page[index];
+        let rest = &page[index + 1..];
+
+        match self {
+            Self::Text if byte == b'<' && rest.starts_with(b"!--") => Self::Comment,
+            // "1 < 2" opens no tag.
+            Self::Text
+                if byte == b'<'
+                    && rest
+                        .first()
+                        .is_some_and(|next| next.is_ascii_alphabetic() || b"/!".contains(next)) =>
+            {
+                Self::Tag { start: index }
+            }
+            Self::Comment if byte == b'>' && page[..index].ends_with(b"--") => Self::Text,
+            Self::TextElement(name)
+                if byte == b'<'
+                    && rest.first() == Some(&b'/')
+                    && rest[1..]
+                        .get(..name.len())
+                        .is_some_and(|end| end.eq_ignore_ascii_case(name)) =>
+            {
+                Self::Tag { start: index }
+            }
+            Self::Tag { start } if matches!(byte, b'"' | b'\'') => Self::Value {
+                tag: start,
+                quote: index,
+            },
+            Self::Tag { start } if byte == b'>' => {
+                let tag = &page[start + 1..index];
+                let name_end = tag
+                    .iter()
+                    .position(|byte| !byte.is_ascii_alphanumeric())
+                    .unwrap_or(tag.len());
+
+                TEXT_ELEMENTS
+                    .iter()
+                    .find(|name| name.eq_ignore_ascii_case(&tag[..name_end]))
+                    .map_or(Self::Text, |name| Self::TextElement(name))
+            }
+            Self::Value { tag, quote } if byte == page[quote] => Self::Tag { start: tag },
+            place => place,
+        }
+    }
+
+    /// Whether a URL that follows `before` is one to load or link to: the
+    /// value of a URL attribute (`href="`, `src='`, `action=`), a candidate
+    /// of a `srcset` after the first one (`srcset="a.png 1x, `) or a CSS
+    /// `url(`, in a `style` attribute or element.
+    fn is_url_context(self, before: &[u8]) -> bool {
+        match self {
+            Self::Tag { .. } => is_attribute(before, URL_ATTRIBUTES),
+            Self::Value { quote, .. } => {
+                let (attribute, value) = (&before[..quote], &before[quote + 1..]);
+
+                value.is_empty() && is_attribute(attribute, URL_ATTRIBUTES)
+                    || value.trim_ascii_end().ends_with(b",")
+                        && is_attribute(attribute, &[b"srcset"])
+                    || ends_with_url_function(value) && is_attribute(attribute, &[b"style"])
+            }
+            Self::TextElement(name) => name == b"style" && ends_with_url_function(before),
+            Self::Text | Self::Comment => false,
+        }
+    }
+}
+
+/// Whether `before` ends with `url(`, and a quote or not.
+fn ends_with_url_function(before: &[u8]) -> bool {
     let unquoted = before
         .strip_suffix(b"\"")
         .or_else(|| before.strip_suffix(b"'"))
         .unwrap_or(before);
 
-    if unquoted.len() >= 4 && unquoted[unquoted.len() - 4..].eq_ignore_ascii_case(b"url(") {
-        return true;
-    }
-    if kind == Kind::Css {
-        return false;
-    }
-
-    is_attribute(unquoted, URL_ATTRIBUTES) || is_next_srcset_candidate(before)
-}
-
-/// Whether `before` ends inside a quoted `srcset`, past the comma that
-/// separates two candidates.
-fn is_next_srcset_candidate(before: &[u8]) -> bool {
-    let Some(before) = before.trim_ascii_end().strip_suffix(b",") else {
-        return false;
-    };
-    let Some(quote) = before.iter().rposition(|byte| matches!(byte, b'"' | b'\'')) else {
-        return false;
-    };
-
-    // Within the value of the attribute: no tag ends in between.
-    !before[quote..].contains(&b'>') && is_attribute(&before[..quote], &[b"srcset"])
+    unquoted.len() >= 4 && unquoted[unquoted.len() - 4..].eq_ignore_ascii_case(b"url(")
 }
 
 /// Whether `before` ends with `name=`, `name` one of `names`.
@@ -223,6 +302,39 @@ mod tests {
     }
 
     #[test]
+    fn css_urls_of_a_page_too() {
+        let page = rewritten(
+            "php://localhost/",
+            response(
+                "text/html",
+                r#"<style media="screen">a > b { background: url(http://localhost/a.png) }</style><p style="background: url('http://localhost/b.png')">It's</p><!-- it's --><a href="http://localhost/c">"#,
+            ),
+        );
+
+        assert_eq!(
+            page,
+            r#"<style media="screen">a > b { background: url(php://localhost/a.png) }</style><p style="background: url('php://localhost/b.png')">It's</p><!-- it's --><a href="php://localhost/c">"#
+        );
+    }
+
+    #[test]
+    fn a_long_srcset_is_read_once() {
+        let candidates = 200_000;
+        let page = rewritten(
+            "php://localhost/",
+            response(
+                "text/html",
+                &format!(
+                    r#"<img srcset="{}">"#,
+                    "http://localhost/a.png 1x, ".repeat(candidates)
+                ),
+            ),
+        );
+
+        assert_eq!(page.matches("php://localhost/a.png").count(), candidates);
+    }
+
+    #[test]
     fn the_data_of_the_user_is_left_alone() {
         let page = rewritten(
             "php://localhost/",
@@ -234,6 +346,18 @@ mod tests {
         assert_eq!(
             page,
             r#"<textarea>curl http://localhost/api</textarea><input value="http://localhost/x"><div data-href="http://localhost/y"></div><p>http://localhost/</p>"#
+        );
+
+        let page = rewritten(
+            "php://localhost/",
+            response(
+                "text/html",
+                r#"<textarea>&lt;a href=http://localhost/x&gt; url(http://localhost/bg.png)</textarea><input value="url(http://localhost/y)"><script type="application/json">{"css":"url(http://localhost/z)"}</script><!-- <a href="http://localhost/old"> --><p>1 < 2, see href=http://localhost/</p>"#,
+            ),
+        );
+        assert_eq!(
+            page,
+            r#"<textarea>&lt;a href=http://localhost/x&gt; url(http://localhost/bg.png)</textarea><input value="url(http://localhost/y)"><script type="application/json">{"css":"url(http://localhost/z)"}</script><!-- <a href="http://localhost/old"> --><p>1 < 2, see href=http://localhost/</p>"#
         );
 
         let json = rewritten(

@@ -20,7 +20,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tauri::{AppHandle, Manager};
 
-use super::{Call, State, lock};
+use super::{Call, NativeError, State, invalid_payload, lock, not_found};
 use crate::events;
 
 /// How long a process may take to end once asked, before it is killed.
@@ -216,7 +216,9 @@ impl ChildProcesses {
             .envs(self.variables.iter().cloned());
         #[cfg(target_os = "linux")]
         if crate::sets_no_at_bridge() {
-            command.env_remove("NO_AT_BRIDGE");
+            command
+                .env_remove("NO_AT_BRIDGE")
+                .env_remove(crate::OWN_NO_AT_BRIDGE);
         }
         command
             .envs(env)
@@ -255,7 +257,7 @@ impl ChildProcesses {
     }
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     let processes = &call.state().child_processes;
 
     Some(match method {
@@ -302,9 +304,15 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
     })
 }
 
-fn start(app: &AppHandle, processes: &ChildProcesses, payload: Start) -> Result<Value, String> {
+fn start(
+    app: &AppHandle,
+    processes: &ChildProcesses,
+    payload: Start,
+) -> Result<Value, NativeError> {
     let Some((program, arguments)) = payload.command.split_first() else {
-        return Err("A process needs a command: the program, then its arguments.".to_owned());
+        return Err(invalid_payload(
+            "A process needs a command: the program, then its arguments.",
+        ));
     };
     let alias = payload.alias;
     let cwd = match &payload.cwd {
@@ -329,12 +337,13 @@ fn start(app: &AppHandle, processes: &ChildProcesses, payload: Start) -> Result<
             Some(_) => {
                 return Err(format!(
                     "A process named \"{alias}\" is already running: stop it first."
-                ));
+                )
+                .into());
             }
         }
     };
     if processes.closing.load(Ordering::Relaxed) {
-        return Err("The application is quitting: no process starts any more.".to_owned());
+        return Err("The application is quitting: no process starts any more.".into());
     }
 
     // The watcher first: once the process runs, nothing may fail before it
@@ -382,7 +391,7 @@ fn start(app: &AppHandle, processes: &ChildProcesses, payload: Start) -> Result<
         Err(error) => {
             kill(&mut child);
             let _ = child.wait();
-            return Err(format!("Cannot follow \"{alias}\": {error}."));
+            return Err(format!("Cannot follow \"{alias}\": {error}.").into());
         }
     };
 
@@ -527,8 +536,8 @@ fn send_output(app: &AppHandle, alias: &str, pid: u32, stream: &str, output: &[u
     let _ = waiting.recv();
 }
 
-fn not_running(alias: &str) -> String {
-    format!("No process named \"{alias}\" is running.")
+fn not_running(alias: &str) -> NativeError {
+    not_found(format!("No process named \"{alias}\" is running."))
 }
 
 #[cfg(test)]

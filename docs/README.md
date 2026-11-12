@@ -27,7 +27,7 @@ Nativella is young and experimental. Linux is the platform it is built and teste
 - [Testing](testing.md): the fake client, and running the application outside Nativella.
 - [Building a standalone app](building.md): `nativella build`, what ships in the executable, its size and its memory.
 - [Your own PHP](custom-php.md): another version of PHP, other extensions, in a `nativella` built from the repository.
-- [Updates](updates.md): standalone executables that update themselves from your releases.
+- [Updates](updates.md): standalone executables that update themselves from your releases, with the `Updater` API.
 - [Mobile](mobile.md): `nativella android` and `nativella ios`, what changes on a phone, what is tested.
 
 ## Native APIs
@@ -38,7 +38,7 @@ Nativella is young and experimental. Linux is the platform it is built and teste
 - [Tray](tray.md): an icon in the system tray, with its menu.
 - [Dialogs](dialogs.md): message boxes, confirmations and file pickers.
 - [Notifications](notifications.md): system notifications.
-- [Clipboard](clipboard.md): read and write text, HTML and images.
+- [Clipboard](clipboard.md): read and write text and images, write HTML.
 - [Global shortcuts](global-shortcuts.md): keyboard shortcuts that work in the background.
 - [Settings](settings.md): a key-value store for preferences.
 - [Secrets](secrets.md): tokens and passwords in the system keychain.
@@ -49,7 +49,6 @@ Nativella is young and experimental. Linux is the platform it is built and teste
 - [Screens](screens.md): displays, work areas and the cursor.
 - [System](system.md): the operating system, the locale and the theme.
 - [Power](power.md): the battery, the power source, waking from sleep, keeping the computer awake.
-- [Updates](updates.md): standalone executables that update themselves from your releases.
 - [Pages and JavaScript](javascript.md): `nativella:*` DOM events, `fetch()`, context menus.
 
 ## Under the hood

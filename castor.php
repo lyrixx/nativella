@@ -95,7 +95,7 @@ function migrate(): void
 {
     io()->title('Migrating the databases of the demos');
 
-    foreach (project\demos() as $demo) {
+    foreach (array_map(project\install_if_missing(...), project\demos()) as $demo) {
         if ($demo->isSymfony() && $demo->hasFile('migrations')) {
             io()->section("Migrating {$demo->path}");
             run_or_fail($demo, ['bin/console', 'doctrine:migrations:migrate', '-n', '--allow-no-migration', '--all-or-nothing']);

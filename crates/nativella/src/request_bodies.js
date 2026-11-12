@@ -103,22 +103,24 @@
         });
     };
 
+    // A control named "action", "method" or "enctype" shadows the property
+    // of its form: the getters of the prototype read the real ones.
+    const formProperty = (form, name) => Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, name).get.call(form);
+    const nativeSubmit = HTMLFormElement.prototype.submit;
+
     // Forms navigate, without custom headers: the key of the body goes in
     // the URL, which the runtime removes before PHP sees it. The form is then
-    // submitted again, without the event. Listening in the bubble phase lets
-    // the page's own handlers prevent the submission first.
-    window.addEventListener('submit', (event) => {
-        const form = event.target;
-        const submitter = event.submitter;
-        const method = submitter?.hasAttribute('formmethod') ? submitter.formMethod : form.method;
-        const action = submitter?.hasAttribute('formaction') ? submitter.formAction : form.action;
-        if (event.defaultPrevented || method.toLowerCase() !== 'post' || !sameOrigin(action)) {
-            return;
+    // submitted again, without the event. Returns false for a form that
+    // needs none of it.
+    const submitWithBody = (form, submitter) => {
+        const method = submitter?.hasAttribute('formmethod') ? submitter.formMethod : formProperty(form, 'method');
+        const action = submitter?.hasAttribute('formaction') ? submitter.formAction : formProperty(form, 'action');
+        if (method.toLowerCase() !== 'post' || !sameOrigin(action)) {
+            return false;
         }
-        event.preventDefault();
 
         const data = new FormData(form, submitter);
-        const enctype = submitter?.hasAttribute('formenctype') ? submitter.formEnctype : form.enctype;
+        const enctype = submitter?.hasAttribute('formenctype') ? submitter.formEnctype : formProperty(form, 'enctype');
         const encoded = enctype === 'multipart/form-data'
             ? new Request(action, { method: 'POST', body: data })
             : new Request(action, {
@@ -134,8 +136,8 @@
             const target = new URL(action, document.baseURI);
             target.searchParams.set('nativella-body', key);
 
-            // form.submit() ignores the submitter: carry its overrides, and
-            // the keyed action.
+            // The native submit() ignores the submitter: carry its
+            // overrides, and the keyed action.
             const overrides = { action: target.href };
             for (const name of ['method', 'enctype', 'target']) {
                 if (submitter?.hasAttribute(`form${name}`)) {
@@ -147,7 +149,7 @@
                 previous[name] = form.getAttribute(name);
                 form.setAttribute(name, value);
             }
-            HTMLFormElement.prototype.submit.call(form);
+            nativeSubmit.call(form);
             for (const [name, value] of Object.entries(previous)) {
                 value === null ? form.removeAttribute(name) : form.setAttribute(name, value);
             }
@@ -156,5 +158,35 @@
             // the page.
             console.error(`[nativella] The form to ${action} was not submitted:`, error);
         });
+
+        return true;
+    };
+
+    // Listening in the bubble phase lets the page's own handlers prevent the
+    // submission first.
+    window.addEventListener('submit', (event) => {
+        if (!event.defaultPrevented && event.target instanceof HTMLFormElement && submitWithBody(event.target, event.submitter)) {
+            event.preventDefault();
+        }
     });
+
+    // form.submit() fires no submit event.
+    HTMLFormElement.prototype.submit = function () {
+        if (!submitWithBody(this, null)) {
+            nativeSubmit.call(this);
+        }
+    };
+
+    // A beacon cannot wait for its body to be stored: it goes as a fetch()
+    // that outlives the page, through the one above.
+    const { sendBeacon } = Navigator.prototype;
+    Navigator.prototype.sendBeacon = function (url, data) {
+        if (data == null || !sameOrigin(url)) {
+            return sendBeacon.call(this, url, data);
+        }
+        window.fetch(url, { method: 'POST', body: data, keepalive: true })
+            .catch((error) => console.error(`[nativella] The beacon to ${url} failed:`, error));
+
+        return true;
+    };
 })();

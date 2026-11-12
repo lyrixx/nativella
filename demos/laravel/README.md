@@ -1,15 +1,17 @@
 # Tasks: Nativella with Laravel
 
 A small to-do list built with Laravel 13, persisted with Eloquent in SQLite, running as a desktop
-application. It has Blade views and one hand-written CSS file (`public/app.css`), without Vite, npm
+application. It has Blade views and one plain CSS file (`public/app.css`), without Vite, npm
 or a build step. The Laravel side of Nativella is the `nativella/laravel` package (`packages/laravel`).
 
 | Feature | Nativella API |
 |---|---|
 | Delete, after a native confirmation | `Nativella\Dialog::confirm()` |
 | A notification when the last open task is done | `Nativella\Notification::send()`, from `TaskObserver` |
+| A click on that notification brings the window back (Linux only) | `Event\NotificationClicked` |
+| On phones, a vibration when the last open task is done (`haptics` permission) | `Nativella\Haptics::feedback()`, from `TaskObserver` |
 | Copy the list as Markdown | `Nativella\Clipboard::writeText()` |
-| Export the list as Markdown (button, or File › Export…) | `Nativella\Dialog::saveFile()` |
+| Export the list as Markdown (button, or File › Export…), not on phones | `Nativella\Dialog::saveFile()` |
 | Open at login, in Settings | `Nativella\App::enableAutostart()`, `disableAutostart()`, `isAutostartEnabled()` |
 | Application menu: File › New task (`CmdOrCtrl+N`), Export…, Settings…, Quit; Edit; Window | `Event\AppBooted`, `Nativella\Menu::set()`, `Event\MenuItemClicked` |
 | Tray icon whose tooltip counts the open tasks | `Nativella\Tray::set()`, refreshed by `TaskObserver` |
@@ -22,6 +24,8 @@ composer setup    # composer install, .env, APP_KEY, database/database.sqlite
 
 # From the root of the repository: the desktop app.
 cargo run -p nativella -- run demos/laravel
+# Or, with the Castor tasks of the repository:
+castor nativella:run laravel
 
 # In a browser, for development: the native features are hidden.
 php artisan serve
@@ -33,14 +37,15 @@ In Nativella, the database is `database.sqlite` in the application's data direct
 (`NATIVELLA_DATA_DIR` moves it), migrated when the application starts. `NATIVELLA_DATA_DIR=… php
 artisan tinker` works on that database too. Outside Nativella, it is `database/database.sqlite`.
 
-Without a window, through the runtime:
+Without a window, through the runtime, on the data directory of the application, which exists once
+the application has run:
 
 ```bash
 cargo run -p nativella-runtime --example request -- demos/laravel \
     POST /_nativella/event --internal --data '{"name":"app.booted","payload":{}}' \
-    --server NATIVELLA_DATA_DIR=$HOME/.local/share/nativella-tasks
+    --server NATIVELLA_DATA_DIR=$HOME/.local/share/dev.nativella.demo.laravel
 cargo run -p nativella-runtime --example request -- demos/laravel \
-    GET / --server NATIVELLA_DATA_DIR=$HOME/.local/share/nativella-tasks
+    GET / --server NATIVELLA_DATA_DIR=$HOME/.local/share/dev.nativella.demo.laravel
 ```
 
 ## How it works
@@ -55,7 +60,8 @@ cargo run -p nativella-runtime --example request -- demos/laravel \
 - Closing the window leaves the application in the tray. The tray menu or the global shortcut open it
   again (`App\Desktop\MainWindow`) with `Window::open('main')`. Without options, the runtime starts from
   `extra.nativella.window` in `composer.json`.
-- On phones and tablets (`Runtime::isMobile()`), there is no menu, tray, global shortcut or autostart.
+- On phones and tablets (`Runtime::isMobile()`), there is no menu, tray, global shortcut or autostart,
+  and the export answers 404, because phones have no save dialog.
 - Inside Nativella, `nativella/laravel` encrypts with the installation's secret, not the `APP_KEY`
   of the `.env` file, which ships with the application.
 - Outside Nativella (`Nativella::isNative()` is false), `@native` hides the native buttons, the routes

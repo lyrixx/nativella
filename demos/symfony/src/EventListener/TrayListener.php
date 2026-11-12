@@ -4,6 +4,7 @@ namespace App\EventListener;
 
 use App\Native\Desktop;
 use Nativella\Event\TrayClicked;
+use Nativella\Tray\MouseButton;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 /**
@@ -20,7 +21,7 @@ final readonly class TrayListener
 
     public function __invoke(TrayClicked $event): void
     {
-        if ('left' === $event->button) {
+        if (MouseButton::Left === $event->button) {
             $this->desktop->showMainWindow();
         }
     }

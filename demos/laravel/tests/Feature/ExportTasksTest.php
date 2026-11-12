@@ -23,6 +23,7 @@ final class ExportTasksTest extends TestCase
 
     protected function tearDown(): void
     {
+        unset($_SERVER['NATIVELLA_PLATFORM']);
         if (is_file($this->file)) {
             unlink($this->file);
         }
@@ -54,6 +55,17 @@ final class ExportTasksTest extends TestCase
         $this->post('/tasks/export')->assertRedirect('/')->assertSessionMissing(['status', 'error']);
 
         $this->assertFileDoesNotExist($this->file);
+    }
+
+    public function testPhonesDoNotExport(): void
+    {
+        $native = Nativella::fake();
+        // What the runtime sets on Android.
+        $_SERVER['NATIVELLA_PLATFORM'] = 'android';
+
+        $this->post('/tasks/export')->assertNotFound();
+
+        $this->assertSame([], $native->calls());
     }
 
     public function testAFileThatCannotBeWrittenIsReported(): void
