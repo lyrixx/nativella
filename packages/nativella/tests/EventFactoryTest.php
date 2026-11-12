@@ -61,4 +61,16 @@ final class EventFactoryTest extends TestCase
 
         EventFactory::create('window.themeChanged', ['window' => 'main', 'theme' => 'sepia']);
     }
+
+    public function testEveryEventAlsoComesAsANativeEvent(): void
+    {
+        $this->assertEquals(
+            [new MenuItemClicked('new', null), new NativeEvent('menu.itemClicked', ['id' => 'new', 'checked' => null])],
+            EventFactory::allFromJson('{"name":"menu.itemClicked","payload":{"id":"new","checked":null}}'),
+        );
+        $this->assertEquals(
+            [new NativeEvent('power.suspended', ['battery' => 12])],
+            EventFactory::allFromJson('{"name":"power.suspended","payload":{"battery":12}}'),
+        );
+    }
 }

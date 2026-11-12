@@ -6,6 +6,7 @@ use Nativella\Client;
 use Nativella\Client\Call;
 use Nativella\Client\FakeClient;
 use Nativella\Event\MenuItemClicked;
+use Nativella\Event\NativeEvent;
 use Nativella\Symfony\Tests\Fixtures\RecordingListener;
 use Nativella\Symfony\Tests\Fixtures\TestKernel;
 use Nativella\Window;
@@ -37,12 +38,12 @@ final class NativellaBundleTest extends TestCase
         $this->assertEquals([new Call('window.setTitle', ['title' => 'Hello', 'window' => null])], $this->service(FakeClient::class)->calls());
     }
 
-    public function testAnInternalRequestDispatchesTheTypedEvent(): void
+    public function testAnInternalRequestDispatchesTheTypedEventThenTheNativeOne(): void
     {
         $response = $this->kernel->handle(self::eventRequest(internal: true));
 
         $this->assertSame(204, $response->getStatusCode());
-        $this->assertEquals([new MenuItemClicked('new', null)], $this->service(RecordingListener::class)->events);
+        $this->assertEquals([new MenuItemClicked('new', null), new NativeEvent('menu.itemClicked', ['id' => 'new', 'checked' => null])], $this->service(RecordingListener::class)->events);
     }
 
     public function testAPageCannotSendNativeEvents(): void

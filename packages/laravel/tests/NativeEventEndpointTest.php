@@ -35,10 +35,10 @@ final class NativeEventEndpointTest extends TestCase
         $this->postJson('/_nativella/event', ['name' => 'menu.itemClicked', 'payload' => ['id' => 'notes.new', 'checked' => null]])
             ->assertNoContent();
 
-        $this->assertEquals([new MenuItemClicked('notes.new', null)], $this->dispatched);
+        $this->assertEquals([new MenuItemClicked('notes.new', null), new NativeEvent('menu.itemClicked', ['id' => 'notes.new', 'checked' => null])], $this->dispatched);
     }
 
-    public function testAnEventUnknownToThePackageIsStillDispatched(): void
+    public function testAnEventUnknownToThePackageIsDispatchedOnce(): void
     {
         $this->sentByTheRuntime();
 

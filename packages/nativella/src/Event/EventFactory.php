@@ -57,12 +57,29 @@ final class EventFactory
      */
     public static function fromJson(string $body): object
     {
-        $data = json_decode($body, true);
-        if (!\is_array($data) || !\is_string($data['name'] ?? null) || !\is_array($data['payload'] ?? null)) {
-            throw new UnexpectedResponseException('A native event is a JSON object with a "name" string and a "payload" object.');
-        }
+        $event = self::decode($body);
 
-        return self::create($data['name'], $data['payload']);
+        return self::create($event->name, $event->payload);
+    }
+
+    /**
+     * What a framework dispatches: the event as its own class, when this
+     * version of the package knows it, then as a NativeEvent, which every event
+     * also comes as. A listener of a NativeEvent keeps hearing it once the
+     * package gives the event a class.
+     *
+     * @param string $body the body of an internal request: {"name": "…", "payload": {…}}
+     *
+     * @return non-empty-list<object>
+     *
+     * @throws UnexpectedResponseException when the body is not such a document
+     */
+    public static function allFromJson(string $body): array
+    {
+        $native = self::decode($body);
+        $event = self::create($native->name, $native->payload);
+
+        return $event instanceof NativeEvent ? [$native] : [$event, $native];
     }
 
     /**
@@ -85,5 +102,15 @@ final class EventFactory
         }
 
         return self::fromJson((string) file_get_contents('php://input'));
+    }
+
+    private static function decode(string $body): NativeEvent
+    {
+        $data = json_decode($body, true);
+        if (!\is_array($data) || !\is_string($data['name'] ?? null) || !\is_array($data['payload'] ?? null)) {
+            throw new UnexpectedResponseException('A native event is a JSON object with a "name" string and a "payload" object.');
+        }
+
+        return new NativeEvent($data['name'], $data['payload']);
     }
 }
