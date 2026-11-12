@@ -5,6 +5,7 @@ namespace Nativella\Client;
 use Nativella\Client;
 use Nativella\Exception\NativeCallException;
 use Nativella\Exception\RuntimeUnavailableException;
+use Nativella\Exception\UnexpectedResponseException;
 use Nativella\Runtime;
 
 /**
@@ -31,7 +32,12 @@ final readonly class ExtensionClient implements Client
             throw new NativeCallException($method, $e);
         }
 
-        return json_decode($result, true, flags: \JSON_THROW_ON_ERROR);
+        $decoded = json_decode($result, true);
+        if (!\is_array($decoded)) {
+            throw new UnexpectedResponseException(\sprintf('The runtime answered "%s" with something that is not a JSON object.', $method));
+        }
+
+        return $decoded;
     }
 
     public function isNative(): bool

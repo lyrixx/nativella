@@ -9,6 +9,7 @@ use Nativella\Event\NativeEvent;
 use Nativella\Event\WindowDownloaded;
 use Nativella\Event\WindowDragEntered;
 use Nativella\Event\WindowThemeChanged;
+use Nativella\Exception\UnexpectedResponseException;
 use Nativella\System\Theme;
 use PHPUnit\Framework\Attributes\BackupGlobals;
 use PHPUnit\Framework\TestCase;
@@ -31,7 +32,7 @@ final class EventFactoryTest extends TestCase
 
     public function testItRejectsAMalformedBody(): void
     {
-        $this->expectException(\UnexpectedValueException::class);
+        $this->expectException(UnexpectedResponseException::class);
 
         EventFactory::fromJson('{"name":"app.booted"}');
     }
@@ -44,5 +45,20 @@ final class EventFactoryTest extends TestCase
         unset($_SERVER['NATIVELLA_INTERNAL']);
 
         $this->assertNull(EventFactory::fromGlobals());
+    }
+
+    public function testItRejectsABodyThatIsNotJson(): void
+    {
+        $this->expectException(UnexpectedResponseException::class);
+
+        EventFactory::fromJson('{"name":');
+    }
+
+    public function testAThemeThePackageDoesNotKnowIsRefused(): void
+    {
+        $this->expectException(UnexpectedResponseException::class);
+        $this->expectExceptionMessage('The runtime sent a theme the package does not know: "sepia".');
+
+        EventFactory::create('window.themeChanged', ['window' => 'main', 'theme' => 'sepia']);
     }
 }

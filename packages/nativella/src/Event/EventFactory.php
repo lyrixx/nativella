@@ -3,6 +3,7 @@
 namespace Nativella\Event;
 
 use Nativella\ChildProcess\Stream;
+use Nativella\Exception\UnexpectedResponseException;
 use Nativella\Runtime;
 use Nativella\System\Theme;
 
@@ -26,7 +27,7 @@ final class EventFactory
             'app.reopened' => new AppReopened($payload['args'], $payload['cwd']),
             'app.urlsOpened' => new AppUrlsOpened($payload['urls']),
             'childProcess.exited' => new ChildProcessExited($payload['alias'], $payload['pid'], $payload['code']),
-            'childProcess.output' => new ChildProcessOutput($payload['alias'], $payload['pid'], Stream::from($payload['stream']), $payload['output']),
+            'childProcess.output' => new ChildProcessOutput($payload['alias'], $payload['pid'], Stream::tryFrom($payload['stream']) ?? throw UnexpectedResponseException::unknownValue('stream', $payload['stream']), $payload['output']),
             'globalShortcut.pressed' => new GlobalShortcutPressed($payload['accelerator']),
             'menu.itemClicked' => new MenuItemClicked($payload['id'], $payload['checked']),
             'notification.clicked' => new NotificationClicked($payload['reference']),
@@ -43,19 +44,21 @@ final class EventFactory
             'window.dragLeft' => new WindowDragLeft($payload['window']),
             'window.filesDropped' => new WindowFilesDropped($payload['window'], $payload['paths']),
             'window.focused' => new WindowFocused($payload['window']),
-            'window.themeChanged' => new WindowThemeChanged($payload['window'], Theme::from($payload['theme'])),
+            'window.themeChanged' => new WindowThemeChanged($payload['window'], Theme::tryFrom($payload['theme']) ?? throw UnexpectedResponseException::unknownValue('theme', $payload['theme'])),
             default => new NativeEvent($name, $payload),
         };
     }
 
     /**
      * @param string $body the body of an internal request: {"name": "…", "payload": {…}}
+     *
+     * @throws UnexpectedResponseException when the body is not such a document
      */
     public static function fromJson(string $body): object
     {
-        $data = json_decode($body, true, flags: \JSON_THROW_ON_ERROR);
+        $data = json_decode($body, true);
         if (!\is_array($data) || !\is_string($data['name'] ?? null) || !\is_array($data['payload'] ?? null)) {
-            throw new \UnexpectedValueException('A native event is a JSON object with a "name" string and a "payload" object.');
+            throw new UnexpectedResponseException('A native event is a JSON object with a "name" string and a "payload" object.');
         }
 
         return self::create($data['name'], $data['payload']);

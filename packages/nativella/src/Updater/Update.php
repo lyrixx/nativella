@@ -2,6 +2,8 @@
 
 namespace Nativella\Updater;
 
+use Nativella\Exception\UnexpectedResponseException;
+
 final readonly class Update
 {
     /**
@@ -19,7 +21,7 @@ final readonly class Update
     /**
      * @param array{version: string, notes: ?string, date: ?string} $data
      *
-     * @throws \UnexpectedValueException when the date is not an RFC 3339 one, as Tauri's updater would
+     * @throws UnexpectedResponseException when the date is not an RFC 3339 one, as Tauri's updater would
      */
     public static function fromArray(array $data): self
     {
@@ -29,7 +31,7 @@ final readonly class Update
     private static function date(string $date): \DateTimeImmutable
     {
         if (1 !== preg_match(self::DATE_PATTERN, $date)) {
-            throw new \UnexpectedValueException(\sprintf('The "pub_date" of the release, "%s", is not an RFC 3339 date, as "2026-10-27T10:00:00Z".', $date));
+            throw new UnexpectedResponseException(\sprintf('The "pub_date" of the release, "%s", is not an RFC 3339 date, as "2026-10-27T10:00:00Z".', $date));
         }
 
         // Down to the microsecond: PHP drops the digits after.

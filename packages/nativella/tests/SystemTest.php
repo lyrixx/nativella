@@ -5,6 +5,7 @@ namespace Nativella\Tests;
 use Nativella\Client\FakeClient;
 use Nativella\Event\EventFactory;
 use Nativella\Event\WindowThemeChanged;
+use Nativella\Exception\UnexpectedResponseException;
 use Nativella\System;
 use Nativella\System\SystemInfo;
 use Nativella\System\Theme;
@@ -32,5 +33,15 @@ final class SystemTest extends TestCase
     public function testTheThemeChanges(): void
     {
         $this->assertEquals(new WindowThemeChanged('main', Theme::Light), EventFactory::create('window.themeChanged', ['window' => 'main', 'theme' => 'light']));
+    }
+
+    public function testAThemeThePackageDoesNotKnowIsRefused(): void
+    {
+        $client = new FakeClient();
+        $client->respond('system.theme', ['theme' => 'sepia']);
+
+        $this->expectException(UnexpectedResponseException::class);
+
+        new System($client)->theme();
     }
 }

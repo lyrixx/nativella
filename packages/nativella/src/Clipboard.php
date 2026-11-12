@@ -2,6 +2,8 @@
 
 namespace Nativella;
 
+use Nativella\Exception\UnexpectedResponseException;
+
 final readonly class Clipboard
 {
     public function __construct(
@@ -41,8 +43,12 @@ final readonly class Clipboard
             return null;
         }
 
-        // The runtime encodes valid base64.
-        return base64_decode($png, true) ?: throw new \LogicException('The runtime sent a clipboard image that is not base64.');
+        $bytes = base64_decode($png, true);
+        if (false === $bytes) {
+            throw new UnexpectedResponseException('The runtime sent a clipboard image that is not base64.');
+        }
+
+        return $bytes;
     }
 
     /**

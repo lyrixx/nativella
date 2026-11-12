@@ -7,6 +7,7 @@ use Nativella\Client\FakeClient;
 use Nativella\Event\EventFactory;
 use Nativella\Event\PowerResumed;
 use Nativella\Event\PowerSourceChanged;
+use Nativella\Exception\UnexpectedResponseException;
 use Nativella\Power;
 use Nativella\Power\Battery;
 use Nativella\Power\BatteryState;
@@ -52,5 +53,16 @@ final class PowerTest extends TestCase
     {
         $this->assertEquals(new PowerSourceChanged(true), EventFactory::create('power.sourceChanged', ['onBattery' => true]));
         $this->assertEquals(new PowerResumed(), EventFactory::create('power.resumed', []));
+    }
+
+    public function testABatteryStateThePackageDoesNotKnowIsRefused(): void
+    {
+        $client = new FakeClient();
+        $client->respond('power.status', ['onBattery' => false, 'battery' => ['level' => 0.5, 'state' => 'swapping', 'timeToEmpty' => null, 'timeToFull' => null]]);
+
+        $this->expectException(UnexpectedResponseException::class);
+        $this->expectExceptionMessage('The runtime sent a battery state the package does not know: "swapping".');
+
+        new Power($client)->battery();
     }
 }

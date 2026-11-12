@@ -6,6 +6,7 @@ use Nativella\Client\FakeClient;
 use Nativella\Event\EventFactory;
 use Nativella\Event\UpdaterFailed;
 use Nativella\Event\UpdaterInstalled;
+use Nativella\Exception\UnexpectedResponseException;
 use Nativella\Updater;
 use Nativella\Updater\Update;
 use PHPUnit\Framework\TestCase;
@@ -36,7 +37,7 @@ final class UpdaterTest extends TestCase
 
     public function testADateThatIsNotRfc3339IsRefused(): void
     {
-        $this->expectException(\UnexpectedValueException::class);
+        $this->expectException(UnexpectedResponseException::class);
         $this->expectExceptionMessage('The "pub_date" of the release, "27/10/2026", is not an RFC 3339 date, as "2026-10-27T10:00:00Z".');
 
         Update::fromArray(['version' => '1.3.0', 'notes' => null, 'date' => '27/10/2026']);

@@ -10,6 +10,7 @@ use Nativella\Client\FakeClient;
 use Nativella\Event\ChildProcessExited;
 use Nativella\Event\ChildProcessOutput;
 use Nativella\Event\EventFactory;
+use Nativella\Exception\UnexpectedResponseException;
 use PHPUnit\Framework\TestCase;
 
 final class ChildProcessTest extends TestCase
@@ -57,5 +58,12 @@ final class ChildProcessTest extends TestCase
     {
         $this->assertEquals(new ChildProcessOutput('worker', 4242, Stream::Stderr, "Oops\n"), EventFactory::create('childProcess.output', ['alias' => 'worker', 'pid' => 4242, 'stream' => 'stderr', 'output' => "Oops\n"]));
         $this->assertEquals(new ChildProcessExited('worker', 4242, null), EventFactory::create('childProcess.exited', ['alias' => 'worker', 'pid' => 4242, 'code' => null]));
+    }
+
+    public function testAStreamThePackageDoesNotKnowIsRefused(): void
+    {
+        $this->expectException(UnexpectedResponseException::class);
+
+        EventFactory::create('childProcess.output', ['alias' => 'worker', 'pid' => 42, 'stream' => 'stdlog', 'output' => 'Ready.']);
     }
 }
