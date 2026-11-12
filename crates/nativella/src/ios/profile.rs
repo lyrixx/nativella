@@ -27,6 +27,10 @@ const ID_SIGNED_DATA: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.1
 /// `<prefix>.<bundle ID>`, the bundle ID possibly ending with `*`.
 const APPLICATION_IDENTIFIER: &str = "application-identifier";
 
+/// The key of the entitlements that lists the groups of the keychain the app
+/// may read and write, the first one by default.
+const KEYCHAIN_ACCESS_GROUPS: &str = "keychain-access-groups";
+
 pub struct Profile {
     path: PathBuf,
     name: String,
@@ -209,6 +213,18 @@ impl Profile {
             APPLICATION_IDENTIFIER.to_owned(),
             format!("{prefix}.{identifier}").into(),
         );
+        // A profile allows the keychain groups `<team>.*`: Xcode signs an app
+        // with its own, not with the wildcard, which every app signed so
+        // would share.
+        if let Some(Value::Array(groups)) = entitlements.get_mut(KEYCHAIN_ACCESS_GROUPS) {
+            for group in groups {
+                if let Value::String(group) = group
+                    && let Some(start) = group.strip_suffix('*')
+                {
+                    *group = format!("{start}{identifier}");
+                }
+            }
+        }
 
         Ok(entitlements)
     }
@@ -260,6 +276,25 @@ mod tests {
 
         let error = profile().entitlements("com.acme.notes").unwrap_err();
         assert!(error.to_string().contains("dev.nativella.*"), "{error}");
+    }
+
+    #[test]
+    fn the_keychain_groups_of_the_app_are_its_own() {
+        let mut profile = profile();
+        profile.entitlements.insert(
+            KEYCHAIN_ACCESS_GROUPS.to_owned(),
+            vec![Value::from("TEAM123456.*"), Value::from("com.apple.token")].into(),
+        );
+
+        let entitlements = profile.entitlements("dev.nativella.Notes").unwrap();
+
+        assert_eq!(
+            entitlements[KEYCHAIN_ACCESS_GROUPS].as_array().unwrap(),
+            &[
+                Value::from("TEAM123456.dev.nativella.Notes"),
+                Value::from("com.apple.token")
+            ]
+        );
     }
 
     #[test]
