@@ -167,7 +167,8 @@ mod autostart {
 mod autostart {
     use tauri::AppHandle;
 
-    use super::{NativeError, unavailable};
+    use super::NativeError;
+    use crate::native::unavailable;
 
     const UNAVAILABLE: &str = "Autostart is not available on mobile.";
 
