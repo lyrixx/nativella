@@ -13,24 +13,29 @@ use gtk::PrintSettings;
 use tauri::WebviewWindow;
 use webkit2gtk::{PrintOperation, PrintOperationExt};
 
-use super::failed;
+use super::{NativeError, failed, invalid_payload, timeout};
 
 /// A page with many images may take a while; a stuck one must not hold PHP
 /// forever.
 const TIMEOUT: Duration = Duration::from_secs(60);
 
-pub(crate) fn print(window: &WebviewWindow, path: &Path) -> Result<(), String> {
+pub(crate) fn print(window: &WebviewWindow, path: &Path) -> Result<(), NativeError> {
     if !path.is_absolute() {
-        return Err(format!(
+        return Err(invalid_payload(format!(
             "The PDF goes to an absolute path, not \"{}\".",
             path.display()
-        ));
+        )));
     }
     let uri = gtk::glib::filename_to_uri(path, None)
-        .map_err(|error| format!("{} is no valid file name: {error}.", path.display()))?
+        .map_err(|error| {
+            invalid_payload(format!(
+                "{} is no valid file name: {error}.",
+                path.display()
+            ))
+        })?
         .to_string();
 
-    let (sender, receiver) = mpsc::sync_channel::<Result<(), String>>(2);
+    let (sender, receiver) = mpsc::sync_channel::<Result<(), NativeError>>(2);
     let target: PathBuf = path.to_owned();
     window
         .with_webview(move |webview| {
@@ -47,10 +52,10 @@ pub(crate) fn print(window: &WebviewWindow, path: &Path) -> Result<(), String> {
             // first answer wins.
             let failed_sender = sender.clone();
             operation.connect_failed(move |_, error| {
-                let _ = failed_sender.try_send(Err(format!(
+                let _ = failed_sender.try_send(Err(failed(format!(
                     "Cannot print to {}: {error}.",
                     target.display()
-                )));
+                ))));
             });
             operation.connect_finished(move |_| {
                 let _ = sender.try_send(Ok(()));
@@ -61,5 +66,5 @@ pub(crate) fn print(window: &WebviewWindow, path: &Path) -> Result<(), String> {
 
     receiver
         .recv_timeout(TIMEOUT)
-        .map_err(|_| format!("Printing to {} took too long.", path.display()))?
+        .map_err(|_| timeout(format!("Printing to {} took too long.", path.display())))?
 }

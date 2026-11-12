@@ -10,7 +10,7 @@ use tauri::image::Image;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
 use super::menu::{self, Item, Place};
-use super::{Call, failed, lock};
+use super::{Call, NativeError, failed, lock};
 use crate::events;
 
 /// The application has one tray icon at most.
@@ -28,7 +28,7 @@ struct Set {
     menu: Vec<Item>,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     Some(match method {
         "set" => call.payload::<Set>().and_then(|payload| set(call, payload)),
         "remove" => {
@@ -46,7 +46,7 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
     })
 }
 
-fn set(call: &Call<'_>, payload: Set) -> Result<Value, String> {
+fn set(call: &Call<'_>, payload: Set) -> Result<Value, NativeError> {
     let app = call.app;
     let icon = match &payload.icon {
         Some(path) => Image::from_path(path)

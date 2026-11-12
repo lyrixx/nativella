@@ -4,13 +4,16 @@ namespace Nativella\Client;
 
 use Composer\InstalledVersions;
 use Nativella\Client;
+use Nativella\Exception\ErrorKind;
 use Nativella\Exception\NativeCallException;
 use Nativella\Exception\RuntimeUnavailableException;
 use Nativella\Exception\UnexpectedResponseException;
 use Nativella\Runtime;
 
 /**
- * Calls the runtime through the nativella_call() function it registers in PHP.
+ * Calls the runtime through the nativella_call() function it registers in PHP,
+ * which answers {"result": {…}} or {"error": {"kind": "…", "message": "…"}}.
+ * Keep in sync with answer() in crates/runtime/src/bridge.rs.
  */
 final readonly class ExtensionClient implements Client
 {
@@ -26,18 +29,17 @@ final readonly class ExtensionClient implements Client
 
         $json = Payload::encode($method, $payload);
 
-        try {
-            $result = nativella_call($method, $json);
-        } catch (\RuntimeException $e) {
-            throw new NativeCallException($method, $e);
+        $answer = json_decode(nativella_call($method, $json), true);
+        if (\is_array($answer) && \is_array($answer['result'] ?? null)) {
+            return $answer['result'];
         }
 
-        $decoded = json_decode($result, true);
-        if (!\is_array($decoded)) {
-            throw new UnexpectedResponseException(\sprintf('The runtime answered "%s" with something that is not a JSON object.', $method));
+        $error = \is_array($answer) ? $answer['error'] ?? null : null;
+        if (!\is_array($error) || !\is_string($error['kind'] ?? null) || !\is_string($error['message'] ?? null)) {
+            throw new UnexpectedResponseException(\sprintf('The runtime answered "%s" with neither a result nor an error.', $method));
         }
 
-        return $decoded;
+        throw new NativeCallException($method, ErrorKind::tryFrom($error['kind']) ?? throw UnexpectedResponseException::unknownValue('kind of error', $error['kind']), $error['message']);
     }
 
     public function isNative(): bool

@@ -8,7 +8,7 @@ use tauri::{
     WebviewWindowBuilder,
 };
 
-use super::{Call, State, failed};
+use super::{Call, NativeError, State, failed, invalid_payload};
 use crate::APP_URL;
 use crate::MAIN_WINDOW;
 
@@ -121,7 +121,7 @@ struct Navigate {
     url: String,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     Some(match method {
         "open" => call.payload::<Open>().and_then(|payload| {
             let window = open(call.app, &payload.window, payload.options)?;
@@ -200,7 +200,9 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
             Ok(json!({}))
         }),
         #[cfg(not(target_os = "linux"))]
-        "printToPdf" => Err("Printing to PDF only works on Linux, for now.".to_owned()),
+        "printToPdf" => Err(super::unavailable(
+            "Printing to PDF only works on Linux, for now.",
+        )),
         "navigate" => call.payload::<Navigate>().and_then(|payload| {
             let window = call.target_window(payload.window.as_deref())?;
             window.navigate(url(&payload.url)?).map_err(failed)?;
@@ -214,12 +216,15 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
             Ok(())
         }),
         #[cfg(not(debug_assertions))]
-        "openDevtools" => Err("Developer tools only exist in debug builds.".to_owned()),
+        "openDevtools" => Err(super::unavailable(
+            "Developer tools only exist in debug builds.",
+        )),
         #[cfg(mobile)]
         "center" | "maximize" | "minimize" | "print" | "setAlwaysOnTop" | "setFullscreen"
-        | "setProgress" | "unmaximize" => {
-            Err(format!("\"{}\" is not available on mobile.", call.method))
-        }
+        | "setProgress" | "unmaximize" => Err(super::unavailable(format!(
+            "\"{}\" is not available on mobile.",
+            call.method
+        ))),
         _ => return None,
     })
 }
@@ -233,7 +238,7 @@ pub(crate) fn open(
     app: &AppHandle,
     label: &str,
     options: Map<String, Value>,
-) -> Result<WebviewWindow, String> {
+) -> Result<WebviewWindow, NativeError> {
     let options = if label == MAIN_WINDOW {
         let mut merged = app.state::<State>().default_window().clone();
         merged.extend(options);
@@ -243,7 +248,7 @@ pub(crate) fn open(
     };
 
     let options: WindowOptions = serde_json::from_value(Value::Object(options))
-        .map_err(|error| format!("The window options are invalid: {error}."))?;
+        .map_err(|error| invalid_payload(format!("The window options are invalid: {error}.")))?;
 
     if let Some(window) = app.get_webview_window(label) {
         window.set_focus().map_err(failed)?;
@@ -453,11 +458,11 @@ fn open_in_system(app: &AppHandle, url: &Url) {
 }
 
 /// A path of the app ("/settings") or an absolute URL.
-pub(crate) fn url(target: &str) -> Result<Url, String> {
+pub(crate) fn url(target: &str) -> Result<Url, NativeError> {
     let base = Url::parse(APP_URL).expect("The app URL is valid.");
 
     base.join(target)
-        .map_err(|error| format!("\"{target}\" is not a valid URL: {error}."))
+        .map_err(|error| invalid_payload(format!("\"{target}\" is not a valid URL: {error}.")))
 }
 
 pub(crate) fn info(window: &WebviewWindow) -> Value {
@@ -490,7 +495,7 @@ pub(crate) fn info(window: &WebviewWindow) -> Value {
 fn with_target(
     call: &Call<'_>,
     action: impl FnOnce(&WebviewWindow) -> tauri::Result<()>,
-) -> Result<Value, String> {
+) -> Result<Value, NativeError> {
     let target: Target = call.payload()?;
     let window = call.target_window(target.window.as_deref())?;
     action(&window).map_err(failed)?;
@@ -501,7 +506,7 @@ fn with_target(
 fn with_flag(
     call: &Call<'_>,
     action: impl FnOnce(&WebviewWindow, bool) -> tauri::Result<()>,
-) -> Result<Value, String> {
+) -> Result<Value, NativeError> {
     let flag: SetFlag = call.payload()?;
     let window = call.target_window(flag.window.as_deref())?;
     action(&window, flag.enabled).map_err(failed)?;

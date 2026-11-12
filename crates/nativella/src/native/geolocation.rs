@@ -11,7 +11,7 @@ use tauri::plugin::PermissionState;
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_geolocation::{Geolocation, GeolocationExt, PermissionType, PositionOptions};
 
-use super::{Call, failed};
+use super::{Call, NativeError, failed};
 
 /// Whether the application asks for `geolocation`: only then does lib.rs
 /// register the plugin.
@@ -41,7 +41,7 @@ struct CurrentPosition {
     maximum_age: u32,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     Some(match method {
         "currentPosition" => call
             .payload::<CurrentPosition>()
@@ -51,7 +51,7 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
 }
 
 /// The position, or null when the user does not allow it.
-fn current_position(call: &Call<'_>, payload: CurrentPosition) -> Result<Value, String> {
+fn current_position(call: &Call<'_>, payload: CurrentPosition) -> Result<Value, NativeError> {
     let app = call.app.clone();
     let status = in_thread(
         PERMISSION_TIMEOUT,
@@ -115,8 +115,8 @@ fn current_position(call: &Call<'_>, payload: CurrentPosition) -> Result<Value, 
 fn in_thread<T: Send + 'static>(
     timeout: Duration,
     what: &str,
-    work: impl FnOnce() -> Result<T, String> + Send + 'static,
-) -> Result<T, String> {
+    work: impl FnOnce() -> Result<T, NativeError> + Send + 'static,
+) -> Result<T, NativeError> {
     let (sender, receiver) = mpsc::sync_channel(1);
     thread::Builder::new()
         .name("geolocation".to_owned())
@@ -128,5 +128,5 @@ fn in_thread<T: Send + 'static>(
 
     receiver
         .recv_timeout(timeout)
-        .map_err(|_| format!("{what} within {} seconds.", timeout.as_secs()))?
+        .map_err(|_| super::timeout(format!("{what} within {} seconds.", timeout.as_secs())))?
 }

@@ -175,7 +175,7 @@ final class NoteController extends AbstractController
             $position = $geolocation->currentPosition(Accuracy::High);
         } catch (NativeCallException $exception) {
             // Location turned off, or no fix: the message of the phone says which.
-            $this->addFlash('error', \sprintf('Notes cannot find where you are: %s', $exception->getPrevious()?->getMessage()));
+            $this->addFlash('error', \sprintf('Notes cannot find where you are: %s', $exception->reason));
 
             return $this->redirectToRoute('note_show', ['id' => $note->getId()]);
         }
@@ -202,7 +202,7 @@ final class NoteController extends AbstractController
             $barcode = $barcodeScanner->scan(cancelLabel: 'Cancel');
         } catch (NativeCallException $exception) {
             // The camera failed, or saw no code: the message of the phone says which.
-            $this->addFlash('error', \sprintf('Notes cannot read a code: %s', $exception->getPrevious()?->getMessage()));
+            $this->addFlash('error', \sprintf('Notes cannot read a code: %s', $exception->reason));
 
             return $this->redirectToRoute('note_show', ['id' => $note->getId()]);
         }

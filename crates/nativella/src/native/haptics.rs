@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_haptics::{Haptics, HapticsExt, ImpactFeedbackStyle, NotificationFeedbackType};
 
-use super::{Call, failed};
+use super::{Call, NativeError, failed};
 
 /// Whether the application asks for `haptics`: only then does lib.rs
 /// register the plugin.
@@ -32,7 +32,7 @@ struct Feedback {
     feedback: NotificationFeedbackType,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     let haptics = call.app.haptics();
 
     let result = match method {

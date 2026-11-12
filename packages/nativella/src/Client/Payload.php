@@ -2,6 +2,7 @@
 
 namespace Nativella\Client;
 
+use Nativella\Exception\ErrorKind;
 use Nativella\Exception\NativeCallException;
 
 /**
@@ -25,7 +26,7 @@ final readonly class Payload
         } catch (\JsonException $e) {
             // A string that is not UTF-8 (text read from a file in another
             // encoding), INF or NAN.
-            throw new NativeCallException($method, $e);
+            throw new NativeCallException($method, ErrorKind::InvalidPayload, $e->getMessage(), $e);
         }
     }
 }

@@ -25,7 +25,7 @@ use semver::Version;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::{Call, failed, lock};
+use super::{Call, NativeError, failed, lock, unavailable};
 use crate::embedded::{self, Bundle};
 use crate::events;
 use crate::project::Updates;
@@ -116,7 +116,7 @@ struct Artifact {
     signature: String,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     Some(match method {
         "check" => newer(call).map(|release| match release {
             Some(release) => json!({ "update": {
@@ -133,15 +133,14 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
 
 /// Downloads the newer release in the background, if there is one: its
 /// version, or null.
-fn install(call: &Call<'_>) -> Result<Value, String> {
+fn install(call: &Call<'_>) -> Result<Value, NativeError> {
     let progress = Arc::clone(&call.state().updater);
     // After an update, Linux no longer finds the running executable where it
     // started (`… (deleted)`): it was a standalone one.
     if lock(&progress.installed).is_none() && !embedded::is_standalone() {
-        return Err(
-            "Only a standalone executable updates itself: nativella run runs the project as it is."
-                .to_owned(),
-        );
+        return Err(unavailable(
+            "Only a standalone executable updates itself: nativella run runs the project as it is.",
+        ));
     }
     progress.ensure_idle()?;
     let Some(mut release) = newer(call)? else {
@@ -259,7 +258,7 @@ fn download_file(executable: &Path) -> Result<(PathBuf, File), String> {
 
 /// The release of the endpoint, when it is newer than this version, or
 /// than the one installed since it started.
-fn newer(call: &Call<'_>) -> Result<Option<Release>, String> {
+fn newer(call: &Call<'_>) -> Result<Option<Release>, NativeError> {
     let updates = updates(call)?;
     let release = fetch(&updates.endpoint)?;
     let baseline = call
@@ -270,9 +269,9 @@ fn newer(call: &Call<'_>) -> Result<Option<Release>, String> {
     Ok((release.version > baseline).then_some(release))
 }
 
-fn updates(call: &Call<'_>) -> Result<Updates, String> {
+fn updates(call: &Call<'_>) -> Result<Updates, NativeError> {
     call.state().updates().cloned().ok_or_else(|| {
-        "The application has no \"updates\" in extra.nativella of its composer.json.".to_owned()
+        unavailable("The application has no \"updates\" in extra.nativella of its composer.json.")
     })
 }
 
@@ -347,11 +346,11 @@ fn replace(
         DOWNLOAD_LIMIT,
     )
     .and_then(|()| {
-        let bytes = fs::read(download).map_err(failed)?;
+        let bytes = fs::read(download).map_err(|error| error.to_string())?;
         verify(&updates.public_key, &artifact.signature, &bytes)?;
         check(&bytes, expected)
     })
-    .and_then(|()| swap(executable, download).map_err(failed));
+    .and_then(|()| swap(executable, download).map_err(|error| error.to_string()));
     if result.is_err()
         && let Err(error) = fs::remove_file(download)
         && error.kind() != io::ErrorKind::NotFound

@@ -5,7 +5,7 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::{Call, failed};
+use super::{Call, NativeError, failed};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -20,7 +20,7 @@ struct Set {
     value: String,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     // One service per application: its identifier.
     let service = call.app.config().identifier.clone();
     let entry = |key: &str| keyring::Entry::new(&service, key).map_err(failed);

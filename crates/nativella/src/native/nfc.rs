@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use tauri::plugin::{Builder, PluginHandle, TauriPlugin};
 use tauri::{AppHandle, Manager, Wry};
 
-use super::{Call, failed};
+use super::{Call, NativeError, failed, timeout, unavailable};
 use crate::nfc_tags::{Tag, tag_json};
 
 // Nothing of the crate is used by name, but its build script asks for the
@@ -61,7 +61,7 @@ struct Available {
     available: bool,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     Some(match method {
         "isAvailable" => available(call.app).map(|available| json!({ "available": available })),
         "read" => read(call.app),
@@ -70,7 +70,7 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
 }
 
 /// Whether the phone has NFC, turned on.
-fn available(app: &AppHandle) -> Result<bool, String> {
+fn available(app: &AppHandle) -> Result<bool, NativeError> {
     app.state::<Reader>()
         .0
         .run_mobile_plugin::<Available>("isAvailable", ())
@@ -79,12 +79,11 @@ fn available(app: &AppHandle) -> Result<bool, String> {
 }
 
 /// Waits for a tag, any tag, and reads it.
-fn read(app: &AppHandle) -> Result<Value, String> {
+fn read(app: &AppHandle) -> Result<Value, NativeError> {
     if !available(app)? {
-        return Err(
-            "NFC is not available: the phone has none, or it is turned off in its settings."
-                .to_owned(),
-        );
+        return Err(unavailable(
+            "NFC is not available: the phone has none, or it is turned off in its settings.",
+        ));
     }
 
     let (sender, receiver) = mpsc::channel();
@@ -104,9 +103,9 @@ fn read(app: &AppHandle) -> Result<Value, String> {
 
     match receiver.recv_timeout(READ_TIMEOUT) {
         Ok(tag) => Ok(json!({ "tag": tag_json(&tag?) })),
-        Err(_) => Err(format!(
+        Err(_) => Err(timeout(format!(
             "No NFC tag came near the phone within {} seconds.",
             READ_TIMEOUT.as_secs()
-        )),
+        ))),
     }
 }

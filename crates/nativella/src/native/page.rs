@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tauri::{AppHandle, Manager};
 
-use super::Call;
+use super::{Call, NativeError, not_found};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -17,13 +17,13 @@ struct Dispatch {
     window: Option<String>,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     Some(match method {
         "dispatch" => call.payload::<Dispatch>().and_then(|payload| {
             if let Some(window) = &payload.window
                 && call.app.get_webview_window(window).is_none()
             {
-                return Err(format!("There is no \"{window}\" window."));
+                return Err(not_found(format!("There is no \"{window}\" window.")));
             }
             dispatch(
                 call.app,

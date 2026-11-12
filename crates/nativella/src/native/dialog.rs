@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tauri_plugin_dialog::{DialogExt, FileDialogBuilder, MessageDialogButtons, MessageDialogKind};
 
-use super::{Call, failed};
+use super::{Call, NativeError, failed};
 
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -54,7 +54,7 @@ struct Files {
     filters: Vec<Filter>,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     Some(match method {
         "message" => call.payload::<Message>().map(|payload| {
             let mut dialog = call
@@ -137,7 +137,9 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
             Ok(json!({ "path": path }))
         }),
         #[cfg(mobile)]
-        "openDirectory" => Err("Picking a directory is not available on mobile.".to_owned()),
+        "openDirectory" => Err(super::unavailable(
+            "Picking a directory is not available on mobile.",
+        )),
         #[cfg(desktop)]
         "saveFile" => file_dialog(call).and_then(|dialog| {
             let path = dialog.blocking_save_file().map(into_path).transpose()?;
@@ -145,14 +147,14 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
         }),
         // Phones answer a content URI, which PHP cannot write to.
         #[cfg(mobile)]
-        "saveFile" => {
-            Err("Saving a file through a dialog is not available on mobile yet.".to_owned())
-        }
+        "saveFile" => Err(super::unavailable(
+            "Saving a file through a dialog is not available on mobile yet.",
+        )),
         _ => return None,
     })
 }
 
-fn file_dialog(call: &Call<'_>) -> Result<FileDialogBuilder<tauri::Wry>, String> {
+fn file_dialog(call: &Call<'_>) -> Result<FileDialogBuilder<tauri::Wry>, NativeError> {
     let payload: Files = call.payload()?;
 
     let mut dialog = call.app.dialog().file();
@@ -179,7 +181,7 @@ fn file_dialog(call: &Call<'_>) -> Result<FileDialogBuilder<tauri::Wry>, String>
 
 /// A file the user picked, as a path PHP can read.
 #[cfg(desktop)]
-fn picked(_call: &Call<'_>, path: tauri_plugin_dialog::FilePath) -> Result<String, String> {
+fn picked(_call: &Call<'_>, path: tauri_plugin_dialog::FilePath) -> Result<String, NativeError> {
     into_path(path)
 }
 
@@ -202,7 +204,7 @@ pub(crate) fn forget_picked(cache_dir: &std::path::Path) {
 /// file is copied to the cache directory of the application first, until
 /// its next start.
 #[cfg(mobile)]
-fn picked(call: &Call<'_>, path: tauri_plugin_dialog::FilePath) -> Result<String, String> {
+fn picked(call: &Call<'_>, path: tauri_plugin_dialog::FilePath) -> Result<String, NativeError> {
     use tauri::Manager;
     use tauri_plugin_fs::FsExt;
 
@@ -240,18 +242,18 @@ fn picked(call: &Call<'_>, path: tauri_plugin_dialog::FilePath) -> Result<String
     utf8(target)
 }
 
-fn into_path(path: tauri_plugin_dialog::FilePath) -> Result<String, String> {
+fn into_path(path: tauri_plugin_dialog::FilePath) -> Result<String, NativeError> {
     utf8(path.into_path().map_err(failed)?)
 }
 
 /// PHP gets paths as strings: a file name that is not UTF-8 (Latin-1, on an
 /// old Linux file system) is an error rather than a path PHP cannot open.
-pub(crate) fn utf8(path: PathBuf) -> Result<String, String> {
+pub(crate) fn utf8(path: PathBuf) -> Result<String, NativeError> {
     path.into_os_string().into_string().map_err(|path| {
-        format!(
+        failed(format!(
             "The path {} is not valid UTF-8: rename the file.",
             path.to_string_lossy()
-        )
+        ))
     })
 }
 

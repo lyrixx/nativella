@@ -4,7 +4,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tauri_plugin_notification::NotificationExt;
 
-use super::{Call, failed};
+use super::{Call, NativeError, failed};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -19,7 +19,7 @@ struct Send {
     reference: Option<String>,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     Some(match method {
         "send" => call.payload::<Send>().and_then(|payload| {
             #[cfg(target_os = "linux")]
@@ -58,7 +58,7 @@ mod clickable {
     use zbus::blocking::{Connection, MessageIterator};
     use zbus::message::Type;
 
-    use super::failed;
+    use super::{NativeError, failed};
     use crate::events;
     use crate::native::lock;
 
@@ -75,7 +75,7 @@ mod clickable {
         title: &str,
         body: Option<&str>,
         reference: String,
-    ) -> Result<(), String> {
+    ) -> Result<(), NativeError> {
         LISTENER.get_or_init(|| {
             let app = app.clone();
             let spawned = thread::Builder::new()

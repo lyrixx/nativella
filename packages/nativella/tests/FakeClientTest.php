@@ -4,7 +4,9 @@ namespace Nativella\Tests;
 
 use Nativella\Client\Call;
 use Nativella\Client\FakeClient;
+use Nativella\Exception\ErrorKind;
 use Nativella\Exception\NativeCallException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class FakeClientTest extends TestCase
@@ -23,7 +25,7 @@ final class FakeClientTest extends TestCase
     {
         $client = new FakeClient();
         $client->respond('dialog.confirm', ['confirmed' => true]);
-        $client->respond('dialog.confirm', new NativeCallException('dialog.confirm', new \RuntimeException('No display.')));
+        $client->fail('dialog.confirm', ErrorKind::Failed, 'No display.');
 
         $this->assertSame(['confirmed' => true], $client->call('dialog.confirm'));
         try {
@@ -47,7 +49,7 @@ final class FakeClientTest extends TestCase
     public function testItRecordsTheCallsEvenThoseThatThrow(): void
     {
         $client = new FakeClient();
-        $client->respond('window.close', new NativeCallException('window.close', new \RuntimeException('No window "settings".')));
+        $client->fail('window.close', ErrorKind::NotFound, 'There is no "settings" window.');
 
         $client->call('window.setTitle', ['title' => 'Notes', 'window' => null]);
         try {
@@ -84,5 +86,40 @@ final class FakeClientTest extends TestCase
         }
 
         $this->assertSame([], $client->calls());
+    }
+
+    #[DataProvider('provideKinds')]
+    public function testItFailsWithEveryKind(ErrorKind $kind): void
+    {
+        $client = new FakeClient();
+        $client->fail('window.close', $kind, 'It failed.');
+
+        try {
+            $client->call('window.close');
+            $this->fail('A NativeCallException was expected.');
+        } catch (NativeCallException $e) {
+            $this->assertSame($kind, $e->kind);
+            $this->assertSame('window.close', $e->method);
+        }
+    }
+
+    /**
+     * @return iterable<string, array{ErrorKind}>
+     */
+    public static function provideKinds(): iterable
+    {
+        foreach (ErrorKind::cases() as $kind) {
+            yield $kind->value => [$kind];
+        }
+    }
+
+    public function testReadingATagFailsWhereNfcIsNotAvailable(): void
+    {
+        try {
+            new FakeClient()->call('nfc.read');
+            $this->fail('A NativeCallException was expected.');
+        } catch (NativeCallException $e) {
+            $this->assertSame(ErrorKind::Unavailable, $e->kind);
+        }
     }
 }

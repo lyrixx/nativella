@@ -14,7 +14,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tauri::{AppHandle, Manager};
 
-use super::{Call, State, lock};
+use super::{Call, NativeError, State, invalid_payload, lock};
 use crate::events;
 
 /// The running timers, by name.
@@ -50,7 +50,7 @@ struct Name {
     name: String,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     let timers = &call.state().timers;
 
     Some(match method {
@@ -73,13 +73,13 @@ fn start(
     timers: &Timers,
     schedule: Schedule,
     repeat: Repeat,
-) -> Result<Value, String> {
+) -> Result<Value, NativeError> {
     // Below a second, PHP would do nothing else.
     if !(1.0..=31_536_000.0).contains(&schedule.seconds) {
-        return Err(format!(
+        return Err(invalid_payload(format!(
             "A timer fires every second at most, and once a year at least: {} seconds is out of range.",
             schedule.seconds
-        ));
+        )));
     }
 
     let id = timers.last_id.fetch_add(1, Ordering::Relaxed) + 1;

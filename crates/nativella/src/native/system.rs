@@ -4,7 +4,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tauri::{Manager, Theme};
 
-use super::{Call, failed};
+use super::{Call, NativeError, failed};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -12,7 +12,7 @@ struct Target {
     window: Option<String>,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     Some(match method {
         "info" => Ok(json!({
             "os": tauri_plugin_os::platform(),

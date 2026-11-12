@@ -14,7 +14,7 @@ use tauri::plugin::mobile::PluginInvokeError;
 use tauri::{AppHandle, WebviewWindow};
 use tauri_plugin_sharekit::{Error, ShareExt, ShareFileOptions, ShareTextOptions};
 
-use super::{Call, failed};
+use super::{Call, NativeError, failed, not_found};
 
 /// What the plugin rejects with when the user closes the sheet.
 const CANCELLED: &str = "Share cancelled";
@@ -33,7 +33,7 @@ struct File {
     title: Option<String>,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     Some(match method {
         "text" => call.payload::<Text>().and_then(|payload| {
             let window = call.target_window(None)?;
@@ -44,10 +44,10 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
         }),
         "file" => call.payload::<File>().and_then(|payload| {
             if !payload.path.is_file() {
-                return Err(format!(
+                return Err(not_found(format!(
                     "There is no file {} to share.",
                     payload.path.display()
-                ));
+                )));
             }
             let path = super::dialog::utf8(payload.path)?;
             let window = call.target_window(None)?;
@@ -70,7 +70,7 @@ fn open(
     app: &AppHandle,
     window: WebviewWindow,
     share: impl FnOnce(&AppHandle, WebviewWindow) -> tauri_plugin_sharekit::Result<()> + Send + 'static,
-) -> Result<Value, String> {
+) -> Result<Value, NativeError> {
     let app = app.clone();
     thread::Builder::new()
         .name("share".to_owned())

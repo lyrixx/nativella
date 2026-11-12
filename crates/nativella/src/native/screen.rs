@@ -3,9 +3,9 @@
 use serde_json::{Value, json};
 use tauri::Monitor;
 
-use super::{Call, failed};
+use super::{Call, NativeError, failed};
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     let app = call.app;
 
     Some(match method {

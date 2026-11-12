@@ -15,7 +15,7 @@ use starship_battery::units::time::second;
 use starship_battery::{Manager, State};
 use tauri::AppHandle;
 
-use super::{Call, failed, lock};
+use super::{Call, NativeError, failed, lock};
 use crate::events;
 
 /// How often the thread looks: unplugging the computer is no emergency.
@@ -30,7 +30,7 @@ struct KeepAwake {
     reason: String,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     Some(match method {
         "status" => status(),
         "keepAwake" => call
@@ -49,7 +49,7 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
 /// Keeps the screen on and the computer awake, replacing what did, if
 /// anything. The previous one goes first: on Windows, dropping it restores
 /// the state it found.
-fn keep_awake(call: &Call<'_>, payload: KeepAwake) -> Result<Value, String> {
+fn keep_awake(call: &Call<'_>, payload: KeepAwake) -> Result<Value, NativeError> {
     let previous = lock(&call.state().awake).take();
     drop(previous);
 
@@ -174,7 +174,7 @@ fn on_battery() -> Option<bool> {
 }
 
 /// All the batteries as one: computers with two of them drain them in turn.
-fn status() -> Result<Value, String> {
+fn status() -> Result<Value, NativeError> {
     let manager = Manager::new().map_err(failed)?;
 
     let mut energy = 0.0;

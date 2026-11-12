@@ -9,7 +9,7 @@ use std::sync::OnceLock;
 
 use http::header::{CONTENT_TYPE, SET_COOKIE};
 use http::{Request, Response};
-use nativella_runtime::{PhpApp, PhpRuntime, RequestOrigin};
+use nativella_runtime::{ErrorKind, NativeError, PhpApp, PhpRuntime, RequestOrigin};
 use serde_json::json;
 
 const SCRIPT: &str = r#"<?php
@@ -140,7 +140,11 @@ fn runtime() -> &'static PhpRuntime {
                 .with_ini("upload_tmp_dir", uploads.to_string_lossy())
                 .with_ini("user_agent", INI_VALUE),
             Box::new(|call| match call.method {
-                "fail" => Err("It failed.".to_owned()),
+                "fail" => Err("It failed.".into()),
+                "missing" => Err(NativeError::new(
+                    ErrorKind::NotFound,
+                    "There is no such thing.",
+                )),
                 "panic" => panic!("It panicked."),
                 _ => Ok(json!({ "window": call.window })),
             }),
@@ -284,18 +288,23 @@ fn the_cookie_of_a_redirect_reaches_its_target() {
 }
 
 #[test]
-fn a_native_call_answers_or_throws() {
+fn a_native_call_answers_or_says_why_it_failed() {
     assert_eq!(
         text(&get("/?case=native&method=window.get")),
-        r#"{"window":"main"}"#
+        r#"{"result":{"window":"main"}}"#
     );
     assert_eq!(
         text(&get("/?case=native&method=fail")),
-        "RuntimeException: It failed."
+        r#"{"error":{"kind":"failed","message":"It failed."}}"#
+    );
+    assert_eq!(
+        text(&get("/?case=native&method=missing")),
+        r#"{"error":{"kind":"notFound","message":"There is no such thing."}}"#
     );
     assert!(
-        text(&get("/?case=native&method=window.get&payload=%7B"))
-            .starts_with(r#"RuntimeException: The payload of "window.get" is not valid JSON: "#)
+        text(&get("/?case=native&method=window.get&payload=%7B")).starts_with(
+            r#"{"error":{"kind":"invalidPayload","message":"The payload of \"window.get\" is not valid JSON: "#
+        )
     );
 
     let panicked = text(&get("/?case=native&method=panic"));

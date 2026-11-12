@@ -11,7 +11,7 @@ use Nativella\Event\AppBooted;
 use Nativella\Event\GlobalShortcutPressed;
 use Nativella\Event\MenuItemClicked;
 use Nativella\Event\NotificationClicked;
-use Nativella\Exception\NativeCallException;
+use Nativella\Exception\ErrorKind;
 use Nativella\Laravel\Facades\Nativella;
 use Tests\TestCase;
 
@@ -100,7 +100,7 @@ final class DesktopTest extends TestCase
     public function testAShortcutTakenByAnotherApplicationIsSkipped(): void
     {
         $native = Nativella::fake();
-        $native->respond('globalShortcut.register', new NativeCallException('globalShortcut.register', new \RuntimeException('HotKey already registered.')));
+        $native->fail('globalShortcut.register', ErrorKind::Failed, 'HotKey already registered.');
         $log = Log::spy();
 
         event(new AppBooted());

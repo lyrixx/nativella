@@ -9,7 +9,7 @@ use std::sync::Mutex;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
-use super::{Call, lock};
+use super::{Call, NativeError, failed, lock};
 
 /// The settings file, read once and written after every change.
 pub(crate) struct Store {
@@ -30,7 +30,7 @@ struct Set {
     value: Value,
 }
 
-pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String>> {
+pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     let store = &call.state().settings;
 
     Some(match method {
@@ -70,13 +70,13 @@ impl Store {
         }
     }
 
-    fn read(&self, read: impl FnOnce(&Map<String, Value>) -> Value) -> Result<Value, String> {
+    fn read(&self, read: impl FnOnce(&Map<String, Value>) -> Value) -> Result<Value, NativeError> {
         let mut values = lock(&self.values);
 
         Ok(read(self.load(&mut values)?))
     }
 
-    fn write(&self, change: impl FnOnce(&mut Map<String, Value>)) -> Result<Value, String> {
+    fn write(&self, change: impl FnOnce(&mut Map<String, Value>)) -> Result<Value, NativeError> {
         let mut guard = lock(&self.values);
         // Changed on a copy: the settings in memory stay as on disk if the
         // file cannot be written.
@@ -88,7 +88,7 @@ impl Store {
         Ok(json!({}))
     }
 
-    fn replace(&self, values: Map<String, Value>) -> Result<Value, String> {
+    fn replace(&self, values: Map<String, Value>) -> Result<Value, NativeError> {
         let mut guard = lock(&self.values);
         self.save(&values)?;
         *guard = Some(values);
@@ -96,24 +96,24 @@ impl Store {
         Ok(json!({}))
     }
 
-    fn save(&self, values: &Map<String, Value>) -> Result<(), String> {
+    fn save(&self, values: &Map<String, Value>) -> Result<(), NativeError> {
         // Written aside then renamed, so that a crash never leaves half a file.
         let content = serde_json::to_vec_pretty(values).expect("A JSON map serializes.");
         let temporary = self.path.with_extension("json.tmp");
         fs::write(&temporary, content)
             .and_then(|()| fs::rename(&temporary, &self.path))
             .map_err(|error| {
-                format!(
+                failed(format!(
                     "Could not save the settings to {}: {error}.",
                     self.path.display()
-                )
+                ))
             })
     }
 
     fn load<'a>(
         &self,
         values: &'a mut Option<Map<String, Value>>,
-    ) -> Result<&'a mut Map<String, Value>, String> {
+    ) -> Result<&'a mut Map<String, Value>, NativeError> {
         if values.is_none() {
             let loaded = match fs::read(&self.path) {
                 Ok(content) => serde_json::from_slice(&content).map_err(|error| {
@@ -124,10 +124,10 @@ impl Store {
                 })?,
                 Err(error) if error.kind() == io::ErrorKind::NotFound => Map::new(),
                 Err(error) => {
-                    return Err(format!(
+                    return Err(failed(format!(
                         "Could not read the settings from {}: {error}.",
                         self.path.display()
-                    ));
+                    )));
                 }
             };
             *values = Some(loaded);
