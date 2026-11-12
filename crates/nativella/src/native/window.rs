@@ -475,6 +475,7 @@ pub(crate) fn info(window: &WebviewWindow) -> Value {
         .outer_position()
         .map(|position| position.to_logical::<f64>(scale))
         .ok();
+    let fullscreen = window.is_fullscreen().unwrap_or(false);
 
     json!({
         "window": window.label(),
@@ -485,9 +486,11 @@ pub(crate) fn info(window: &WebviewWindow) -> Value {
         "x": position.map(|position| position.x),
         "y": position.map(|position| position.y),
         "focused": window.is_focused().unwrap_or(false),
-        "maximized": window.is_maximized().unwrap_or(false),
+        // macOS says a window in fullscreen is maximized too: it fills the
+        // screen.
+        "maximized": !fullscreen && window.is_maximized().unwrap_or(false),
         "minimized": window.is_minimized().unwrap_or(false),
-        "fullscreen": window.is_fullscreen().unwrap_or(false),
+        "fullscreen": fullscreen,
         "visible": window.is_visible().unwrap_or(false),
     })
 }
