@@ -8,6 +8,13 @@ use Nativella\Exception\ErrorKind;
 
 final class NativeEventsTest extends NotesTestCase
 {
+    protected function tearDown(): void
+    {
+        unset($_SERVER['NATIVELLA_PLATFORM']);
+
+        parent::tearDown();
+    }
+
     public function testTheApplicationSetsItselfUpAtBoot(): void
     {
         $this->sendNativeEvent('app.booted');
@@ -15,6 +22,26 @@ final class NativeEventsTest extends NotesTestCase
         $this->assertSame(['settings.get', 'menu.set', 'tray.set', 'globalShortcut.register', 'settings.get', 'window.open'], $this->nativeMethods());
         $this->assertSame(['accelerator' => Desktop::QUICK_NOTE_SHORTCUT], $this->fakeClient()->calls('globalShortcut.register')[0]->payload);
         $this->assertSame('Nativella Notes: 0 notes', $this->fakeClient()->calls('tray.set')[0]->payload['tooltip']);
+    }
+
+    public function testQuitEndsTheFileMenu(): void
+    {
+        $this->sendNativeEvent('app.booted');
+
+        $items = $this->fakeClient()->calls('menu.set')[0]->payload['items'];
+        $this->assertSame(['File', 'Edit', 'View', 'Window', 'Help'], array_column($items, 'label'));
+        $this->assertSame(['type' => 'role', 'role' => 'quit'], $items[0]['items'][array_key_last($items[0]['items'])]);
+    }
+
+    public function testOnMacOsTheApplicationMenuComesFirst(): void
+    {
+        $_SERVER['NATIVELLA_PLATFORM'] = 'macos';
+
+        $this->sendNativeEvent('app.booted');
+
+        $items = $this->fakeClient()->calls('menu.set')[0]->payload['items'];
+        $this->assertSame(['Nativella Notes', 'File', 'Edit', 'View', 'Window', 'Help'], array_column($items, 'label'));
+        $this->assertNotContains(['type' => 'role', 'role' => 'quit'], $items[1]['items']);
     }
 
     public function testATakenShortcutStillOpensTheWindow(): void
