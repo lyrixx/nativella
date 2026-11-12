@@ -1107,7 +1107,8 @@ mod tests {
 
     #[test]
     fn the_icon_must_ship() {
-        let root = Path::new(env!("OUT_DIR")).join(format!("icon-test-{}", std::process::id()));
+        let root =
+            Path::new(env!("OUT_DIR")).join(format!("bundle-icon-test-{}", std::process::id()));
         fs::create_dir_all(root.join("public")).unwrap();
         fs::create_dir_all(root.join("tests")).unwrap();
         fs::write(root.join("public/index.php"), "<?php").unwrap();
