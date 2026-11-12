@@ -13,7 +13,7 @@ $shell->trash('/home/me/Documents/old-report.pdf');
 |---|---|
 | `openUrl(string $url): void` | Opens a URL in the default browser, or the mail client for `mailto:`. |
 | `openPath(string $path): void` | Opens a file or a directory with its default application. |
-| `showInFolder(string $path): void` | Opens the file manager on the directory of `$path`, with `$path` selected. |
+| `showInFolder(string $path): void` | Opens the file manager on the directory of `$path`, with `$path` selected. Desktop only. |
 | `trash(string $path): void` | Moves a file or a directory to the trash, where the user can restore it. Desktop only. |
 
 ## Links to other sites

@@ -19,6 +19,8 @@ $tray->set(
 
 While the tray icon exists, closing the last window does not quit the application, which keeps running in the tray. Give the user a way out, with the `Quit` [role](menus.md#roles) or an item whose click calls `App::quit()`.
 
+`Tray` is desktop only. On a phone, it throws a `NativeCallException`.
+
 ## Methods
 
 | Method | |

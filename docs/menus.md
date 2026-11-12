@@ -31,6 +31,8 @@ $menu->update('sidebar', checked: false);
 
 On Linux and Windows, each window shows the menu under its title bar. On macOS, the menu bar belongs to the application, its top level only holds submenus, and the first one is named after the application, so start with `MenuItem::appMenu('Notes')` there.
 
+`Menu` is desktop only. On a phone, it throws a `NativeCallException`.
+
 ## Methods
 
 | Method | |

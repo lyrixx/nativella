@@ -8,7 +8,7 @@ A call that the platform cannot answer throws a `Nativella\Exception\NativeCallE
 
 | API | Computers | Phones |
 |---|---|---|
-| [App](app.md) | Everything. | No badge count, no autostart, no `Directory::Desktop`. |
+| [App](app.md) | Everything. `hide()` and `show()` on macOS only. | No badge count, no autostart, no `Directory::Desktop`, no `hide()` and `show()`. |
 | [Windows](windows.md) | Everything. `printToPdf()` on Linux only. | Windows fill the screen, so their size, position and decoration options are ignored. `center()`, `minimize()`, `maximize()`, `unmaximize()`, `setAlwaysOnTop()`, `setFullscreen()`, `setProgress()`, `print()` and `printToPdf()` throw. |
 | [Menus](menus.md) | Yes. | — |
 | [Tray](tray.md) | Yes. On Linux, only its menu reports clicks. | — |
@@ -20,7 +20,7 @@ A call that the platform cannot answer throws a `Nativella\Exception\NativeCallE
 | [Secrets](secrets.md) | Yes. | — |
 | [Timers](timers.md) | Yes. | Yes. |
 | [Child processes](child-processes.md) | Yes. | — |
-| [Shell](shell.md) | Yes. | Everything but `trash()`. |
+| [Shell](shell.md) | Yes. | `openUrl()` and `openPath()`. `showInFolder()` and `trash()` throw. |
 | [Screens](screens.md) | Yes. Under Wayland, `primary()` returns null. | Not tried. |
 | [System](system.md) | Yes. | Yes. |
 | [Power](power.md) | Yes. | — |
@@ -28,7 +28,7 @@ A call that the platform cannot answer throws a `Nativella\Exception\NativeCallE
 | [Downloads](downloads.md) | Yes. | — |
 | [Updates](updates.md) | Standalone executables. Linux tested. | — |
 | [Phone APIs](phone-apis.md): `Haptics`, `Geolocation`, `Biometrics`, `BarcodeScanner`, `Share` | — | Android. iOS: untested. |
-| [Phone APIs](phone-apis.md#nfc): `Nfc` | — | Untested: emulators have no NFC. iOS needs an entitlement `nativella ios` does not set. |
+| [Phone APIs](phone-apis.md#nfc): `Nfc` | — | Untested: emulators have no NFC. On iOS, reading tags needs an entitlement, which the app gets from its [provisioning profile](mobile.md#building-an-ios-app). |
 | The camera and the microphone, for the pages, with `getUserMedia()` | Yes, with the `camera` and `microphone` [permissions](configuration.md#permissions). Tried on Linux only. | Yes, with the same permissions. |
 | The location, for the pages, with `navigator.geolocation` | With the `geolocation` [permission](configuration.md#permissions). Tried on Linux only. | Not tried. |
 

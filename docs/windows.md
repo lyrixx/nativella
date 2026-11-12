@@ -43,7 +43,7 @@ The new window's first request waits for the current one to finish, since one PH
 
 | Option | Type | Default | |
 |---|---|---|---|
-| `url` | `?string` | `'/'` | An application path (`/settings`), or an absolute URL. |
+| `url` | `?string` | `'/'` | An application path (`/settings`). The window does not load another website: see [What a window loads](#what-a-window-loads). |
 | `title` | `?string` | The application name | |
 | `width`, `height` | `?float` | 1024 × 768 | The size of the page area, in logical pixels. |
 | `minWidth`, `minHeight` | `?float` | | Applied when both are set. |
@@ -89,8 +89,10 @@ The state is written when the application quits, to `.window-state.json` in the 
 | `setProgress(?int $percent, ?string $window = null): void` | Shows a progress bar, from 0 to 100, on the window's icon in the taskbar or the dock (Windows, macOS, GNOME with libunity). Null removes it. Desktop only. |
 | `print(?string $window = null): void` | Opens the system print dialog, which can also print to PDF, for the window's page. |
 | `printToPdf(string $path, ?string $window = null): void` | Writes the window's page to a PDF file, at an absolute path, without a dialog, for an invoice or a report. `@media print` styles apply. Linux only, for now. |
-| `navigate(string $url, ?string $window = null): void` | Loads an application path (`/notes/42`), or an absolute URL. |
+| `navigate(string $url, ?string $window = null): void` | Loads an application path (`/notes/42`). The URL of another website opens in the system browser, as a link to it does. |
 | `openDevtools(?string $window = null): void` | Opens the window's web inspector. Debug builds of Nativella only. Elsewhere it throws. |
+
+On phones, a window fills the screen, so `center()`, `minimize()`, `maximize()`, `unmaximize()`, `setAlwaysOnTop()`, `setFullscreen()`, `setProgress()`, `print()` and `printToPdf()` throw a `NativeCallException` there, and the size, position and decoration options are ignored. See [What runs where](platforms.md).
 
 ## Window info
 

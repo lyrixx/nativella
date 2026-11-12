@@ -38,3 +38,5 @@ Another application may hold the shortcut already, or the system may reserve it,
 
 > [!NOTE]
 > On Linux, global shortcuts are implemented for X11 only. Under a Wayland session, expect them not to fire.
+
+`GlobalShortcut` is desktop only. On a phone, it throws a `NativeCallException`.
