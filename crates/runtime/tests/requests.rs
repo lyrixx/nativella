@@ -73,6 +73,14 @@ switch ($_GET['case'] ?? '') {
         echo 'Sent. ';
         header('X-Late: 1');
         break;
+    case 'early-output':
+        echo 'Created';
+        header('X-After: 1');
+        http_response_code(201);
+        break;
+    case 'feed':
+        require __DIR__.'/../feed.php';
+        break;
     case 'form':
         $note = $_FILES['note'] ?? null;
         echo json_encode([
@@ -95,6 +103,7 @@ fn runtime() -> &'static PhpRuntime {
         fs::create_dir_all(&uploads).unwrap();
         fs::write(project.join("public/index.php"), SCRIPT).unwrap();
         fs::write(project.join("public/avatar.png"), "PNG").unwrap();
+        fs::write(project.join("feed.php"), "<?xml version=\"1.0\"?><feed/>").unwrap();
 
         PhpRuntime::start(
             PhpApp::from_project_dir(&project)
@@ -184,6 +193,22 @@ fn a_header_after_the_output_is_reported_with_its_file() {
         "{}",
         text(&response)
     );
+}
+
+#[test]
+fn a_header_set_after_a_short_output_is_sent() {
+    let response = get("/?case=early-output");
+
+    assert_eq!(response.status(), 201);
+    assert_eq!(response.headers()["x-after"], "1");
+    assert_eq!(text(&response), "Created");
+}
+
+#[test]
+fn an_xml_declaration_is_not_php() {
+    let response = get("/?case=feed");
+
+    assert_eq!(text(&response), r#"<?xml version="1.0"?><feed/>"#);
 }
 
 #[test]
