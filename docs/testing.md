@@ -112,7 +112,7 @@ Without a queued answer, `FakeClient` returns:
 | `geolocation.currentPosition` | `null`: not allowed |
 | `globalShortcut.isRegistered` | `false` |
 | `nfc.isAvailable` | `false` |
-| `nfc.read` | throws a `NativeCallException`, as the runtime does when NFC is not available |
+| `nfc.read` | throws a `NativeCallException` of the kind `ErrorKind::Unavailable`, as the runtime does when NFC is not available |
 | `power.status` | on mains, without a battery |
 | `screen.all`, `screen.primary` | none |
 | `screen.cursorPosition` | `(0, 0)` |

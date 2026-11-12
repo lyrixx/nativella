@@ -90,7 +90,7 @@ if (null !== $update) {
 
 Once an update is being installed, or installed, both compare the endpoint to its version rather than to the running one, so they do not offer it again before the next start.
 
-Both throw a `NativeCallException` when the application has no `updates` in its configuration, when the endpoint fails or answers a document they cannot read, and `install()` outside a standalone executable (`nativella run` runs the project as it is), or while another update is being installed.
+Both throw a `NativeCallException` when the application has no `updates` in its configuration, when the endpoint fails or answers a document they cannot read, and `install()` outside a standalone executable (`nativella run` runs the project as it is), or while another update is being installed. Without `updates`, and outside a standalone executable, its [kind](plain-php.md#errors) is `ErrorKind::Unavailable`.
 
 Once the executable is in place, PHP and the pages get an event:
 

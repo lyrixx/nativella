@@ -33,6 +33,8 @@ Where the user must agree (location and camera, on Android), they are asked on t
 
 Calling an API that the application did not ask for throws a `NativeCallException` that says so, of the kind `ErrorKind::Unavailable`, and so does calling any of them on a computer. Only `Biometrics::isAvailable()` and `Nfc::isAvailable()` do not throw: they answer false there. Check `Runtime::isMobile()` first:
 
+A call that waited too long for the user or for the phone (a scan, a position, a tag) fails with `ErrorKind::Timeout`. See [Errors](plain-php.md#errors).
+
 ```php
 use Nativella\Runtime;
 
