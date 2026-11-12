@@ -364,6 +364,8 @@ fn start(
             // previous build runs no more.
             if extracted {
                 embedded::remove_other_builds(&project.dir);
+                #[cfg(desktop)]
+                native::updater::remove_leftovers();
             }
             let php_app = PhpApp::from_project_dir(&project.dir).map_err(|error| {
                 format!(

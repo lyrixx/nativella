@@ -35,6 +35,9 @@ const DOCUMENT_TIMEOUT: Duration = Duration::from_secs(30);
 /// An executable is tens of megabytes: it may take a while, but not stall.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+/// In bytes. The executable is checked in memory: an endpoint gone wrong
+/// must not fill it, nor the disk.
+const DOWNLOAD_LIMIT: u64 = 1024 * 1024 * 1024;
 
 /// The document of the endpoint, as Tauri's updater reads it.
 #[derive(Debug, Deserialize)]
@@ -191,17 +194,55 @@ fn install(call: &Call<'_>) -> Result<Value, String> {
     Ok(json!({ "version": release.version.to_string() }))
 }
 
-/// A file of its own next to `executable`, for the download.
-fn download_file(executable: &Path) -> Result<(PathBuf, File), String> {
+/// What the downloads of the updates of `executable` are named with, next
+/// to it.
+fn download_prefix(executable: &Path) -> String {
     let name = executable
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
+
+    format!(".{name}.update-")
+}
+
+/// Removes the downloads an earlier run left next to the executable: an
+/// application that quits while it downloads does not remove its own. At
+/// startup, when no other instance runs.
+pub(crate) fn remove_leftovers() {
+    match tauri::utils::platform::current_exe() {
+        Ok(executable) => remove_leftovers_of(&executable),
+        Err(error) => eprintln!("[updater] Unfinished downloads are not removed: {error}."),
+    }
+}
+
+fn remove_leftovers_of(executable: &Path) {
+    let prefix = download_prefix(executable);
+    let Some(entries) = executable.parent().and_then(|dir| dir.read_dir().ok()) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if !entry.file_name().to_string_lossy().starts_with(&prefix) {
+            continue;
+        }
+        if let Err(error) = fs::remove_file(entry.path()) {
+            eprintln!(
+                "[updater] {} is left behind: {error}.",
+                entry.path().display()
+            );
+        }
+    }
+}
+
+/// A file of its own next to `executable`, for the download.
+fn download_file(executable: &Path) -> Result<(PathBuf, File), String> {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |elapsed| elapsed.as_nanos());
-    let download =
-        executable.with_file_name(format!(".{name}.update-{}-{nanos}", std::process::id()));
+    let download = executable.with_file_name(format!(
+        "{}{}-{nanos}",
+        download_prefix(executable),
+        std::process::id()
+    ));
     let file = File::options()
         .write(true)
         .create_new(true)
@@ -299,13 +340,18 @@ fn replace(
     updates: &Updates,
     expected: &Expected,
 ) -> Result<(), String> {
-    let result = download_to(&artifact.url, file, https_only(&updates.endpoint))
-        .and_then(|()| {
-            let bytes = fs::read(download).map_err(failed)?;
-            verify(&updates.public_key, &artifact.signature, &bytes)?;
-            check(&bytes, expected)
-        })
-        .and_then(|()| swap(executable, download).map_err(failed));
+    let result = download_to(
+        &artifact.url,
+        file,
+        https_only(&updates.endpoint),
+        DOWNLOAD_LIMIT,
+    )
+    .and_then(|()| {
+        let bytes = fs::read(download).map_err(failed)?;
+        verify(&updates.public_key, &artifact.signature, &bytes)?;
+        check(&bytes, expected)
+    })
+    .and_then(|()| swap(executable, download).map_err(failed));
     if result.is_err()
         && let Err(error) = fs::remove_file(download)
         && error.kind() != io::ErrorKind::NotFound
@@ -413,7 +459,7 @@ fn for_this_machine(head: &[u8]) -> bool {
         && head.get(offset + 4..offset + 6) == Some(&machine.to_le_bytes()[..])
 }
 
-fn download_to(url: &str, mut file: File, https_only: bool) -> Result<(), String> {
+fn download_to(url: &str, mut file: File, https_only: bool, limit: u64) -> Result<(), String> {
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_connect(Some(CONNECT_TIMEOUT))
         .timeout_global(Some(DOWNLOAD_TIMEOUT))
@@ -424,8 +470,11 @@ fn download_to(url: &str, mut file: File, https_only: bool) -> Result<(), String
         .get(url)
         .call()
         .map_err(|error| format!("The download of {url} failed: {error}."))?;
-    let mut body = response.body_mut().with_config().limit(u64::MAX).reader();
+    let mut body = response.body_mut().with_config().limit(limit).reader();
     io::copy(&mut body, &mut file)
+        // On the disk before it takes the place of the executable: a power
+        // cut after the rename would leave an empty one.
+        .and_then(|_| file.sync_all())
         .map_err(|error| format!("The download of {url} failed: {error}."))?;
 
     Ok(())
@@ -766,8 +815,8 @@ mod tests {
         fs::remove_dir_all(dir).unwrap();
     }
 
-    #[test]
-    fn a_refused_download_leaves_the_executable_as_it_was() {
+    /// Serves "hello!" once, at the address returned.
+    fn serve_hello() -> (std::net::SocketAddr, thread::JoinHandle<()>) {
         use std::io::{Read, Write};
         use std::net::TcpListener;
 
@@ -777,12 +826,59 @@ mod tests {
             let (mut stream, _) = listener.accept().unwrap();
             let mut request = [0; 1024];
             let _ = stream.read(&mut request).unwrap();
-            stream
-                .write_all(
-                    b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nhello!",
-                )
-                .unwrap();
+            // The client may hang up before the end.
+            let _ = stream.write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nhello!",
+            );
         });
+
+        (address, server)
+    }
+
+    #[test]
+    fn a_download_over_the_limit_fails() {
+        let dir = directory("limit");
+        let executable = dir.join("notes");
+
+        let (address, server) = serve_hello();
+        let (download, file) = download_file(&executable).unwrap();
+        assert_eq!(
+            download_to(&format!("http://{address}/notes"), file, false, 7),
+            Ok(())
+        );
+        server.join().unwrap();
+        assert_eq!(fs::read_to_string(&download).unwrap(), "hello!");
+
+        let (address, server) = serve_hello();
+        let (_, file) = download_file(&executable).unwrap();
+        assert!(download_to(&format!("http://{address}/notes"), file, false, 5).is_err());
+        server.join().unwrap();
+
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn unfinished_downloads_are_removed() {
+        let dir = directory("leftovers");
+        let executable = dir.join("notes");
+        fs::write(&executable, "1.2.0").unwrap();
+        fs::write(dir.join("notes.old"), "1.1.0").unwrap();
+        let (download, _) = download_file(&executable).unwrap();
+        // The download of another application in the same directory.
+        let (other, _) = download_file(&dir.join("tasks")).unwrap();
+
+        remove_leftovers_of(&executable);
+        assert!(!download.exists());
+        assert!(other.exists());
+        assert!(executable.exists());
+        assert!(dir.join("notes.old").exists());
+
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_refused_download_leaves_the_executable_as_it_was() {
+        let (address, server) = serve_hello();
 
         let dir = directory("replace");
         let executable = dir.join("notes");
