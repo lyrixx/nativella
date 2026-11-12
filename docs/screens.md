@@ -3,7 +3,8 @@
 `Nativella\Screen` describes the displays connected to the machine, and where the mouse cursor is.
 
 ```php
-$display = $screen->primary();
+// Wayland names no primary display.
+$display = $screen->primary() ?? $screen->all()[0];
 
 $window->setSize(
     $display->workArea->width * 0.6,
