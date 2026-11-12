@@ -143,11 +143,7 @@ final class NoteController extends AbstractController
     #[IsCsrfTokenValid('submit')]
     public function pin(Note $note): Response
     {
-        if ($note->isPinned()) {
-            $note->unpin();
-        } else {
-            $note->pin();
-        }
+        $note->togglePin();
         $this->entityManager->flush();
 
         return $this->redirectToRoute('note_show', ['id' => $note->getId()]);

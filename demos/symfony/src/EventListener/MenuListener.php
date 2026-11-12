@@ -120,11 +120,7 @@ final readonly class MenuListener
                 $this->export($note);
                 break;
             case 'pin':
-                if ($note->isPinned()) {
-                    $note->unpin();
-                } else {
-                    $note->pin();
-                }
+                $note->togglePin();
                 $this->entityManager->flush();
                 $this->actions->notifyPages();
                 break;

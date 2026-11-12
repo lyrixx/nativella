@@ -102,14 +102,9 @@ class Note
         $this->edit($this->title, '' === $body ? $code : "{$body}\n\n{$code}");
     }
 
-    public function pin(): void
+    public function togglePin(): void
     {
-        $this->pinned = true;
-    }
-
-    public function unpin(): void
-    {
-        $this->pinned = false;
+        $this->pinned = !$this->pinned;
     }
 
     public function toMarkdown(): string

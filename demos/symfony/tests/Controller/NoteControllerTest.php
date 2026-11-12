@@ -80,6 +80,17 @@ final class NoteControllerTest extends NotesTestCase
         $this->assertTrue($this->notes()->find($note->getId())?->isPinned());
     }
 
+    public function testUnpinAPinnedNote(): void
+    {
+        $note = $this->createNote();
+        $note->togglePin();
+        $this->entityManager()->flush();
+
+        $this->post("/notes/{$note->getId()}/pin");
+
+        $this->assertFalse($this->notes()->find($note->getId())?->isPinned());
+    }
+
     public function testDeletingANoteAsksFirst(): void
     {
         $note = $this->createNote();
@@ -181,7 +192,7 @@ final class NoteControllerTest extends NotesTestCase
     public function testTheSidebarShowsPinnedNotesFirst(): void
     {
         $pinned = $this->createNote('Pinned');
-        $pinned->pin();
+        $pinned->togglePin();
         $this->entityManager()->flush();
         $this->createNote('Recent');
 

@@ -42,6 +42,16 @@ final class NativeEventsTest extends NotesTestCase
         $this->assertEquals(['event' => 'notes.changed', 'detail' => (object) ['deleted' => $id], 'window' => null], $this->fakeClient()->calls('page.dispatch')[0]->payload);
     }
 
+    public function testPinFromTheContextMenuReloadsThePages(): void
+    {
+        $note = $this->createNote();
+
+        $this->sendNativeEvent('menu.itemClicked', ['id' => "note.pin:{$note->getId()}", 'checked' => null]);
+
+        $this->assertTrue($this->notes()->find($note->getId())?->isPinned());
+        $this->assertCount(1, $this->fakeClient()->calls('page.dispatch'));
+    }
+
     public function testAContextMenuOfADeletedNoteDoesNothing(): void
     {
         $this->sendNativeEvent('menu.itemClicked', ['id' => 'note.delete:999999', 'checked' => null]);
