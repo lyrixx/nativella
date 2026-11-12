@@ -61,6 +61,18 @@ switch ($_GET['case'] ?? '') {
             $_SERVER['HTTP_NATIVELLA_INTERNAL'] ?? null,
         ]);
         break;
+    case 'late-header':
+        set_error_handler(static function (int $level, string $message): bool {
+            echo $message;
+
+            return true;
+        });
+        while (ob_get_level() > 0) {
+            ob_end_flush();
+        }
+        echo 'Sent. ';
+        header('X-Late: 1');
+        break;
     case 'form':
         $note = $_FILES['note'] ?? null;
         echo json_encode([
@@ -160,6 +172,18 @@ fn an_invalid_header_is_dropped_alone() {
     assert_eq!(response.headers()["x-good"], "1");
     assert!(!response.headers().contains_key("x-latin-1"));
     assert_eq!(text(&response), "Headers");
+}
+
+#[test]
+fn a_header_after_the_output_is_reported_with_its_file() {
+    let response = get("/?case=late-header");
+
+    assert!(!response.headers().contains_key("x-late"));
+    assert!(
+        text(&response).contains("index.php:"),
+        "{}",
+        text(&response)
+    );
 }
 
 #[test]

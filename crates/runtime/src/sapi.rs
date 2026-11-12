@@ -23,6 +23,11 @@ use http::{HeaderName, HeaderValue, Request, Response, StatusCode};
 use crate::bridge;
 use crate::runtime::{PhpApp, RequestOrigin};
 
+unsafe extern "C" {
+    /// Zend/zend.h: what PHP's own SAPIs report their errors with (`php_error`).
+    fn zend_error(kind: c_int, format: *const c_char, ...);
+}
+
 /// `SG(request_info).proto_num` for HTTP/1.1, encoded the way PHP's own SAPIs do.
 const HTTP_1_1: c_int = 1001;
 
@@ -46,6 +51,10 @@ impl Engine {
         // never frees it: hand PHP the one the request context owns instead.
         module.read_cookies = Some(read_cookies);
         module.activate = Some(activate);
+        // The one of ext-php-rs hands zend_error() its va_list where the
+        // values go, and prints the message to the standard output: "headers
+        // already sent by (output started at %s:%d)" named no file.
+        module.sapi_error = Some(zend_error);
 
         // The static PHP looks for /usr/local/etc/php/php.ini and its conf.d/,
         // where static-php-cli built it to, and for PHPRC and PHP_INI_SCAN_DIR:
