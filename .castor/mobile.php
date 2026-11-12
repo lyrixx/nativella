@@ -114,6 +114,8 @@ function android_template(
     ?string $output = null,
     #[AsOption(description: 'The ABI: arm64-v8a, for phones, or x86_64, for the emulators of x86_64 computers')]
     string $abi = 'arm64-v8a',
+    #[AsOption(description: 'Build PHP again if a library it links has a newer release than the one it was built with')]
+    bool $updateLibraries = false,
 ): string {
     check_tauri_cli_version();
     $onHost = context()['run_on_host'];
@@ -124,7 +126,7 @@ function android_template(
 
     // PHP for Android first, in the android service, which it builds
     $target = PhpTarget::android($abi);
-    $php = php_build($target);
+    $php = php_build($target, updateLibraries: $updateLibraries);
 
     io()->title("Building the template APK ({$abi})");
 
@@ -340,6 +342,8 @@ function ios_template(
     bool $release = false,
     #[AsOption(description: 'Where to copy it, from the root of the repository, with its third-party notices and their checksums in SHA256SUMS-ios next to it')]
     ?string $output = null,
+    #[AsOption(description: 'Build PHP again if a library it links has a newer release than the one it was built with')]
+    bool $updateLibraries = false,
 ): string {
     if (!context()['macos']) {
         throw new \RuntimeException('An iOS build needs macOS, with Xcode: on another machine, take a template of a release, or of the Mobile workflow, with --template.');
@@ -348,7 +352,7 @@ function ios_template(
 
     // PHP for the target first, on this Mac
     $target = $device ? PhpTarget::iphoneos() : PhpTarget::iphonesimulator();
-    $php = php_build($target);
+    $php = php_build($target, updateLibraries: $updateLibraries);
     $sdk = $target->abi;
     $root = variable('root_dir');
 

@@ -150,8 +150,8 @@ jobs:
                   key: ${{ steps.cargo.outputs.cache-primary-key }}
                   prefix: cargo-debug-
 
-            # Last, once the build is saved. Weekly, and by hand: a new advisory is no fault of a pull
-            # request. Dependabot opens the pull requests that fix them
+            # Last, once the build is saved. Weekly, and by hand: a new advisory
+            # is no fault of a pull request
             - name: "Check the crates against the advisories of RustSec"
               if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
               run: "castor qa:rust-audit"

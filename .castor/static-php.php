@@ -8,6 +8,7 @@ use Symfony\Component\Process\ExecutableFinder;
 
 use function Castor\capture;
 use function Castor\context;
+use function Castor\finder;
 use function Castor\fs;
 use function Castor\io;
 use function Castor\variable;
@@ -46,6 +47,13 @@ const EXTENSIONS = 'bcmath,ctype,curl,dom,fileinfo,filter,iconv,intl,mbstring,op
 const PHP_RELEASE = '8.5.12';
 
 /**
+ * The SHA-256 of php-<PHP_RELEASE>.tar.xz, as php.net gives it:
+ * https://www.php.net/releases/index.php?json&version=<PHP_RELEASE>. Raise it
+ * with PHP_RELEASE.
+ */
+const PHP_RELEASE_SHA256 = '08bc2eba2a588654ade1357174aa646b761556c862dda0678345ee29ed481209';
+
+/**
  * The service that builds the static PHP and links it: Ubuntu 22.04, for an
  * old glibc.
  */
@@ -75,11 +83,16 @@ const GLIBCXX_VERSION = '3.4.30';
  * macOS.
  *
  * About 5 minutes, then nothing until the version or the extensions change.
+ * static-php-cli downloads the latest release of each library PHP links: the
+ * stamp of the build records them, and --update-libraries builds again when
+ * one of them has a newer one, as the CI asks on main and for a release.
  */
 #[AsTask(namespace: 'static-php', description: 'Builds PHP as a static library, for executables that need no PHP on the machine')]
 function build(
     #[AsOption(description: 'Build again, even if nothing changed')]
     bool $force = false,
+    #[AsOption(description: 'Build again if a library PHP links has a newer release than the one it was built with')]
+    bool $updateLibraries = false,
 ): void {
     io()->title('Building PHP '.PHP_RELEASE.' as a static library');
 
@@ -95,14 +108,22 @@ function build(
     // bundles: the third-party notices need them
     $notices = is_file("{$buildroot}/license/php-src/README.REDIST.BINS");
 
-    if (!$force && $notices && is_file($stamp) && file_get_contents($stamp) === $build) {
+    $recorded = stamped_sources($stamp);
+    $upToDate = !$force && $notices && is_file($stamp) && file_get_contents($stamp) === stamp($build, $recorded);
+    if ($upToDate && $updateLibraries) {
+        prepare();
+        download_for_extensions(array_keys($recorded));
+        $upToDate = downloaded_sources(array_keys($recorded)) === $recorded;
+    }
+
+    if ($upToDate) {
         io()->comment('Static PHP is up to date: --force builds it again.');
     } else {
         // static-php-cli keeps the libraries it finds built: they may have
         // been built for another glibc
         fs()->remove([$buildroot, variable('root_dir').'/static-php/source']);
         build_php();
-        fs()->dumpFile($stamp, $build);
+        fs()->dumpFile($stamp, stamp($build, downloaded_sources(linked_sources('static-php/buildroot/license'))));
     }
 
     io()->success('Static PHP is ready in static-php/buildroot/.');
@@ -206,20 +227,114 @@ function spc_environment(): array
 function build_php(): void
 {
     $workDir = builder_path('static-php');
+    $environment = spc_environment();
 
+    prepare();
+    run_in_builder(['./spc', 'doctor', '--auto-fix'], $workDir, $environment, SERVICE);
+    download_for_extensions();
+    // It dumps the licenses of PHP and of the libraries it builds into
+    // buildroot/license/, for the third-party notices (notices\desktop())
+    run_in_builder(['./spc', 'build', EXTENSIONS, '--build-embed'], $workDir, $environment, SERVICE);
+    \notices\copy_php_src_licenses('static-php/source/php-src', 'static-php/buildroot/license/php-src');
+}
+
+/**
+ * What static-php-cli runs in: the static service, built, and the tool.
+ */
+function prepare(): void
+{
     if (!context()['run_on_host']) {
         build_image(service: SERVICE);
     }
 
     spc(SERVICE);
-    $environment = spc_environment();
+}
 
-    run_in_builder(['./spc', 'doctor', '--auto-fix'], $workDir, $environment, SERVICE);
-    download(['./spc', 'download', '--for-extensions='.EXTENSIONS, '--prefer-pre-built'], $workDir, $environment, SERVICE);
-    // It dumps the licenses of PHP and of the libraries it builds into
-    // buildroot/license/, for the third-party notices (notices\desktop())
-    run_in_builder(['./spc', 'build', EXTENSIONS, '--build-embed'], $workDir, $environment, SERVICE);
-    \notices\copy_php_src_licenses('static-php/source/php-src', 'static-php/buildroot/license/php-src');
+/**
+ * Downloads the sources of PHP and of the libraries of EXTENSIONS.
+ *
+ * @param list<string> $refresh the sources to download again, in their latest release
+ */
+function download_for_extensions(array $refresh = []): void
+{
+    download(['./spc', 'download', '--for-extensions='.EXTENSIONS, '--prefer-pre-built'], builder_path('static-php'), spc_environment(), SERVICE, $refresh);
+}
+
+/**
+ * The stamp of a build: what it was built from, then each source static-php-cli
+ * downloaded for it, "<source> <archive> <hash>".
+ *
+ * @param array<string, string> $sources "<archive> <hash>" by source (downloaded_sources())
+ */
+function stamp(string $identity, array $sources): string
+{
+    $stamp = "{$identity}\n";
+    foreach ($sources as $source => $archive) {
+        $stamp .= "{$source} {$archive}\n";
+    }
+
+    return $stamp;
+}
+
+/**
+ * The sources a stamp records: none for a build older than them, which
+ * builds again.
+ *
+ * @return array<string, string> "<archive> <hash>" by source
+ */
+function stamped_sources(string $stamp): array
+{
+    $sources = [];
+    foreach (\array_slice(is_file($stamp) ? file($stamp, \FILE_IGNORE_NEW_LINES) ?: [] : [], 1) as $line) {
+        [$source, $archive] = explode(' ', $line, 2);
+        $sources[$source] = $archive;
+    }
+
+    return $sources;
+}
+
+/**
+ * The archive of each source, as static-php-cli downloaded it last, and its
+ * hash, which tells two releases apart when the archive has the same name.
+ *
+ * @param list<string> $sources the names of static-php-cli
+ *
+ * @return array<string, string> "<archive> <hash>" by source, sorted
+ */
+function downloaded_sources(array $sources): array
+{
+    $lock = json_decode((string) file_get_contents(variable('root_dir').'/static-php/downloads/.lock.json'), true, flags: \JSON_THROW_ON_ERROR);
+
+    $archives = [];
+    foreach ($sources as $source) {
+        $entry = $lock[$source] ?? throw new \RuntimeException(\sprintf('static-php-cli downloaded no %s: see static-php/downloads/.lock.json.', $source));
+        // A source cloned with Git has a directory, not an archive
+        $archives[$source] = ($entry['filename'] ?? $entry['dirname']).' '.$entry['hash'];
+    }
+    ksort($archives);
+
+    return $archives;
+}
+
+/**
+ * The sources of the libraries and of the extensions PHP links, php-src
+ * aside, which PHP_RELEASE pins: static-php-cli dumped a license for each,
+ * lib_<source>_<index>.txt or ext_<name>_<index>.txt, for the source ext-<name>.
+ *
+ * @param string $licenses from the root of the repository
+ *
+ * @return list<string>
+ */
+function linked_sources(string $licenses): array
+{
+    $sources = [];
+    foreach (finder()->in(variable('root_dir')."/{$licenses}")->files()->depth(0)->name('*.txt') as $file) {
+        if (preg_match('/^(ext|lib)_(.+)_\d+\.txt$/', $file->getFilename(), $matches)) {
+            $sources[] = 'ext' === $matches[1] ? "ext-{$matches[2]}" : $matches[2];
+        }
+    }
+
+    return array_values(array_unique($sources));
 }
 
 /**
@@ -230,14 +345,18 @@ function build_php(): void
  *
  * @param list<string>          $command     spc download and its arguments, but --with-php
  * @param array<string, string> $environment
+ * @param list<string>          $refresh     the sources to download again, in their latest release
  */
-function download(array $command, string $workDir, array $environment = [], ?string $service = null): void
+function download(array $command, string $workDir, array $environment = [], ?string $service = null, array $refresh = []): void
 {
     $source = 'php-'.PHP_RELEASE.'.tar.xz';
 
     $command[] = '--with-php='.PHP_RELEASE;
     if (null !== downloaded_php_source() && $source !== downloaded_php_source()) {
-        $command[] = '--ignore-cache-sources=php-src';
+        $refresh[] = 'php-src';
+    }
+    if ([] !== $refresh) {
+        $command[] = '--ignore-cache-sources='.implode(',', $refresh);
     }
 
     // It asks the GitHub API where some sources are: a token raises its rate
@@ -251,6 +370,11 @@ function download(array $command, string $workDir, array $environment = [], ?str
 
     if ($source !== downloaded_php_source()) {
         throw new \RuntimeException(\sprintf('static-php-cli downloaded %s, not %s: see static-php/downloads/.lock.json.', downloaded_php_source() ?? 'no PHP', $source));
+    }
+
+    $sha256 = hash_file('sha256', variable('root_dir')."/static-php/downloads/{$source}");
+    if (PHP_RELEASE_SHA256 !== $sha256) {
+        throw new \RuntimeException(\sprintf('static-php/downloads/%s has the SHA-256 %s, not the %s of PHP_RELEASE_SHA256.', $source, $sha256, PHP_RELEASE_SHA256));
     }
 }
 

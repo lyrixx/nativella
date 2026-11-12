@@ -13,6 +13,7 @@ use function docker\builder_path;
 use function docker\builder_platform;
 use function docker\docker_compose_run;
 use function docker\run_in_builder;
+use function static_php\stamped_sources;
 
 /**
  * The third-party notices: the copyright notices and the licenses of what
@@ -58,13 +59,7 @@ function desktop(bool $staticPhp): string
 
         /** @var list<string> $extensions what static-php-cli built */
         $extensions = json_decode((string) file_get_contents(variable('root_dir')."/{$buildroot}/build-extensions.json"), true, flags: \JSON_THROW_ON_ERROR);
-        // GNU libiconv when static-php-cli built it, which dumped its license,
-        // in the version of its header. static-php-cli downloads PHP and
-        // GNU libiconv from these URLs (PhpSource, config/source.json)
-        $iconv = is_file(variable('root_dir')."/{$buildroot}/license/lib_libiconv_0.txt")
-            ? \sprintf('GNU libiconv %1$s: https://ftp.gnu.org/gnu/libiconv/libiconv-%1$s.tar.gz', libiconv_version("{$buildroot}/include/iconv.h"))
-            : '';
-        $lgpl = lgpl($version, $extensions, $iconv, '`nativella build`');
+        $lgpl = lgpl($version, $extensions, libiconv_source($buildroot), '`nativella build`');
     }
     $sections[] = rust_section(target_triple($platform));
 
@@ -139,13 +134,8 @@ function lgpl_of(string $version, string $php, string $repack): string
 {
     // The extensions of the build, from its configure command
     preg_match_all("{'--(?:enable|with)-([\\w-]+)}", (string) file_get_contents(variable('root_dir')."/{$php}/include/php/main/build-defs.h"), $matches);
-    // GNU libiconv, which the build downloads from there (config/source.json
-    // of static-php-cli), in the version of its header
-    $iconv = is_file(variable('root_dir')."/{$php}/license/lib_libiconv_0.txt")
-        ? \sprintf('GNU libiconv %1$s: https://ftp.gnu.org/gnu/libiconv/libiconv-%1$s.tar.gz', libiconv_version("{$php}/include/iconv.h"))
-        : '';
 
-    return lgpl($version, $matches[1], $iconv, $repack);
+    return lgpl($version, $matches[1], libiconv_source($php), $repack);
 }
 
 /**
@@ -190,19 +180,18 @@ function lgpl(string $phpVersion, array $extensions, string $iconv, string $repa
 }
 
 /**
- * From GNU libiconv's iconv.h: #define _LIBICONV_VERSION 0x0113, for 1.19.
+ * GNU libiconv and where its source is, when the build of PHP in $buildroot
+ * links it: the archive its stamp records, which static-php-cli downloads
+ * from there (config/source.json). '' otherwise.
  */
-function libiconv_version(string $header): string
+function libiconv_source(string $buildroot): string
 {
-    $content = (string) file_get_contents(variable('root_dir')."/{$header}");
-
-    if (!preg_match('{^#define _LIBICONV_VERSION 0x([0-9a-f]+)}mi', $content, $matches)) {
-        throw new \RuntimeException(\sprintf('%s defines no _LIBICONV_VERSION.', $header));
+    $archive = stamped_sources(variable('root_dir')."/{$buildroot}/.nativella-build")['libiconv'] ?? null;
+    if (null === $archive) {
+        return '';
     }
 
-    $version = (int) hexdec($matches[1]);
-
-    return \sprintf('%d.%d', $version >> 8, $version & 0xFF);
+    return \sprintf('GNU libiconv: https://ftp.gnu.org/gnu/libiconv/%s', strtok($archive, ' '));
 }
 
 /**
@@ -346,6 +335,9 @@ function rust_section(string $target, array $features = []): array
 function php_sections(string $version, string $licenses, string $builtBy): array
 {
     $root = variable('root_dir');
+    // The archive of each library, with its version: static-php-cli takes
+    // the latest release of most of them on the day of the build
+    $sources = stamped_sources("{$root}/".\dirname($licenses).'/.nativella-build');
     $php = '';
     $libraries = '';
 
@@ -360,8 +352,9 @@ function php_sections(string $version, string $licenses, string $builtBy): array
             continue;
         }
 
-        $name = 'ext' === $matches[1] ? "The {$matches[2]} extension of PHP" : $matches[2];
-        $libraries .= heading($name).$text;
+        [$name, $source] = 'ext' === $matches[1] ? ["The {$matches[2]} extension of PHP", "ext-{$matches[2]}"] : [$matches[2], $matches[2]];
+        $archive = $sources[$source] ?? throw new \RuntimeException(\sprintf('The stamp of %s records no source of %s: build PHP again.', \dirname($licenses), $source));
+        $libraries .= heading("{$name}, from ".strtok($archive, ' ')).$text;
     }
 
     if ('' === $php) {

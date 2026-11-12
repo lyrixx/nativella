@@ -77,9 +77,7 @@ jobs:
               uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/buildroot
-                  key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
-                  # An older one too: static-php:build builds again only if the
-                  # versions or the extensions changed, not the rest of the file
+                  key: static-php-${{ runner.os }}-${{ runner.arch }}-latest
                   restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
 
             # The builder installs and stages the projects
@@ -119,9 +117,10 @@ jobs:
                       cargo-static-
 
             # static-php-cli asks the GitHub API for its downloads: without a
-            # token, the runners share its rate limit
+            # token, the runners share its rate limit. It downloads the
+            # libraries again, and builds again if one has a new release
             - name: "Build PHP as a static library"
-              run: "castor static-php:build"
+              run: "castor static-php:build --update-libraries"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -171,15 +170,14 @@ jobs:
               uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/buildroot
-                  key: static-php-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.castor/static-php.php') }}
-                  # An older one too: static-php:build builds again only if the
-                  # versions or the extensions changed, not the rest of the file
+                  key: static-php-${{ runner.os }}-${{ runner.arch }}-latest
                   restore-keys: static-php-${{ runner.os }}-${{ runner.arch }}-
 
             # static-php-cli asks the GitHub API for its downloads: without a
-            # token, the runners share its rate limit
+            # token, the runners share its rate limit. It downloads the
+            # libraries again, and builds again if one has a new release
             - name: "Build PHP as a static library"
-              run: "castor static-php:build"
+              run: "castor static-php:build --update-libraries"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -215,12 +213,8 @@ jobs:
               uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: static-php/android-arm64/buildroot
-                  key: static-php-android-arm64-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-${{ hashFiles('.castor/static-php.php', '.castor/static-php-mobile.php', 'crates/nativella/tauri.android.conf.json') }}
-                  # An older one too: static-php:android builds again only if
-                  # what it is built from changed
-                  restore-keys: |
-                      static-php-android-arm64-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
-                      static-php-android-arm64-
+                  key: static-php-android-arm64-latest
+                  restore-keys: static-php-android-arm64-
 
             # Downloads the sources of PHP
             - name: "Build the builder"
@@ -254,11 +248,11 @@ jobs:
                       android-${{ steps.rust.outputs.version }}-${{ hashFiles('infrastructure/docker/services/php/Dockerfile') }}-
                       android-
 
-            # PHP for Android, unless restored. static-php-cli asks the GitHub
-            # API for the sources of PHP: without a token, the runners share
-            # its rate limit
+            # PHP for Android, unless restored, and none of its libraries has
+            # a new release. static-php-cli asks the GitHub API for the
+            # sources of PHP: without a token, the runners share its rate limit
             - name: "Build the template APK"
-              run: "castor mobile:android-template --release --output=release/nativella-android-template-arm64.apk"
+              run: "castor mobile:android-template --release --update-libraries --output=release/nativella-android-template-arm64.apk"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -315,11 +309,6 @@ jobs:
                       ios-${{ steps.rust.outputs.version }}-
                       ios-
 
-            - name: "Read the version of Xcode"
-              id: xcode
-              shell: bash
-              run: echo "version=$(xcodebuild -version | awk 'NR == 1 { version = $2 } NR == 2 { build = $3 } END { print version "-" build }')" >> "${GITHUB_OUTPUT}"
-
             # The one of the iOS template job of mobile.yml, from main: its
             # paths and its key
             - name: "Restore PHP for iOS"
@@ -328,23 +317,20 @@ jobs:
                   path: |
                       static-php/ios-arm64/buildroot
                       static-php/ios-simulator-arm64/buildroot
-                  key: static-php-ios-${{ steps.xcode.outputs.version }}-${{ hashFiles('.castor/static-php.php', '.castor/static-php-mobile.php') }}
-                  # An older one too: static-php:ios builds again only if what
-                  # it is built from changed
-                  restore-keys: |
-                      static-php-ios-${{ steps.xcode.outputs.version }}-
-                      static-php-ios-
+                  key: static-php-ios-latest
+                  restore-keys: static-php-ios-
 
-            # Then PHP for the target, unless restored. static-php-cli asks the
-            # GitHub API for the sources of PHP: without a token, the runners
-            # share its rate limit
+            # Then PHP for the target, unless restored, and none of its
+            # libraries has a new release. static-php-cli asks the GitHub API
+            # for the sources of PHP: without a token, the runners share its
+            # rate limit
             - name: "Build the template app for the simulator"
-              run: "castor mobile:ios-template --release --output=release/nativella-ios-template-iphonesimulator-arm64.zip"
+              run: "castor mobile:ios-template --release --update-libraries --output=release/nativella-ios-template-iphonesimulator-arm64.zip"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: "Build the template app for devices"
-              run: "castor mobile:ios-template --device --release --output=release/nativella-ios-template-iphoneos-arm64.zip"
+              run: "castor mobile:ios-template --device --release --update-libraries --output=release/nativella-ios-template-iphoneos-arm64.zip"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
