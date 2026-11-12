@@ -107,7 +107,7 @@ castor qa --dry-run          # the same, reporting only: what the CI checks
 | `castor qa:rust` | `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings` and `cargo test --locked`, on the workspace. They fail on a `Cargo.lock` that does not match the manifests. |
 | `castor qa:rust-audit` | The crates of `Cargo.lock` against the [RustSec](https://rustsec.org) advisories, with cargo-audit. A vulnerability fails it; a crate without a maintainer is only reported. `CARGO_AUDIT_IGNORED`, in `.castor/qa.php`, lists the advisories it ignores, and why. |
 | `castor qa:security-audit` | `composer audit` in each project. |
-| `castor qa:outdated` | The pinned PHP (`PHP_RELEASE`) and Rust (`RUST_VERSION`) against the latest PHP 8.5 and the latest stable Rust. `castor qa` does not run it, as it fails without any change to the repository. |
+| `castor qa:outdated` | The pinned PHP (`PHP_RELEASE`), Rust (`RUST_VERSION`) and SQLite (`SQLITE_RELEASE`) against the latest PHP 8.5, the latest stable Rust and the latest SQLite. `castor qa` does not run it, as it fails without any change to the repository. |
 | `castor qa:frontend` | The website and each demo through the router, as a browser does, without the native features. Run `castor start` first. |
 
 A task installs a project it checks, or a demo it runs, that is not installed yet, and builds the static PHP that `--static` links, so on a fresh clone, `castor qa` checks every project.
@@ -219,7 +219,7 @@ Moving to a new PHP release, security releases above all, is a change of these t
 
 static-php-cli takes most libraries in their latest release, but pins SQLite to 3.45.2, from 2024. `SQLITE_RELEASE`, in `.castor/static-php.php`, pins another one, for the desktop and the phones: the tasks hand static-php-cli the URL of its archive on sqlite.org, `sqlite-autoconf-<version>.tar.gz`, in the directory of `SQLITE_RELEASE_YEAR`, and check the download against `SQLITE_RELEASE_SHA3_256`. Each buildroot's stamp holds the version. When it changes, each platform builds PHP again.
 
-Moving to a new SQLite release is a change of these three constants, in a pull request of its own. <https://www.sqlite.org/download.html> gives the version, the year and the SHA3-256 of the archive.
+Moving to a new SQLite release is a change of these three constants, in a pull request of its own. <https://www.sqlite.org/download.html> gives the version, the year and the SHA3-256 of the archive. `castor qa:outdated` fails when sqlite.org has a newer release.
 
 Since SQLite 3.49, the `configure` script of that archive is not autoconf's any more. It stops at options static-php-cli gives every library (`--with-pic`), and no longer enables FTS4, FTS5, R-Tree and Geopoly by itself. `static-php:build` extracts the source before static-php-cli builds it, and makes the script ignore the options it does not know and enable those extensions, `SQLITE_OPTIONS`; the phones have a recipe of their own, with the same options. A newer static-php-cli that builds this SQLite by itself makes all of this useless.
 
@@ -329,7 +329,7 @@ On `main`, they all run on every push, whatever the paths, except `cache.yml`, w
 
 | Workflow | When | What |
 |---|---|---|
-| `php.yml` | Changes to the projects (`demos/`, `packages/`, `website/`), `tools/`, the check configurations, the Castor tasks or the Docker stack, but not to the documentation alone (Markdown, `website/zensical.yml`, `website/docs-theme/`, `tools/zensical/`); weekly, for the new advisories and the new releases of PHP and Rust; manually | `castor start`, the PHP checks and tests, the frontend over HTTPS (`castor qa:frontend`). Weekly only, `castor qa:outdated`, which fails when the pinned PHP or Rust is behind. |
+| `php.yml` | Changes to the projects (`demos/`, `packages/`, `website/`), `tools/`, the check configurations, the Castor tasks or the Docker stack, but not to the documentation alone (Markdown, `website/zensical.yml`, `website/docs-theme/`, `tools/zensical/`); weekly, for the new advisories and the new releases of PHP, Rust and SQLite; manually | `castor start`, the PHP checks and tests, the frontend over HTTPS (`castor qa:frontend`). Weekly only, `castor qa:outdated`, which fails when the pinned PHP, Rust or SQLite is behind. |
 | `rust.yml` | Changes to the crates (`crates/`, `Cargo.*`), `demos/`, `packages/`, the Castor tasks or the Docker stack, but not to the documentation or the projects' tests alone; weekly; manually | `castor qa:versions` first, then `castor qa:rust` and `castor nativella:smoke`, in the builder. Weekly and by hand, `castor qa:rust-audit`, once the build is saved: a new advisory is no fault of a pull request. |
 | `static.yml` | The same changes as `rust.yml`, and `mobile/php/php`; weekly; manually | The static PHP on Linux, in the `static` image: `castor nativella:smoke --static`, then, except on a pull request, `castor nativella:build` and `castor nativella:package`, as the release does (see below). |
 | `macos.yml` | Changes to the crates (`crates/`, `Cargo.*`), `mobile/php/php` or the Castor tasks, but not to Markdown alone; weekly; manually | `castor qa:rust --static` and `castor nativella:smoke --static` on macOS (arm64, the host context, with the static PHP). |

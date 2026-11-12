@@ -106,7 +106,7 @@ castor qa:phpunit-lowest                       # PHPUnit on the packages, with t
 castor qa:rust                   # cargo fmt --check, clippy -D warnings, cargo test
 castor qa:rust-audit             # the crates of Cargo.lock against the advisories of RustSec
 castor qa:security-audit         # composer audit
-castor qa:outdated               # the pinned PHP and Rust against their latest releases (weekly, in the CI)
+castor qa:outdated               # the pinned PHP, Rust and SQLite against their latest releases (weekly, in the CI)
 castor qa:frontend               # the website and the demos through the router (castor start first)
 ```
 

@@ -87,9 +87,9 @@ jobs:
               if: ${{ !cancelled() && steps.start.outcome == 'success' }}
               run: "castor qa:security-audit"
 
-            # Weekly only: a new release of PHP or of Rust is no fault of a
-            # pull request
-            - name: "Check that the pinned PHP and Rust are the latest"
+            # Weekly only: a new release of PHP, of Rust or of SQLite is no
+            # fault of a pull request
+            - name: "Check that the pinned PHP, Rust and SQLite are the latest"
               if: ${{ !cancelled() && github.event_name == 'schedule' }}
               run: "castor qa:outdated"
 
