@@ -16,6 +16,7 @@
 //! At startup, the application extracts its project once per build, in a
 //! cache directory.
 
+use std::collections::BTreeSet;
 use std::env;
 use std::fs::{self, File};
 #[cfg(test)]
@@ -257,40 +258,46 @@ impl<R: Read + Seek> Bundle<R> {
         let dir = cache_dir
             .join(&self.description.manifest.identifier)
             .join(&self.description.build);
-        let complete = dir.join(".nativella-complete");
 
-        // A cache directory may be purged in part (Android does it when
-        // storage runs low): the front controller must still be there.
-        if complete.exists() && !dir.join("public/index.php").is_file() {
-            eprintln!("[nativella] The extracted application is incomplete: extracting it again.");
-            fs::remove_dir_all(&dir)?;
-        }
-
-        if !complete.exists() {
+        if !is_complete(&dir)? {
             eprintln!(
                 "[nativella] Extracting the application to {}",
                 dir.display()
             );
             // Another instance may be extracting too: each one works aside and
             // the first rename wins.
-            let staging = dir.with_extension(format!("tmp-{}", std::process::id()));
-            if staging.exists() {
-                fs::remove_dir_all(&staging)?;
+            let staging = Staging(dir.with_extension(format!("tmp-{}", std::process::id())));
+            if staging.0.exists() {
+                fs::remove_dir_all(&staging.0)?;
             }
-            fs::create_dir_all(&staging)?;
+            fs::create_dir_all(&staging.0)?;
 
             self.reader.seek(SeekFrom::Start(self.archive_offset))?;
             let archive = GzDecoder::new((&mut self.reader).take(self.archive_length));
             let mut archive = tar::Archive::new(archive);
             // Fresh dates: cleaners purge the oldest files of a cache first.
             archive.set_preserve_mtime(false);
-            archive.unpack(&staging)?;
-            File::create(staging.join(".nativella-complete"))?;
+            archive.unpack(&staging.0)?;
+            let mut files = BTreeSet::new();
+            list_files(&staging.0, "", &mut files)?;
+            fs::write(
+                staging.0.join(COMPLETE),
+                files.into_iter().collect::<Vec<_>>().join("\0"),
+            )?;
 
-            match fs::rename(&staging, &dir) {
-                Ok(()) => {}
-                Err(_) if complete.exists() => fs::remove_dir_all(&staging)?,
-                Err(error) => return Err(error),
+            if let Err(error) = fs::rename(&staging.0, &dir)
+                && !is_complete(&dir)?
+            {
+                // What is there is what a cleaner left of this build, not
+                // what another instance has just extracted.
+                if !dir.exists() {
+                    return Err(error);
+                }
+                eprintln!(
+                    "[nativella] The extracted application is incomplete: extracting it again."
+                );
+                fs::remove_dir_all(&dir)?;
+                fs::rename(&staging.0, &dir)?;
             }
         }
 
@@ -298,6 +305,68 @@ impl<R: Read + Seek> Bundle<R> {
             dir,
             manifest: self.description.manifest,
         })
+    }
+}
+
+/// The file that ends an extraction: the files of the build, relative to its
+/// directory, with `/`, separated by a NUL, which no file name holds.
+const COMPLETE: &str = ".nativella-complete";
+
+/// Whether `dir` holds a build extracted to its end, with all its files
+/// still: a cache directory may be purged in part (Android does it when
+/// storage runs low, the deepest files first), and cleaners remove files
+/// without their directories.
+fn is_complete(dir: &Path) -> io::Result<bool> {
+    let extracted = match fs::read_to_string(dir.join(COMPLETE)) {
+        Ok(extracted) => extracted,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    // Reading the directories is enough: no file is opened.
+    let mut files = BTreeSet::new();
+    list_files(dir, "", &mut files)?;
+
+    Ok(extracted
+        .split('\0')
+        .filter(|file| !file.is_empty())
+        .all(|file| files.contains(file)))
+}
+
+/// Adds the files of the directory `relative` of `root` to `files`, relative
+/// to `root`, with `/`.
+fn list_files(root: &Path, relative: &str, files: &mut BTreeSet<String>) -> io::Result<()> {
+    for entry in fs::read_dir(root.join(relative))? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let path = if relative.is_empty() {
+            name.to_string_lossy().into_owned()
+        } else {
+            format!("{relative}/{}", name.to_string_lossy())
+        };
+        if entry.file_type()?.is_dir() {
+            list_files(root, &path, files)?;
+        } else {
+            files.insert(path);
+        }
+    }
+
+    Ok(())
+}
+
+/// Where a build is extracted, until it takes its place: removed if it does
+/// not, as when the disk is full, where each start would leave another one.
+struct Staging(PathBuf);
+
+impl Drop for Staging {
+    fn drop(&mut self) {
+        if let Err(error) = fs::remove_dir_all(&self.0)
+            && error.kind() != io::ErrorKind::NotFound
+        {
+            eprintln!(
+                "[nativella] Could not remove {}: {error}.",
+                self.0.display()
+            );
+        }
     }
 }
 
@@ -324,7 +393,7 @@ pub fn remove_other_builds(current: &Path) {
                 .and_then(|metadata| metadata.modified())
                 .is_ok_and(|modified| modified.elapsed().is_ok_and(|age| age > ABANDONED))
         } else {
-            path != current && path.join(".nativella-complete").exists()
+            path != current && path.join(COMPLETE).exists()
         };
 
         if removable && let Err(error) = fs::remove_dir_all(&path) {
@@ -708,6 +777,67 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    /// The bundle of a project of two files, and where to extract it.
+    fn small_bundle(name: &str) -> (Vec<u8>, PathBuf) {
+        let root = Path::new(env!("OUT_DIR")).join(format!("{name}-test-{}", std::process::id()));
+        fs::create_dir_all(root.join("project/public")).unwrap();
+        fs::create_dir_all(root.join("project/vendor/acme")).unwrap();
+        fs::write(root.join("project/public/index.php"), "<?php").unwrap();
+        fs::write(root.join("project/vendor/acme/autoload.php"), "<?php").unwrap();
+        let project = Project::load(&root.join("project")).unwrap();
+        let mut bytes = Vec::new();
+        write_bundle(&project, &mut bytes, &[]).unwrap();
+
+        (bytes, root)
+    }
+
+    fn extract(bytes: &[u8], root: &Path) -> io::Result<Project> {
+        Bundle::read(Cursor::new(bytes))
+            .unwrap()
+            .unwrap()
+            .extract(&root.join("cache"))
+    }
+
+    #[test]
+    fn a_build_purged_in_part_is_extracted_again() {
+        let (bytes, root) = small_bundle("purged");
+        let dir = extract(&bytes, &root).unwrap().dir;
+        let autoload = dir.join("vendor/acme/autoload.php");
+
+        // What the application writes there is none of the build's.
+        fs::write(dir.join("vendor/written"), "by the application").unwrap();
+        extract(&bytes, &root).unwrap();
+        assert!(dir.join("vendor/written").exists(), "A whole build stays.");
+
+        // A file is gone, the front controller and the marker are not.
+        fs::remove_file(&autoload).unwrap();
+        extract(&bytes, &root).unwrap();
+        assert!(autoload.is_file());
+        assert!(!dir.join("vendor/written").exists());
+
+        // The files are gone, the marker first, the directories are not.
+        fs::remove_file(dir.join(COMPLETE)).unwrap();
+        fs::remove_file(&autoload).unwrap();
+        extract(&bytes, &root).unwrap();
+        assert!(autoload.is_file());
+        assert!(dir.join(COMPLETE).is_file());
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn an_extraction_that_fails_leaves_nothing() {
+        let (mut bytes, root) = small_bundle("failed");
+        // No gzip header anymore.
+        bytes[..10].fill(0);
+
+        extract(&bytes, &root).unwrap_err();
+
+        let builds = root.join("cache/dev.nativella.project");
+        assert_eq!(fs::read_dir(builds).unwrap().count(), 0);
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn the_same_project_makes_the_same_bundle() {
         let root =
@@ -784,7 +914,7 @@ mod tests {
             let dir = builds.join(name);
             fs::create_dir_all(&dir).unwrap();
             if complete {
-                File::create(dir.join(".nativella-complete")).unwrap();
+                File::create(dir.join(COMPLETE)).unwrap();
             }
             dir
         };
