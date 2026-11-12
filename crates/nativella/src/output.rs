@@ -16,9 +16,24 @@ use crate::project::Manifest;
 /// its desktop entry. "Nativella Notes" makes `nativella-notes`: lower case
 /// ASCII letters and digits, `+`, `.` and `-`, as Debian names packages, and
 /// no path.
+///
+/// A name without any of them, as "笔记", leaves the last segment of the
+/// identifier to name the files: every such application would be `app-`
+/// otherwise, and the Debian package of one would replace another's.
 pub fn package_name(manifest: &Manifest) -> String {
-    let name: String = manifest
-        .name
+    let mut name = file_name_of(&manifest.name);
+    if name.is_empty() {
+        name = file_name_of(manifest.identifier.rsplit('.').next().unwrap_or_default());
+    }
+
+    match name.chars().next() {
+        Some(first) if first.is_ascii_alphanumeric() && name.len() > 1 => name,
+        _ => format!("app-{name}"),
+    }
+}
+
+fn file_name_of(name: &str) -> String {
+    let name: String = name
         .to_lowercase()
         .chars()
         .map(|character| {
@@ -29,16 +44,11 @@ pub fn package_name(manifest: &Manifest) -> String {
             }
         })
         .collect();
-    let name = name
-        .split('-')
+
+    name.split('-')
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
-        .join("-");
-
-    match name.chars().next() {
-        Some(first) if first.is_ascii_alphanumeric() && name.len() > 1 => name,
-        _ => format!("app-{name}"),
-    }
+        .join("-")
 }
 
 /// A file being written next to its path.
@@ -196,6 +206,7 @@ mod tests {
         assert_eq!(package_name(&manifest("..")), "app-..");
         assert_eq!(package_name(&manifest("Café & Co.")), "caf-co.");
         assert_eq!(package_name(&manifest("été")), "app-t");
+        assert_eq!(package_name(&manifest("笔记")), "notes");
     }
 
     #[test]
