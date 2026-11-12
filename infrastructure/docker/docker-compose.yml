@@ -1,8 +1,13 @@
+# The build arguments come from the environment that the Castor tasks give
+# docker compose (get_compose_environment() in .castor/docker.php): an image
+# that docker compose run builds by itself gets them too.
 services:
     frontend:
         build:
             context: services/php
             target: frontend
+            args:
+                PHP_VERSION: "${PHP_VERSION}"
             cache_from:
                 - "type=registry,ref=${REGISTRY:-}/frontend:cache"
         user: "${USER_ID}:${USER_ID}"
@@ -24,6 +29,8 @@ services:
         build:
             context: services/php
             target: builder
+            args:
+                PHP_VERSION: "${PHP_VERSION}"
             cache_from:
                 - "type=registry,ref=${REGISTRY:-}/builder:cache"
         init: true
@@ -54,6 +61,10 @@ services:
         build:
             context: services/php
             target: android
+            args:
+                PHP_VERSION: "${PHP_VERSION}"
+                TAURI_CLI_SHA256: "${TAURI_CLI_SHA256}"
+                TAURI_CLI_VERSION: "${TAURI_CLI_VERSION}"
             cache_from:
                 - "type=registry,ref=${REGISTRY:-}/android:cache"
         # The SDK and the NDK exist for Linux x86_64 only
@@ -80,6 +91,8 @@ services:
         build:
             context: services/php
             target: static
+            args:
+                PHP_VERSION: "${PHP_VERSION}"
             cache_from:
                 - "type=registry,ref=${REGISTRY:-}/static:cache"
         init: true

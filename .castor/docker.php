@@ -108,10 +108,6 @@ function build(
     }
 
     $command[] = 'build';
-    foreach (build_arguments() as $argument) {
-        $command[] = '--build-arg';
-        $command[] = $argument;
-    }
 
     if ($service) {
         $command[] = $service;
@@ -332,23 +328,10 @@ function generate_certificates(
 }
 
 /**
- * The arguments of the builds of the images, NAME=value: the Tauri command of
- * the android image is the one of .castor/mobile.php, for Linux x86_64, the
- * platform of that image.
+ * What the compose files read, the build arguments of the images among it:
+ * the Tauri command of the android image is the one of .castor/mobile.php,
+ * for Linux x86_64, the platform of that image.
  *
- * @return list<string>
- */
-function build_arguments(): array
-{
-    return [
-        'PHP_VERSION='.variable('php_version'),
-        'PROJECT_NAME='.variable('project_name'),
-        'TAURI_CLI_SHA256='.\mobile\TAURI_CLI_ARCHIVES['linux-x86_64'][1],
-        'TAURI_CLI_VERSION='.\mobile\TAURI_CLI_VERSION,
-    ];
-}
-
-/**
  * @return array<string, string>
  */
 function get_compose_environment(Context $c): array
@@ -363,6 +346,8 @@ function get_compose_environment(Context $c): array
         'USER_ID' => $c['user_id'],
         'PHP_VERSION' => $c['php_version'],
         'REGISTRY' => $c['registry'] ?? '',
+        'TAURI_CLI_SHA256' => \mobile\TAURI_CLI_ARCHIVES['linux-x86_64'][1],
+        'TAURI_CLI_VERSION' => \mobile\TAURI_CLI_VERSION,
     ];
 }
 
@@ -587,11 +572,6 @@ function push(bool $dryRun = false): void
     foreach ($c['docker_compose_files'] as $file) {
         $command[] = '-f';
         $command[] = $file;
-    }
-
-    foreach (build_arguments() as $argument) {
-        $command[] = '--set';
-        $command[] = "*.args.{$argument}";
     }
 
     foreach ($cacheFroms as $service => $cacheFrom) {
