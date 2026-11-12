@@ -38,6 +38,8 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, String
             *lock(&call.state().tray_menu) = None;
             call.state().menus.remove(Place::Tray);
             call.app.remove_tray_by_id(TRAY);
+            // The tray may have been all the application showed.
+            crate::quit_unless_shown(call.app);
             Ok(json!({}))
         }
         _ => return None,

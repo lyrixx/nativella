@@ -46,7 +46,7 @@ use std::path::PathBuf;
 
 use nativella_runtime::{PhpApp, PhpRuntime, RequestOrigin};
 use serde_json::json;
-use tauri::{App, Builder, Manager, RunEvent, WindowEvent, Wry};
+use tauri::{App, AppHandle, Builder, Manager, RunEvent, WindowEvent, Wry};
 
 use crate::native::State;
 pub use crate::project::{Manifest, Project};
@@ -501,12 +501,7 @@ fn start(
             code: None, api, ..
         } => {
             api.prevent_exit();
-            let handle = app.clone();
-            app.state::<PhpRuntime>().after_queued(move || {
-                if !handle.state::<State>().has_tray() && handle.webview_windows().is_empty() {
-                    handle.exit(0);
-                }
-            });
+            quit_unless_shown(app);
         }
         // The processes PHP started do not outlive the application.
         #[cfg(desktop)]
@@ -515,6 +510,18 @@ fn start(
     });
 
     Ok(())
+}
+
+/// Quits when the application shows nothing any more, neither a window nor
+/// a tray icon, once PHP has handled what is queued: it may still open a
+/// window, or set a tray.
+pub(crate) fn quit_unless_shown(app: &AppHandle) {
+    let handle = app.clone();
+    app.state::<PhpRuntime>().after_queued(move || {
+        if !handle.state::<State>().has_tray() && handle.webview_windows().is_empty() {
+            handle.exit(0);
+        }
+    });
 }
 
 /// Tauri hands Android requests as `php://localhost/…` while the page lives
@@ -589,7 +596,7 @@ fn utf8_paths(paths: &[PathBuf]) -> Vec<String> {
 /// Registered here, not in the thread: PHP must find the handlers when it
 /// starts.
 #[cfg(all(desktop, unix))]
-fn quit_on_signals(app: &tauri::AppHandle) {
+fn quit_on_signals(app: &AppHandle) {
     use signal_hook::consts::{SIGHUP, SIGINT, SIGTERM};
 
     let mut signals = match signal_hook::iterator::Signals::new([SIGHUP, SIGINT, SIGTERM]) {
