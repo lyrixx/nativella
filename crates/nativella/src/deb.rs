@@ -23,7 +23,8 @@ use crate::notices;
 use crate::output::{Output, build_time, package_name};
 use crate::project::{Manifest, Project};
 
-/// The sizes of the icon desktops pick from, in pixels.
+/// The sizes of the icon desktops pick from, in pixels. Keep the largest in
+/// sync with LARGEST in apk/icon.rs.
 const ICON_SIZES: &[u32] = &[32, 48, 64, 128, 256, 512];
 
 /// What the executable needs on the system, as the releases of `nativella`

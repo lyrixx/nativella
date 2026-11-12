@@ -24,9 +24,10 @@ const NATIVELLA: &[u8] = include_bytes!("../../icons/icon.png");
 const LAUNCHER_DP: u32 = 48;
 const MDPI: u32 = 160;
 
-/// The launcher icon of the densest screens, xxxhdpi, at 640 dpi, in pixels:
-/// an image smaller than that blurs there.
-const LARGEST: u32 = LAUNCHER_DP * 640 / MDPI;
+/// The largest the icon is drawn, in pixels: in a Debian package, the
+/// launcher icon of the densest screens being 192. A smaller image blurs
+/// there. Keep in sync with ICON_SIZES in deb.rs.
+const LARGEST: u32 = 512;
 
 /// The longest side of the image of an icon, in pixels: it is drawn on a
 /// square of that side, 16 bytes a pixel, 256 MiB at most then.
@@ -79,7 +80,7 @@ impl Icon {
         let image = decode(&png).map_err(not_a_png)?;
         if image.width().max(image.height()) < LARGEST {
             eprintln!(
-                "Warning: the icon {} is {}×{} pixels, and phones and desktops show it at up to {LARGEST} pixels, blurred: give it 512 pixels or more.",
+                "Warning: the icon {} is {}×{} pixels, and desktops show it at up to {LARGEST} pixels, blurred: give it {LARGEST} pixels or more.",
                 path.display(),
                 image.width(),
                 image.height()
