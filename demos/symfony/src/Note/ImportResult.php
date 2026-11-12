@@ -25,7 +25,7 @@ final readonly class ImportResult
         };
 
         if ([] !== $this->skipped) {
-            $summary .= \sprintf(' Skipped %s: only Markdown and text files up to 1 MB are supported.', implode(', ', $this->skipped));
+            $summary .= \sprintf(' Skipped %s: only Markdown and text files in UTF-8, up to 1 MB, are supported.', implode(', ', $this->skipped));
         }
 
         return $summary;

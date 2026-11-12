@@ -307,6 +307,32 @@ final class NoteControllerTest extends NotesTestCase
         $this->assertSame(['dialog.saveFile'], $this->nativeMethods());
     }
 
+    public function testImportShowsTheNoteOfThePickedFile(): void
+    {
+        $path = $this->client->getKernel()->getCacheDir().'/import/recipe.md';
+        @mkdir(\dirname($path), recursive: true);
+        file_put_contents($path, "# Pancakes\n\nFlour, eggs, milk.");
+        $this->fakeClient()->respond('dialog.openFiles', ['paths' => [$path]]);
+
+        $this->post('/notes/import');
+
+        $note = $this->notes()->findOneBy(['title' => 'Pancakes']);
+        $this->assertNotNull($note);
+        $this->assertResponseRedirects("/notes/{$note->getId()}");
+    }
+
+    public function testImportingAFileThatIsNotUtf8CreatesNoNote(): void
+    {
+        $this->fakeClient()->respond('dialog.openFiles', ['paths' => [\dirname(__DIR__).'/Fixtures/latin1.txt']]);
+
+        $this->post('/notes/import');
+
+        $this->assertResponseRedirects('/');
+        $this->assertSame([], $this->notes()->findAll());
+        $this->client->followRedirect();
+        $this->assertSelectorTextContains('.flash', 'Skipped latin1.txt');
+    }
+
     public function testTheContextMenuIsNative(): void
     {
         $note = $this->createNote();

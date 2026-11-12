@@ -60,9 +60,23 @@ final class NativeEventsTest extends NotesTestCase
 
         $this->assertSame(['Pancakes'], array_map(static fn ($note) => $note->getTitle(), $this->notes()->findAll()));
         $this->assertSame(
-            ['title' => 'Nativella Notes', 'body' => 'Imported "Pancakes". Skipped photo.png: only Markdown and text files up to 1 MB are supported.', 'reference' => null],
+            ['title' => 'Nativella Notes', 'body' => 'Imported "Pancakes". Skipped photo.png: only Markdown and text files in UTF-8, up to 1 MB, are supported.', 'reference' => null],
             $this->fakeClient()->calls('notification.send')[0]->payload,
         );
+    }
+
+    public function testDroppedFilesThatAreNotUtf8TextAreSkipped(): void
+    {
+        $fixtures = \dirname(__DIR__).'/Fixtures';
+
+        $this->sendNativeEvent('window.filesDropped', ['window' => 'main', 'paths' => ["$fixtures/latin1.txt", "$fixtures/binary.txt"]]);
+
+        $this->assertSame([], $this->notes()->findAll());
+        $this->assertSame(
+            'No note imported. Skipped latin1.txt, binary.txt: only Markdown and text files in UTF-8, up to 1 MB, are supported.',
+            $this->fakeClient()->calls('notification.send')[0]->payload['body'],
+        );
+        $this->assertSame([], $this->fakeClient()->calls('page.dispatch'));
     }
 
     public function testDeveloperToolsThatDoNotExistAreExplained(): void
