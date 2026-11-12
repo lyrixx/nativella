@@ -40,6 +40,7 @@ if (Runtime::isMobile()) {
     $haptics->vibrate();
 }
 ```
+
 A call that waited too long for the user or for the phone (a scan, a position, a tag) fails with `ErrorKind::Timeout`. See [Errors](plain-php.md#errors).
 
 ## Haptics
