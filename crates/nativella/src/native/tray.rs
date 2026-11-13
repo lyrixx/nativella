@@ -261,6 +261,14 @@ fn show(app: &AppHandle, label: &str, icon: Option<tauri::Rect>) -> Result<(), N
 /// Hides the window of the icon when `label` is it: it lost the focus.
 pub(crate) fn blurred(app: &AppHandle, label: &str) {
     let state = app.state::<super::State>();
+    // Its own dialog took the focus: hidden, the window would hide the
+    // dialog, and PHP would wait for its answer forever.
+    if lock(&state.modal_dialogs)
+        .iter()
+        .any(|parent| parent == label)
+    {
+        return;
+    }
     {
         let mut tray_window = lock(&state.tray_window);
         match tray_window.as_mut() {

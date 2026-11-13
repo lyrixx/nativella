@@ -84,6 +84,9 @@ pub(crate) struct State {
     pub(crate) tray: Mutex<Option<tauri::tray::TrayIcon<Wry>>>,
     #[cfg(desktop)]
     pub(crate) tray_window: Mutex<Option<tray::TrayWindow>>,
+    /// The labels of the windows a dialog is modal to, one per dialog shown:
+    /// see `dialog::ModalDialog`.
+    pub(crate) modal_dialogs: Mutex<Vec<String>>,
     /// What keeps the computer awake, until dropped.
     #[cfg(desktop)]
     pub(crate) awake: Mutex<Option<keepawake::KeepAwake>>,
@@ -127,6 +130,7 @@ impl State {
             tray: Mutex::default(),
             #[cfg(desktop)]
             tray_window: Mutex::default(),
+            modal_dialogs: Mutex::default(),
             #[cfg(desktop)]
             awake: Mutex::default(),
             #[cfg(desktop)]
