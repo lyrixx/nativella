@@ -26,6 +26,10 @@ use crate::events;
 /// keeps the focus: Windows may need it, untried.
 const BLUR_CLICK: Duration = Duration::from_millis(300);
 
+/// How long the window of the icon may lose the focus before it hides: GTK
+/// takes it away for an instant when an item of a context menu is chosen.
+const BLUR_GRACE: Duration = Duration::from_millis(150);
+
 /// The window of the icon.
 pub(crate) struct TrayWindow {
     label: String,
@@ -258,29 +262,60 @@ fn show(app: &AppHandle, label: &str, icon: Option<tauri::Rect>) -> Result<(), N
     window.set_focus().map_err(failed)
 }
 
-/// Hides the window of the icon when `label` is it: it lost the focus.
+/// Hides the window of the icon when `label` is it and it lost the focus, if
+/// it does not get it back within [`BLUR_GRACE`].
 pub(crate) fn blurred(app: &AppHandle, label: &str) {
+    let is_tray_window = lock(&app.state::<super::State>().tray_window)
+        .as_ref()
+        .is_some_and(|tray_window| tray_window.label == label);
+    if !is_tray_window {
+        return;
+    }
+
+    let handle = app.clone();
+    let label = label.to_owned();
+    let spawned = std::thread::Builder::new()
+        .name("nativella-tray-blur".to_owned())
+        .spawn(move || {
+            std::thread::sleep(BLUR_GRACE);
+            let app = handle.clone();
+            if let Err(error) = handle.run_on_main_thread(move || hide_blurred(&app, &label)) {
+                eprintln!("[tray] Could not hide the window of the icon: {error}.");
+            }
+        });
+    if let Err(error) = spawned {
+        eprintln!("[tray] Could not wait before hiding the window of the icon: {error}.");
+    }
+}
+
+/// Hides the window of the icon `label`, unless it got the focus back, or
+/// its own dialog took it: hidden, the window would hide the dialog too, and
+/// PHP would wait for the answer forever.
+fn hide_blurred(app: &AppHandle, label: &str) {
     let state = app.state::<super::State>();
-    // Its own dialog took the focus: hidden, the window would hide the
-    // dialog, and PHP would wait for its answer forever.
     if lock(&state.modal_dialogs)
         .iter()
         .any(|parent| parent == label)
     {
         return;
     }
+    let Some(window) = app.get_webview_window(label) else {
+        return;
+    };
+    if window.is_focused().unwrap_or(false) || !window.is_visible().unwrap_or(false) {
+        return;
+    }
     {
         let mut tray_window = lock(&state.tray_window);
         match tray_window.as_mut() {
+            // Still the window of the icon.
             Some(tray_window) if tray_window.label == label => {
                 tray_window.blurred = Some(Instant::now());
             }
             _ => return,
         }
     }
-    if let Some(window) = app.get_webview_window(label)
-        && let Err(error) = window.hide()
-    {
+    if let Err(error) = window.hide() {
         eprintln!("[tray] Could not hide the window of the icon: {error}.");
     }
 }
