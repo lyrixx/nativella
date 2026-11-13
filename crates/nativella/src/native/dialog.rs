@@ -4,9 +4,10 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 use serde_json::{Value, json};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::{DialogExt, FileDialogBuilder, MessageDialogButtons, MessageDialogKind};
 
-use super::{Call, NativeError, failed};
+use super::{Call, NativeError, failed, lock};
 
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -57,20 +58,13 @@ struct Files {
 pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, NativeError>> {
     Some(match method {
         "message" => call.payload::<Message>().map(|payload| {
-            let mut dialog = call
-                .app
-                .dialog()
-                .message(payload.message)
-                .kind(kind(&payload.kind))
-                .buttons(MessageDialogButtons::Ok);
-            if let Some(title) = payload.title {
-                dialog = dialog.title(title);
-            }
-            #[cfg(desktop)]
-            if let Ok(window) = call.target_window(None) {
-                dialog = dialog.parent(&window);
-            }
-            dialog.blocking_show();
+            message_box(
+                call,
+                payload.message,
+                payload.title,
+                &payload.kind,
+                MessageDialogButtons::Ok,
+            );
 
             json!({})
         }),
@@ -82,47 +76,20 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, Native
                     cancel.unwrap_or_else(|| "Cancel".to_owned()),
                 ),
             };
-            let mut dialog = call
-                .app
-                .dialog()
-                .message(payload.message)
-                .kind(kind(&payload.kind))
-                .buttons(buttons);
-            if let Some(title) = payload.title {
-                dialog = dialog.title(title);
-            }
-            #[cfg(desktop)]
-            if let Ok(window) = call.target_window(None) {
-                dialog = dialog.parent(&window);
-            }
 
-            json!({ "confirmed": dialog.blocking_show() })
+            json!({ "confirmed": message_box(call, payload.message, payload.title, &payload.kind, buttons) })
         }),
         "ask" => call.payload::<Message>().map(|payload| {
-            let mut dialog = call
-                .app
-                .dialog()
-                .message(payload.message)
-                .kind(kind(&payload.kind))
-                .buttons(MessageDialogButtons::YesNo);
-            if let Some(title) = payload.title {
-                dialog = dialog.title(title);
-            }
-            #[cfg(desktop)]
-            if let Ok(window) = call.target_window(None) {
-                dialog = dialog.parent(&window);
-            }
-
-            json!({ "answer": dialog.blocking_show() })
+            json!({ "answer": message_box(call, payload.message, payload.title, &payload.kind, MessageDialogButtons::YesNo) })
         }),
-        "openFile" => file_dialog(call).and_then(|dialog| {
+        "openFile" => file_dialog(call).and_then(|(dialog, _modal)| {
             let path = dialog
                 .blocking_pick_file()
                 .map(|path| picked(call, path))
                 .transpose()?;
             Ok(json!({ "path": path }))
         }),
-        "openFiles" => file_dialog(call).and_then(|dialog| {
+        "openFiles" => file_dialog(call).and_then(|(dialog, _modal)| {
             let paths = dialog
                 .blocking_pick_files()
                 .unwrap_or_default()
@@ -132,7 +99,7 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, Native
             Ok(json!({ "paths": paths }))
         }),
         #[cfg(desktop)]
-        "openDirectory" => file_dialog(call).and_then(|dialog| {
+        "openDirectory" => file_dialog(call).and_then(|(dialog, _modal)| {
             let path = dialog.blocking_pick_folder().map(into_path).transpose()?;
             Ok(json!({ "path": path }))
         }),
@@ -141,7 +108,7 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, Native
             "Picking a directory is not available on mobile.",
         )),
         #[cfg(desktop)]
-        "saveFile" => file_dialog(call).and_then(|dialog| {
+        "saveFile" => file_dialog(call).and_then(|(dialog, _modal)| {
             let path = dialog.blocking_save_file().map(into_path).transpose()?;
             Ok(json!({ "path": path }))
         }),
@@ -154,7 +121,68 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, Native
     })
 }
 
-fn file_dialog(call: &Call<'_>) -> Result<FileDialogBuilder<tauri::Wry>, NativeError> {
+/// While it lives, a dialog is modal to the window `label`: the window of
+/// the tray icon does not hide when its own dialog takes the focus (see
+/// `tray::blurred`).
+pub(crate) struct ModalDialog {
+    app: AppHandle,
+    label: String,
+}
+
+impl ModalDialog {
+    pub(crate) fn new(app: &AppHandle, label: &str) -> Self {
+        lock(&app.state::<super::State>().modal_dialogs).push(label.to_owned());
+
+        Self {
+            app: app.clone(),
+            label: label.to_owned(),
+        }
+    }
+}
+
+impl Drop for ModalDialog {
+    fn drop(&mut self) {
+        let state = self.app.state::<super::State>();
+        let mut labels = lock(&state.modal_dialogs);
+        if let Some(index) = labels.iter().position(|label| *label == self.label) {
+            labels.swap_remove(index);
+        }
+    }
+}
+
+/// Shows a message box, modal to the window that asked, until the user
+/// answers: whether they chose the first button.
+fn message_box(
+    call: &Call<'_>,
+    message: String,
+    title: Option<String>,
+    kind: &Kind,
+    buttons: MessageDialogButtons,
+) -> bool {
+    let mut dialog = call
+        .app
+        .dialog()
+        .message(message)
+        .kind(self::kind(kind))
+        .buttons(buttons);
+    if let Some(title) = title {
+        dialog = dialog.title(title);
+    }
+    let window = call.target_window(None).ok();
+    #[cfg(desktop)]
+    if let Some(window) = &window {
+        dialog = dialog.parent(window);
+    }
+    let _modal = window.map(|window| ModalDialog::new(call.app, window.label()));
+
+    dialog.blocking_show()
+}
+
+/// A file dialog, modal to the window that asked, and what keeps it so until
+/// it closes.
+fn file_dialog(
+    call: &Call<'_>,
+) -> Result<(FileDialogBuilder<tauri::Wry>, Option<ModalDialog>), NativeError> {
     let payload: Files = call.payload()?;
 
     let mut dialog = call.app.dialog().file();
@@ -171,12 +199,14 @@ fn file_dialog(call: &Call<'_>) -> Result<FileDialogBuilder<tauri::Wry>, NativeE
         let extensions: Vec<&str> = filter.extensions.iter().map(String::as_str).collect();
         dialog = dialog.add_filter(&filter.name, &extensions);
     }
+    let window = call.target_window(None).ok();
     #[cfg(desktop)]
-    if let Ok(window) = call.target_window(None) {
-        dialog = dialog.set_parent(&window);
+    if let Some(window) = &window {
+        dialog = dialog.set_parent(window);
     }
+    let modal = window.map(|window| ModalDialog::new(call.app, window.label()));
 
-    Ok(dialog)
+    Ok((dialog, modal))
 }
 
 /// A file the user picked, as a path PHP can read.
@@ -205,7 +235,6 @@ pub(crate) fn forget_picked(cache_dir: &std::path::Path) {
 /// its next start.
 #[cfg(mobile)]
 fn picked(call: &Call<'_>, path: tauri_plugin_dialog::FilePath) -> Result<String, NativeError> {
-    use tauri::Manager;
     use tauri_plugin_fs::FsExt;
 
     let tauri_plugin_dialog::FilePath::Url(url) = &path else {

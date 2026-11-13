@@ -125,6 +125,9 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, Native
     Some(match method {
         "open" => call.payload::<Open>().and_then(|payload| {
             let window = open(call.app, &payload.window, payload.options)?;
+            // It may be the window of the tray icon, which gets no menu bar.
+            #[cfg(all(desktop, not(target_os = "macos")))]
+            super::tray::remove_menu_bar(call.app);
             Ok(json!({ "window": info(&window) }))
         }),
         "close" => with_target(call, |window| window.close()),
