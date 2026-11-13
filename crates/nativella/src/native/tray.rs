@@ -4,8 +4,9 @@
 //!
 //! The icon may have a window of its own, as the applications of the menu bar
 //! do: a click on the icon shows it next to the icon, a second one, or a
-//! click elsewhere, hides it. Linux reports no click: PHP shows it from the
-//! menu, with `tray.showWindow`, in the corner of the screen.
+//! click elsewhere, hides it. Linux reports no click, nor where the icon is:
+//! PHP shows it from the menu, with `tray.showWindow`, in the corner of the
+//! screen.
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -28,9 +29,6 @@ const BLUR_CLICK: Duration = Duration::from_millis(300);
 /// The window of the icon.
 pub(crate) struct TrayWindow {
     label: String,
-    /// Where the icon was clicked last, in physical pixels: the systems that
-    /// report clicks report where the icon is.
-    icon: Option<Area>,
     /// When it hid because it lost the focus.
     blurred: Option<Instant>,
 }
@@ -81,7 +79,7 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, Native
                 .as_ref()
                 .map(|tray_window| tray_window.label.clone());
             match label {
-                Some(label) => show(call.app, &label).map(|()| json!({})),
+                Some(label) => show(call.app, &label, icon_rect(call.app)).map(|()| json!({})),
                 None => Err(not_found(
                     "The tray icon has no window: set it with Tray::set().",
                 )),
@@ -115,7 +113,6 @@ fn set(call: &Call<'_>, payload: Set) -> Result<Value, NativeError> {
     lock(&state.tray_menu).clone_from(&menu);
     *lock(&state.tray_window) = payload.window.map(|label| TrayWindow {
         label,
-        icon: None,
         blurred: None,
     });
     let existing = lock(&state.tray).clone();
@@ -179,18 +176,6 @@ fn clicked(app: &AppHandle, rect: tauri::Rect) {
         let Some(tray_window) = tray_window.as_mut() else {
             return;
         };
-        let scale = app
-            .get_webview_window(&tray_window.label)
-            .and_then(|window| window.scale_factor().ok())
-            .unwrap_or(1.0);
-        let position = rect.position.to_physical::<f64>(scale);
-        let size = rect.size.to_physical::<f64>(scale);
-        tray_window.icon = Some(Area {
-            x: position.x,
-            y: position.y,
-            width: size.width,
-            height: size.height,
-        });
         // The click that took the focus away from it.
         if tray_window
             .blurred
@@ -209,24 +194,43 @@ fn clicked(app: &AppHandle, rect: tauri::Rect) {
         app.get_webview_window(&label)
             .map_or(Ok(()), |window| window.hide().map_err(failed))
     } else {
-        show(app, &label)
+        show(app, &label, Some(rect))
     };
     if let Err(error) = result {
         eprintln!("[tray] The window of the icon failed: {error}");
     }
 }
 
-/// Shows the window `label` next to the icon, or in the corner of the screen
-/// where the trays are when the icon is nowhere to be known, and focuses it.
-fn show(app: &AppHandle, label: &str) -> Result<(), NativeError> {
+/// Where the icon is: macOS and Windows know, Linux does not.
+fn icon_rect(app: &AppHandle) -> Option<tauri::Rect> {
+    // Tauri asks the main thread, which may wait for this lock.
+    let tray = lock(&app.state::<super::State>().tray).clone()?;
+    tray.rect().unwrap_or_else(|error| {
+        eprintln!("[tray] The position of the icon is unknown: {error}.");
+        None
+    })
+}
+
+/// Shows the window `label` next to the icon at `icon`, or in the corner of
+/// the screen where the trays are when the icon is nowhere to be known, and
+/// focuses it.
+fn show(app: &AppHandle, label: &str, icon: Option<tauri::Rect>) -> Result<(), NativeError> {
     let window = app.get_webview_window(label).ok_or_else(|| {
         not_found(format!(
             "There is no \"{label}\" window: open it, hidden, first."
         ))
     })?;
-    let icon = lock(&app.state::<super::State>().tray_window)
-        .as_ref()
-        .and_then(|tray_window| tray_window.icon);
+    let scale = window.scale_factor().map_err(failed)?;
+    let icon = icon.map(|rect| {
+        let position = rect.position.to_physical::<f64>(scale);
+        let size = rect.size.to_physical::<f64>(scale);
+        Area {
+            x: position.x,
+            y: position.y,
+            width: size.width,
+            height: size.height,
+        }
+    });
 
     let monitor = match icon {
         Some(icon) => window.monitor_from_point(icon.x, icon.y).map_err(failed)?,

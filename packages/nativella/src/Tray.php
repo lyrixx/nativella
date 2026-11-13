@@ -37,8 +37,9 @@ final readonly class Tray
     }
 
     /**
-     * Shows the window of the tray icon and focuses it: next to the icon once
-     * it was clicked, in the corner of the screen otherwise, as on Linux.
+     * Shows the window of the tray icon and focuses it: next to the icon on
+     * macOS and Windows, in the corner of the screen on Linux, which does not
+     * tell where the icon is.
      */
     public function showWindow(): void
     {
