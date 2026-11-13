@@ -119,6 +119,8 @@ fn set(call: &Call<'_>, payload: Set) -> Result<Value, NativeError> {
         label,
         blurred: None,
     });
+    #[cfg(not(target_os = "macos"))]
+    remove_menu_bar(app);
     let existing = lock(&state.tray).clone();
     if let Some(existing) = existing {
         existing.set_icon(Some(icon)).map_err(failed)?;
@@ -202,6 +204,21 @@ fn clicked(app: &AppHandle, rect: tauri::Rect) {
     };
     if let Err(error) = result {
         eprintln!("[tray] The window of the icon failed: {error}");
+    }
+}
+
+/// Takes the menu bar off the window of the icon, which the menu of the
+/// application gives every window on Linux and Windows. Setting that menu
+/// again gives it back to the windows without one: call it after, too.
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn remove_menu_bar(app: &AppHandle) {
+    let label = lock(&app.state::<super::State>().tray_window)
+        .as_ref()
+        .map(|tray_window| tray_window.label.clone());
+    if let Some(window) = label.and_then(|label| app.get_webview_window(&label))
+        && let Err(error) = window.remove_menu()
+    {
+        eprintln!("[tray] Could not take the menu bar off the window of the icon: {error}.");
     }
 }
 
