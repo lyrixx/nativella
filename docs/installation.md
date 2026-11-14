@@ -6,12 +6,12 @@ The `nativella` command opens a PHP project in a window, and builds it into a st
 
 ### Linux x86_64
 
-The executable needs glibc 2.35 or later, and the system webview, WebKitGTK 4.1, which it loads when it starts. That library is needed to run it, not to build anything. The standalone executables it builds need the same. Install your distribution's webview:
+The executable needs glibc 2.35 or later, which the distributions below have, and the system webview, WebKitGTK 4.1, which it loads when it starts. That library is needed to run it, not to build anything. The standalone executables it builds need the same. Many desktops have it already, as the table says. Elsewhere (Ubuntu 22.04, a KDE desktop, a server), install your distribution's webview. Running the command where it is already installed does no harm:
 
 | Distribution | The webview | For a [tray](tray.md) icon |
 |---|---|---|
-| Ubuntu 22.04 and later, Debian 12 and later | `sudo apt install libwebkit2gtk-4.1-0` | `libayatana-appindicator3-1`, which Ubuntu desktops have |
-| Fedora | `sudo dnf install webkit2gtk4.1` | `libayatana-appindicator-gtk3` |
+| Ubuntu 22.04 and later, Debian 12 and later | `sudo apt install libwebkit2gtk-4.1-0`, already installed on the desktop of Ubuntu 24.04 and later, and on Debian with GNOME | `libayatana-appindicator3-1`, already installed on the desktop of Ubuntu, and on Debian 12 with GNOME |
+| Fedora | `sudo dnf install webkit2gtk4.1`, already installed on Fedora Workstation 43 | `libayatana-appindicator-gtk3` |
 | RHEL, AlmaLinux, Rocky Linux 10 | `sudo dnf install webkit2gtk4.1`, from [EPEL](https://docs.fedoraproject.org/en-US/epel/) | |
 | Arch Linux | `sudo pacman -S webkit2gtk-4.1` | `libayatana-appindicator` |
 
@@ -34,6 +34,10 @@ sudo mv nativella /usr/local/bin/
 ```
 
 The executable is signed ad hoc only, by the linker, without a developer certificate. Downloaded with a browser, it is quarantined, and `xattr -d com.apple.quarantine nativella` lets it run.
+
+### Where to put it
+
+`/usr/local/bin/` puts it on the PATH, for every project, but nothing needs it there: `~/.local/bin/` needs no `sudo`, and `./nativella run path/to/app` works from wherever you downloaded it. The applications it builds do not need it at all: see [Building a standalone app](building.md).
 
 ### Checking the download
 
