@@ -31,6 +31,7 @@ use tauri::{AppHandle, Manager, Webview};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::events;
+use crate::native::dialog::ModalDialog;
 
 /// Injected in every page: links with a `download` attribute.
 pub(crate) const SCRIPT: &str = include_str!("downloads.js");
@@ -353,6 +354,9 @@ fn save(
         dialog = dialog.set_parent(parent);
     }
 
+    let modal = parent
+        .as_ref()
+        .map(|parent| ModalDialog::new(app, parent.label()));
     let Some(picked) = dialog.blocking_save_file() else {
         return;
     };
@@ -373,7 +377,8 @@ fn save(
         if let Some(parent) = &parent {
             message = message.parent(parent);
         }
-        message.show(|_| {});
+        // Modal until the user closes it, after this returns.
+        message.show(move |_| drop(modal));
         return;
     }
 

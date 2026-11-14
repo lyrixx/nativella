@@ -157,6 +157,8 @@ pub(crate) fn call(call: &Call<'_>, method: &str) -> Option<Result<Value, Native
         "set" => call.payload::<Set>().and_then(|payload| {
             let menu = build(call, &payload.items, Place::Application)?;
             call.app.set_menu(menu).map_err(failed)?;
+            #[cfg(not(target_os = "macos"))]
+            super::tray::remove_menu_bar(call.app);
             Ok(json!({}))
         }),
         "remove" => {

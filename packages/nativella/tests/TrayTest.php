@@ -19,7 +19,8 @@ final class TrayTest extends TestCase
         $client = new FakeClient();
         $tray = new Tray($client);
 
-        $tray->set('Notes: 3 notes', [MenuItem::action('show', 'Show Notes'), MenuItem::role(Role::Quit)], '/app/tray.png', '3');
+        $tray->set('Notes: 3 notes', [MenuItem::action('show', 'Show Notes'), MenuItem::role(Role::Quit)], '/app/tray.png', '3', 'panel');
+        $tray->showWindow();
         $tray->remove();
 
         $this->assertEquals([
@@ -31,7 +32,9 @@ final class TrayTest extends TestCase
                 ],
                 'icon' => '/app/tray.png',
                 'title' => '3',
+                'window' => 'panel',
             ]),
+            new Call('tray.showWindow', []),
             new Call('tray.remove', []),
         ], $client->calls());
     }
