@@ -78,7 +78,7 @@ Measured on one application: a new Laravel 13 project and its welcome page, pack
 | First page, after the first launch | 0.8 s | 2 s |
 | CPU at rest | 0.13% of a core | 0.43% of a core |
 
-NativePHP carries Chromium and Node.js, and the Electron executable alone weighs 194 MB. Nativella leaves the webview to the system. WebKitGTK is not in its sizes, and takes 131 MB on a machine that does not have it yet, as a dependency of the Debian package. The memory of its processes is counted.
+NativePHP carries Chromium and Node.js, and the Electron executable alone weighs 194 MB. Nativella leaves the webview to the system. WebKitGTK is not in its sizes, and takes 131 MB on a machine that does not have it yet, as a dependency of the Debian package. The desktops of Ubuntu 24.04 and later, Debian with GNOME and Fedora Workstation 43 have it already. The memory of its processes is counted.
 
 Take the memory and the CPU as orders of magnitude, from one light page on one machine. Both ran in the same Docker container (Debian 13, WebKitGTK 2.54, Electron 40) on a virtual display, three times each, with the memory read 15 seconds after the first page and the CPU over the next 60 seconds. There is no GPU there, so GPU rendering was off in both (`WEBKIT_DISABLE_COMPOSITING_MODE=1` and `WEBKIT_DISABLE_DMABUF_RENDERER=1`, `--disable-gpu`), and Electron ran with `--no-sandbox`. With a GPU emulated in software instead, they take 405 MB and 450 MB. Nativella's 255 MB match what its Laravel demo takes on a real display. NativePHP was not measured on one.
 

@@ -108,7 +108,7 @@ SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) nativella deb notes
 
 ## What the machine needs
 
-The executable carries the project and PHP, so the machine needs neither PHP nor Composer. On Linux, it needs what the `nativella` command needs to run: the system webview, WebKitGTK 4.1, the tray library if the application shows a [tray](tray.md) icon, and a glibc as recent as that of the machine that built the `nativella` command, 2.35 for the releases, built on Ubuntu 22.04. Your application's users install them too. [Installation](installation.md#linux-x86_64) lists the packages for each distribution, to repeat in your application's instructions. On macOS, the executable needs nothing.
+The executable carries the project and PHP, so the machine needs neither PHP nor Composer. On Linux, it needs what the `nativella` command needs to run: the system webview, WebKitGTK 4.1, the tray library if the application shows a [tray](tray.md) icon, and a glibc as recent as that of the machine that built the `nativella` command, 2.35 for the releases, built on Ubuntu 22.04. The desktops of Ubuntu 24.04 and later, of Debian 12 and later with GNOME, and of Fedora Workstation 43 already have WebKitGTK 4.1, so their users install nothing. The others install what is missing. [Installation](installation.md#linux-x86_64) lists the packages for each distribution, and which desktops have them, to repeat in your application's instructions. On macOS, the executable needs nothing.
 
 ## The PHP inside
 
@@ -191,7 +191,7 @@ nativella deb [<project-dir>] [-o <output>]
 
 The package is named after the application's [`name`](configuration.md#name), in lower case with dashes, and so are its executable and its entry, because the desktop matches the windows to the entry, and so to the icon, by that name. Its version is the [`version`](configuration.md#version), with a pre-release after a `~` rather than a `-`, and its other dashes as dots. `1.2.0-beta.1` becomes `1.2.0~beta.1`, which Debian sorts before `1.2.0`, as a pre-release, and `1.2.0-beta.1+build-7` becomes `1.2.0~beta.1+build.7`. composer.json gives the rest: the `description`, the `homepage`, and the first of the `authors` as the maintainer. Without them, or without a composer.json, the description and the maintainer are the application's name.
 
-It depends on `libwebkit2gtk-4.1-0` and a glibc 2.35 or later (Ubuntu 22.04, Debian 12), and recommends `libayatana-appindicator3-1`, for a [tray](tray.md) icon. It is made for the processor of the machine that builds it, `amd64` or `arm64`. Build it with the `nativella` of the [releases](installation.md), whose PHP is linked statically. A development build of `nativella` links its machine's PHP, and warns that its packages will not run elsewhere.
+It depends on `libwebkit2gtk-4.1-0` and a glibc 2.35 or later (Ubuntu 22.04, Debian 12), and recommends `libayatana-appindicator3-1`, for a [tray](tray.md) icon. `apt install ./<package>.deb` installs them along with it where they are missing. It is made for the processor of the machine that builds it, `amd64` or `arm64`. Build it with the `nativella` of the [releases](installation.md), whose PHP is linked statically. A development build of `nativella` links its machine's PHP, and warns that its packages will not run elsewhere.
 
 ## Licenses
 
