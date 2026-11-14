@@ -35,6 +35,10 @@ sudo mv nativella /usr/local/bin/
 
 The executable is signed ad hoc only, by the linker, without a developer certificate. Downloaded with a browser, it is quarantined, and `xattr -d com.apple.quarantine nativella` lets it run.
 
+### Where to put it
+
+`/usr/local/bin/` puts it on the PATH, for every project, but nothing needs it there: `~/.local/bin/` needs no `sudo`, and `./nativella run path/to/app` works from wherever you downloaded it. The applications it builds do not need it at all: see [Building a standalone app](building.md).
+
 ### Checking the download
 
 Each file of a release has a provenance attestation, signed by GitHub, which says that the repository's Release workflow built it from the release tag. The [GitHub CLI](https://cli.github.com) checks it, before you move the file, or where you moved it:

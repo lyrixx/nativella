@@ -328,18 +328,22 @@
                 <li>
                     <div class="start-text">
                         <h3>Download the runtime</h3>
-                        <p>You only do this once. The executable has PHP inside. On Linux, it only needs glibc 2.35 and the system webview, WebKitGTK (<a href="docs/installation/#linux-x86_64">its package</a> on Ubuntu, Debian, Fedora, Arch…). For macOS, take <code>nativella-macos-aarch64</code>, or <a href="docs/installation/#build-from-source">build it from source</a>.</p>
+                        <p>You only do this once. The executable has PHP inside. On macOS (Apple silicon), it needs nothing else. On Linux, it needs glibc 2.35 and the system webview, WebKitGTK (<a href="docs/installation/#linux-x86_64">its package</a> on Ubuntu, Debian, Fedora, Arch…).</p>
                     </div>
                     {% apply highlight('bash') %}
+                        # Linux x86_64
                         sudo apt install libwebkit2gtk-4.1-0   # Fedora: dnf install webkit2gtk4.1, Arch: pacman -S webkit2gtk-4.1
                         curl -fLo nativella https://github.com/lyrixx/nativella/releases/latest/download/nativella-linux-x86_64
+                        # macOS arm64
+                        curl -fLo nativella https://github.com/lyrixx/nativella/releases/latest/download/nativella-macos-aarch64
+                        # Both
                         chmod +x nativella && sudo mv nativella /usr/local/bin/
                     {% endapply %}
                 </li>
                 <li>
                     <div class="start-text">
                         <h3>Add the package</h3>
-                        <p>Install the Symfony bundle, the Laravel package or the PHP API on its own from Packagist.</p>
+                        <p>In your project's directory, install the Symfony bundle, the Laravel package or the PHP API on its own from Packagist.</p>
                     </div>
                     {% apply highlight('bash') %}
                         # Symfony
@@ -353,12 +357,11 @@
                 <li>
                     <div class="start-text">
                         <h3>Run it</h3>
-                        <p>A window opens on your home page. When the app is ready, pack it into one executable.</p>
+                        <p>From the same directory, a window opens on your home page. When the app is ready, pack it into one executable, in <code>dist/</code>: it runs on machines without Nativella.</p>
                     </div>
                     {% apply highlight('bash') %}
-                        nativella run my-app
-                        nativella build my-app
-                        ./dist/my-app
+                        nativella run
+                        nativella build
                     {% endapply %}
                 </li>
             </ol>
