@@ -41,7 +41,7 @@ final class RouterTest extends TestCase
         $this->router->get('/broken', static fn (Request $request): Response => new Response((string) $request->id()));
 
         $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('The route of "/broken" has no "{id}" placeholder.');
+        $this->expectExceptionMessageIs('The route of "/broken" has no "{id}" placeholder.');
 
         $this->router->dispatch(new Request('GET', '/broken'));
     }
