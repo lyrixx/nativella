@@ -51,7 +51,7 @@ final class SnippetRepositoryTest extends TestCase
         $this->connection->insert(SnippetSchema::TABLE, ['title' => 'Broken', 'content' => 'x', 'created_at' => 'yesterday']);
 
         $this->expectException(\UnexpectedValueException::class);
-        $this->expectExceptionMessage('The date "yesterday" of a snippet is corrupted.');
+        $this->expectExceptionMessageIs('The date "yesterday" of a snippet is corrupted.');
 
         $this->repository->find((int) $this->connection->lastInsertId());
     }
