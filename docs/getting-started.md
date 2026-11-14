@@ -79,7 +79,7 @@ require __DIR__.'/../vendor/autoload.php';
 
 $native = Nativella::create();
 
-if ('POST' === $_SERVER['REQUEST_METHOD']) {
+if ('POST' === $_SERVER['REQUEST_METHOD'] && '/notify' === $_SERVER['REQUEST_URI']) {
     $native->notification->send('Hello', 'From PHP, through a desktop notification.');
 
     header('Location: /', true, 303);
@@ -91,12 +91,14 @@ if ('POST' === $_SERVER['REQUEST_METHOD']) {
 <html lang="en">
 <meta charset="utf-8">
 <title>Hello</title>
-<form method="post">
+<form method="post" action="/notify">
     <button>Notify me</button>
 </form>
 ```
 
 When you click the button, a notification shows up and the page comes back. The 303 redirect works although WebKit follows no redirect for a custom scheme, because the runtime follows it for the page. [How it works](how-it-works.md) has the details.
+
+The path check is needed: the button is not the only thing that posts to the application. The runtime sends it native events as `POST /_nativella/event` (step 4), when it starts and each time a window gains or loses focus. Without the check, each of them would send a notification.
 
 ## 4. React to native events
 
