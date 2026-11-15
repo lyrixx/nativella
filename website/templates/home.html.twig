@@ -99,6 +99,56 @@
         </div>
     </section>
 
+    <section class="section section-tinted" id="shipped" aria-labelledby="shipped-title">
+        <div class="wrap">
+            <div class="shipped">
+                <div class="shipped-head">
+                    <p class="kicker">Once built</p>
+                    <h2 id="shipped-title">Your users need neither PHP nor Nativella.</h2>
+                    <p>PHP, Composer and the <code>nativella</code> command stay on your machine. <code>nativella build</code> packs your project, its <code>vendor/</code> and PHP itself into one executable, and that executable is all you hand out.</p>
+                </div>
+                <ol class="shipped-flow">
+                    <li class="shipped-stage">
+                        <p class="shipped-label">Your machine</p>
+                        <ul>
+                            <li>Your PHP project</li>
+                            <li>PHP and Composer</li>
+                            <li>The <code>nativella</code> command</li>
+                        </ul>
+                    </li>
+                    <li class="shipped-stage shipped-file">
+                        <p class="shipped-label"><code>nativella build</code></p>
+                        <p class="shipped-name">dist/notes</p>
+                        <p>One executable that carries the project and its own PHP.</p>
+                    </li>
+                    <li class="shipped-stage shipped-users">
+                        <p class="shipped-label">Your users’ machines</p>
+                        <ul>
+                            <li><s>PHP</s></li>
+                            <li><s>Composer</s></li>
+                            <li><s>Nativella</s></li>
+                        </ul>
+                    </li>
+                </ol>
+                <dl class="shipped-platforms">
+                    <div>
+                        <dt>macOS</dt>
+                        <dd><code>Notes.app</code> needs nothing else.</dd>
+                    </div>
+                    <div>
+                        <dt>Linux</dt>
+                        <dd>The system webview, WebKitGTK, which the desktops of Ubuntu 24.04, Debian 12 and Fedora Workstation 43 already have. The Debian package installs it where it is missing.</dd>
+                    </div>
+                    <div>
+                        <dt>Android and iOS</dt>
+                        <dd>The APK and the app carry the same PHP, built for the phone.</dd>
+                    </div>
+                </dl>
+                <p class="shipped-more"><a class="link-arrow" href="docs/building/">Building a standalone app</a></p>
+            </div>
+        </div>
+    </section>
+
     <section class="section" aria-labelledby="why-title">
         <div class="wrap">
             <div class="section-head">
