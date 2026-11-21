@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "1976c4c0d2e71bdfe4254c339dcb002c",
+    "content-hash": "29c94a4d3842b4c37c0eb95025be5820",
     "packages": [
         {
             "name": "brick/math",
@@ -2172,15 +2172,15 @@
         },
         {
             "name": "nativella/laravel",
-            "version": "0.6.x-dev",
+            "version": "0.7.x-dev",
             "dist": {
                 "type": "path",
                 "url": "../../packages/laravel",
-                "reference": "88b230ea53d7dfcf81703f0dd6f9a2338399c3d3"
+                "reference": "e77bfbf2169b3c6c2f1d299b2928afe8e2976ae7"
             },
             "require": {
                 "laravel/framework": "^12.0 || ^13.0",
-                "nativella/nativella": "^0.6",
+                "nativella/nativella": "^0.7",
                 "php": ">=8.4"
             },
             "require-dev": {
@@ -2191,7 +2191,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "0.6.x-dev"
+                    "dev-main": "0.7.x-dev"
                 },
                 "laravel": {
                     "providers": [
@@ -2236,11 +2236,11 @@
         },
         {
             "name": "nativella/nativella",
-            "version": "0.6.x-dev",
+            "version": "0.7.x-dev",
             "dist": {
                 "type": "path",
                 "url": "../../packages/nativella",
-                "reference": "2b267a2a4508fa94ab8e54619389c976f317de83"
+                "reference": "c1b8d01eed6f487aba0704226873b6bb41ea2c78"
             },
             "require": {
                 "composer-runtime-api": "^2.0",
@@ -2253,7 +2253,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "0.6.x-dev"
+                    "dev-main": "0.7.x-dev"
                 }
             },
             "autoload": {
