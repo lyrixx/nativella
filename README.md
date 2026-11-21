@@ -53,20 +53,28 @@ Nativella is young and experimental, and is developed on Linux. Read
 ## Try it
 
 [Download `nativella`](https://lyrixx.github.io/nativella/docs/installation/#download), for Linux x86_64 or
-macOS arm64, then, from a clone of the repository:
+macOS arm64, then, from a clone of the repository, with PHP 8.4 or later and
+Composer:
 
 ```bash
 (cd demos/symfony && composer install)
 nativella run demos/symfony
 ```
 
-Or build it from source, in Docker, with [Castor](https://castor.jolicode.com),
-as the releases are:
+Or build it from source, as the releases are. That needs
+[Docker](https://docs.docker.com/engine/install/) and
+[Castor](https://castor.jolicode.com/getting-started/installation/), but
+neither PHP nor Rust, as everything builds in containers:
 
 ```bash
-castor static-php:build          # PHP 8.5 as a static library, once
-castor nativella:build           # dist/nativella, with PHP inside, and the demos
+castor static-php:build                          # PHP 8.5 as a static library, once
+castor nativella:build                           # dist/nativella, with PHP inside, and the demos
+castor nativella:run symfony --static --docker   # the Symfony demo, in a window
 ```
+
+`nativella:run` builds `nativella` from the sources of the repository. Without
+`--docker`, it builds it on your machine, which then needs Rust and
+[the libraries of Tauri](https://lyrixx.github.io/nativella/docs/development/#on-your-machine).
 
 `castor start`, then `castor qa`, runs the checks. See
 [Developing Nativella](https://lyrixx.github.io/nativella/docs/development/).
