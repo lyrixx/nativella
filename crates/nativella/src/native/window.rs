@@ -260,30 +260,13 @@ pub(crate) fn open(
     }
 
     let url = url(options.url.as_deref().unwrap_or("/"))?;
-    let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::CustomProtocol(url))
-        .title(
-            options
-                .title
-                .clone()
-                .unwrap_or_else(|| app.package_info().name.clone()),
-        )
-        .inner_size(
-            options.width.unwrap_or(1024.0),
-            options.height.unwrap_or(768.0),
-        );
+    let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::CustomProtocol(url)).title(
+        options
+            .title
+            .clone()
+            .unwrap_or_else(|| app.package_info().name.clone()),
+    );
 
-    if let (Some(width), Some(height)) = (options.min_width, options.min_height) {
-        builder = builder.min_inner_size(width, height);
-    }
-    if let (Some(width), Some(height)) = (options.max_width, options.max_height) {
-        builder = builder.max_inner_size(width, height);
-    }
-    if let (Some(x), Some(y)) = (options.x, options.y) {
-        builder = builder.position(x, y);
-    }
-    if let Some(resizable) = options.resizable {
-        builder = builder.resizable(resizable);
-    }
     if let Some(visible) = options.visible {
         builder = builder.visible(visible);
     }
@@ -312,12 +295,30 @@ pub(crate) fn open(
     builder.build().map_err(failed)
 }
 
-/// What only desktop windows have: mobile ones fill the screen.
+/// What only desktop windows have: mobile ones fill the screen. On iOS, tao
+/// makes the size the frame of the window, from the top left corner of the
+/// screen, which the webview and the alerts of the dialogs then fit.
 #[cfg(desktop)]
 fn with_desktop_options<'a>(
     mut builder: WebviewWindowBuilder<'a, tauri::Wry, AppHandle>,
     options: &WindowOptions,
 ) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
+    builder = builder.inner_size(
+        options.width.unwrap_or(1024.0),
+        options.height.unwrap_or(768.0),
+    );
+    if let (Some(width), Some(height)) = (options.min_width, options.min_height) {
+        builder = builder.min_inner_size(width, height);
+    }
+    if let (Some(width), Some(height)) = (options.max_width, options.max_height) {
+        builder = builder.max_inner_size(width, height);
+    }
+    if let (Some(x), Some(y)) = (options.x, options.y) {
+        builder = builder.position(x, y);
+    }
+    if let Some(resizable) = options.resizable {
+        builder = builder.resizable(resizable);
+    }
     if options.center.unwrap_or(false) {
         builder = builder.center();
     }
