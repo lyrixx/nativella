@@ -9,6 +9,7 @@ use project\Project;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
+use Symfony\Component\Process\ExecutableFinder;
 
 use function Castor\context;
 use function Castor\finder;
@@ -33,7 +34,7 @@ use function project\install_if_missing;
  * reaches the Wayland (or X11) and D-Bus sockets of the session, or in the
  * static service with --static.
  */
-#[AsTask(name: 'run', description: 'Runs a demo as a desktop application (on the host, or in the builder with --docker)')]
+#[AsTask(name: 'run', description: 'Builds nativella from the sources and runs a demo with it, in a window (on the host, or in the builder with --docker)')]
 function run_demo(
     #[AsArgument(description: 'The demo to run, e.g. symfony', autocomplete: 'project\complete_demo_names')]
     string $demo,
@@ -42,6 +43,11 @@ function run_demo(
     #[AsOption(description: 'Link the static PHP of "castor static-php:build", as on macOS')]
     bool $static = false,
 ): int {
+    // Before the install and the static PHP, which take a while
+    if (!$docker && null === new ExecutableFinder()->find('cargo')) {
+        throw new \RuntimeException('Running a demo on this machine needs cargo (Rust, from https://rustup.rs) and the libraries of Tauri, see docs/development.md#on-your-machine. Or run it in a container, with --docker.');
+    }
+
     $project = install_if_missing(demo($demo));
     // In the context of the task: the host one below only links it
     if ($static) {
