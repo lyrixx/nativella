@@ -3254,7 +3254,7 @@ dependencies = [
 
 [[package]]
 name = "nativella"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "base64 0.23.1",
  "cbc",
@@ -3330,7 +3330,7 @@ dependencies = [
 
 [[package]]
 name = "nativella-runtime"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "cookie",
  "ext-php-rs",
