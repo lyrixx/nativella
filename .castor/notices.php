@@ -26,16 +26,16 @@ use function static_php\stamped_sources;
 const FILE = 'THIRD_PARTY_NOTICES.txt';
 
 /** cargo-about, which gathers the licenses of the Rust crates: tools/cargo-about/ */
-const CARGO_ABOUT_VERSION = '0.9.2';
+const CARGO_ABOUT_VERSION = '0.9.3';
 
 /**
  * The SHA-256 of the cargo-about of each target, as its release gives them,
  * in its .sha256 files.
  */
 const CARGO_ABOUT_SHA256 = [
-    'aarch64-apple-darwin' => 'ae72f0df0c399a1e96336f696fa55b1b28679fd725632eba8cf8e4568467cc3e',
-    'aarch64-unknown-linux-musl' => 'af5169282fb6f84e13471493f405437e43ac517744c9ae12fbe2cdf0a6f0e5a8',
-    'x86_64-unknown-linux-musl' => '9099a59e820c38a68b9d65f300662a567d56562f9a10f6aa4c7e86c17c2566af',
+    'aarch64-apple-darwin' => '45520df8680978a6e7c4023ace0e3f311c73efc208cd68e5a7f4ed4822fa0349',
+    'aarch64-unknown-linux-musl' => 'eb4d9ff6ebd2518152a8308729431a04b3836e71d2bd5ead7aea69f91a71162e',
+    'x86_64-unknown-linux-musl' => '3ad1e94ea1e63d69d1961f4fb15ccbbe9575d906111f96d2cb4dce6df48f71b4',
 ];
 
 /**
