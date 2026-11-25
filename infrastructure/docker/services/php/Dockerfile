@@ -131,7 +131,7 @@ RUN apt-get update \
 # https://static.rust-lang.org/rustup/archive/<version>/<target>/rustup-init.sha256:
 # `castor qa:outdated` says when a newer stable is out. Keep in sync with the
 # static stage below. The workflows key their cargo caches on its version
-ARG RUST_VERSION=1.99.1
+ARG RUST_VERSION=1.100.0
 ARG RUSTUP_VERSION=1.29.3
 ARG RUSTUP_SHA256_AMD64=b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55
 ARG RUSTUP_SHA256_ARM64=9f608c142e0e38a78957d0661ba1dfaf0b6fb37184cfaa4b9a0aa57af6184282
@@ -308,7 +308,7 @@ RUN apt-get update \
 
 # Rust, for every user: the container runs as the host's raw UID. Keep in
 # sync with the builder stage above
-ARG RUST_VERSION=1.99.1
+ARG RUST_VERSION=1.100.0
 ARG RUSTUP_VERSION=1.29.3
 ARG RUSTUP_SHA256_AMD64=b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55
 ARG RUSTUP_SHA256_ARM64=9f608c142e0e38a78957d0661ba1dfaf0b6fb37184cfaa4b9a0aa57af6184282
