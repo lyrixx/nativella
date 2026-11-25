@@ -139,7 +139,7 @@ castor nativella:run symfony --static --docker   # in a container
 
 ### On your machine
 
-You need a stable Rust ([rustup](https://rustup.rs)), 1.88 or later, and the libraries Tauri builds against. The images have the one their Dockerfile pins (`RUST_VERSION`), which the CI builds with. On Ubuntu 26.04:
+You need a stable Rust ([rustup](https://rustup.rs)), 1.95 or later, and the libraries Tauri builds against. The images have the one their Dockerfile pins (`RUST_VERSION`), which the CI builds with. On Ubuntu 26.04:
 
 ```bash
 sudo apt install libclang-dev libwebkit2gtk-4.1-dev libxdo-dev librsvg2-dev libayatana-appindicator3-1
