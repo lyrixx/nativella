@@ -46,14 +46,14 @@ const EXTENSIONS = 'bcmath,ctype,curl,dom,fileinfo,filter,iconv,intl,mbstring,op
  * and builds again when it changes. Raise it with each release of PHP, the
  * security ones first: see docs/development.md#the-version-of-php.
  */
-const PHP_RELEASE = '8.5.12';
+const PHP_RELEASE = '8.5.13';
 
 /**
  * The SHA-256 of php-<PHP_RELEASE>.tar.xz, as php.net gives it:
  * https://www.php.net/releases/index.php?json&version=<PHP_RELEASE>. Raise it
  * with PHP_RELEASE.
  */
-const PHP_RELEASE_SHA256 = '08bc2eba2a588654ade1357174aa646b761556c862dda0678345ee29ed481209';
+const PHP_RELEASE_SHA256 = '607602acaf0c3061818e9916ec44a058e8b3d43959a83862b9cd3ec7bf5b785f';
 
 /**
  * The release of SQLite: static-php-cli pins 3.45.2, from 2024, so every
