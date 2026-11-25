@@ -5,7 +5,7 @@
 # on each change of this file, then stays the one of the images it builds.
 
 # Composer, for the builder
-FROM composer/composer:2.11.2@sha256:b880f9bcb554db13dde712e1aaec5ef09af8405b341e43c9d3cbc1a83e67fc5b AS composer
+FROM composer/composer:2.11.3@sha256:a56847da3e25d17432fb33a49764b0971fff4f9f9276a42d37973558b2ad308f AS composer
 
 FROM debian:13.7-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS php-base
 
@@ -131,7 +131,7 @@ RUN apt-get update \
 # https://static.rust-lang.org/rustup/archive/<version>/<target>/rustup-init.sha256:
 # `castor qa:outdated` says when a newer stable is out. Keep in sync with the
 # static stage below. The workflows key their cargo caches on its version
-ARG RUST_VERSION=1.99.1
+ARG RUST_VERSION=1.100.0
 ARG RUSTUP_VERSION=1.29.3
 ARG RUSTUP_SHA256_AMD64=b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55
 ARG RUSTUP_SHA256_ARM64=9f608c142e0e38a78957d0661ba1dfaf0b6fb37184cfaa4b9a0aa57af6184282
@@ -308,7 +308,7 @@ RUN apt-get update \
 
 # Rust, for every user: the container runs as the host's raw UID. Keep in
 # sync with the builder stage above
-ARG RUST_VERSION=1.99.1
+ARG RUST_VERSION=1.100.0
 ARG RUSTUP_VERSION=1.29.3
 ARG RUSTUP_SHA256_AMD64=b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55
 ARG RUSTUP_SHA256_ARM64=9f608c142e0e38a78957d0661ba1dfaf0b6fb37184cfaa4b9a0aa57af6184282
