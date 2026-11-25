@@ -28,8 +28,6 @@
     --accent-soft: #e6e1ff;
     --teal: #087059;
     --teal-soft: #d3f1e8;
-    --ochre: #8f5b00;
-    --ochre-soft: #fbecc8;
     --code-bg: #0e1222;
     --code-bar: #151a2e;
     --code-line: #252b44;
@@ -43,6 +41,9 @@
     --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, "DejaVu Sans Mono", monospace;
 
     --gutter: clamp(16px, 4vw, 32px);
+    /* Between the sections of the landing page, and between the blocks of a section */
+    --space-section: clamp(88px, 13vw, 176px);
+    --space-block: clamp(40px, 5vw, 72px);
     --width: 1180px;
     --radius: 14px;
     --header: 64px;
@@ -67,8 +68,6 @@
         --accent-soft: #241d52;
         --teal: #4fd6b4;
         --teal-soft: #0e2f29;
-        --ochre: #f0bf5a;
-        --ochre-soft: #33280f;
         --code-bg: #0d1120;
         --code-bar: #141a2d;
         --code-line: #262d48;
@@ -189,7 +188,6 @@ h3 {
     background: color-mix(in srgb, var(--paper) 88%, transparent);
     backdrop-filter: saturate(1.4) blur(10px);
     -webkit-backdrop-filter: saturate(1.4) blur(10px);
-    border-bottom: 1px solid var(--line);
 }
 
 .site-header-inner {
@@ -351,7 +349,6 @@ figure.code {
     min-height: 38px;
     padding: 6px 8px 6px 16px;
     background: var(--code-bar);
-    border-bottom: 1px solid var(--code-line);
     color: var(--code-muted);
     font: 500 12.5px/1.4 var(--font-mono);
 }
@@ -431,7 +428,6 @@ figure.code {
 /* Footer */
 
 .site-footer {
-    border-top: 1px solid var(--line);
     background: var(--paper-2);
     color: var(--ink-3);
     font-size: 15px;
@@ -440,10 +436,10 @@ figure.code {
 .site-footer-inner {
     display: grid;
     grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
-    gap: 32px 40px;
+    gap: 44px 40px;
     max-width: calc(var(--width) + 2 * var(--gutter));
     margin-inline: auto;
-    padding: 48px var(--gutter) 40px;
+    padding: var(--space-block) var(--gutter) 52px;
 }
 
 .footer-brand p {
@@ -477,9 +473,7 @@ figure.code {
 
 .footer-note {
     grid-column: 1 / -1;
-    margin: 8px 0 0;
-    padding-top: 24px;
-    border-top: 1px solid var(--line);
+    margin: 12px 0 0;
     font-size: 14px;
 }
 
@@ -504,7 +498,7 @@ figure.code {
 }
 
 .kicker {
-    margin: 0 0 10px;
+    margin: 0 0 14px;
     color: var(--accent);
     font: 600 13px/1.4 var(--font-mono);
     letter-spacing: .1em;
@@ -512,17 +506,16 @@ figure.code {
 }
 
 .section {
-    padding: clamp(64px, 9vw, 112px) 0;
+    padding: var(--space-section) 0;
 }
 
 .section-tinted {
     background: var(--paper-2);
-    border-block: 1px solid var(--line);
 }
 
 .section-head {
     max-width: 760px;
-    margin-bottom: clamp(32px, 5vw, 52px);
+    margin-bottom: var(--space-block);
 }
 
 .section-head h2,
@@ -534,13 +527,13 @@ figure.code {
 }
 
 .section-head p:not(.kicker) {
-    margin: 16px 0 0;
+    margin: 24px 0 0;
     color: var(--ink-2);
     font-size: 19px;
 }
 
 .section-more {
-    margin: 36px 0 0;
+    margin: var(--space-block) 0 0;
 }
 
 .link-arrow {
@@ -573,7 +566,7 @@ main :not(pre) > code {
 
 .hero {
     position: relative;
-    padding: clamp(48px, 7vw, 96px) 0 clamp(64px, 8vw, 104px);
+    padding: clamp(48px, 6vw, 88px) 0 clamp(80px, 10vw, 140px);
     background:
         radial-gradient(60rem 30rem at 85% -10%, color-mix(in srgb, var(--accent-fill) 13%, transparent), transparent 70%),
         radial-gradient(40rem 26rem at -10% 110%, color-mix(in srgb, var(--teal) 12%, transparent), transparent 70%);
@@ -629,7 +622,7 @@ main :not(pre) > code {
 }
 
 .hero h1 {
-    margin: 22px 0 0;
+    margin: 28px 0 0;
     font-size: clamp(2.7rem, 6.4vw, 5.1rem);
     font-weight: 660;
     line-height: 1;
@@ -638,7 +631,7 @@ main :not(pre) > code {
 
 .hero-lede {
     max-width: 34em;
-    margin: 26px 0 0;
+    margin: 34px 0 0;
     color: var(--ink-2);
     font-size: clamp(18px, 1.6vw, 20.5px);
     line-height: 1.55;
@@ -648,11 +641,11 @@ main :not(pre) > code {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
-    margin-top: 32px;
+    margin-top: 38px;
 }
 
 .hero-command {
-    margin: 22px 0 0;
+    margin: 26px 0 0;
     color: var(--ink-3);
     font-size: 15px;
 }
@@ -850,7 +843,6 @@ main :not(pre) > code {
     gap: 12px;
     padding: 7px 14px;
     background: var(--code-bar);
-    border-bottom: 1px solid var(--code-line);
     color: var(--code-muted);
     font: 500 12px/1.4 var(--font-mono);
 }
@@ -922,7 +914,6 @@ main :not(pre) > code {
 /* What you don't ship */
 
 .unpacked {
-    border-block: 1px solid var(--line);
     background: var(--ink);
     color: var(--paper);
 }
@@ -931,8 +922,8 @@ main :not(pre) > code {
     display: grid;
     grid-template-columns: auto 1fr;
     align-items: center;
-    gap: 14px 40px;
-    padding-block: 30px;
+    gap: 16px 40px;
+    padding-block: 44px;
 }
 
 .unpacked h2 {
@@ -998,8 +989,7 @@ main :not(pre) > code {
 /* What your users need */
 
 .shipped {
-    padding: clamp(22px, 5vw, 56px);
-    border: 2px solid var(--accent);
+    padding: clamp(24px, 6vw, 76px);
     border-radius: 24px;
     background:
         radial-gradient(44rem 20rem at 100% 0%, color-mix(in srgb, var(--accent-fill) 12%, transparent), transparent 70%),
@@ -1018,7 +1008,7 @@ main :not(pre) > code {
 }
 
 .shipped-head p:not(.kicker) {
-    margin: 18px 0 0;
+    margin: 26px 0 0;
     color: var(--ink-2);
     font-size: 19px;
 }
@@ -1027,15 +1017,14 @@ main :not(pre) > code {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 56px;
-    margin: clamp(32px, 5vw, 48px) 0 0;
+    margin: var(--space-block) 0 0;
     padding: 0;
     list-style: none;
 }
 
 .shipped-stage {
     position: relative;
-    padding: 20px 22px;
-    border: 1px solid var(--line);
+    padding: 26px 24px;
     border-radius: var(--radius);
     background: var(--paper);
 }
@@ -1067,18 +1056,12 @@ main :not(pre) > code {
 }
 
 .shipped-stage li {
-    padding: 7px 0;
-    border-top: 1px solid var(--line);
+    padding: 6px 0;
     color: var(--ink-2);
     font-size: 16px;
 }
 
-.shipped-stage li:first-child {
-    border-top: 0;
-}
-
 .shipped-file {
-    border-color: var(--accent-fill);
     background: var(--accent-fill);
     color: var(--on-accent);
 }
@@ -1108,7 +1091,6 @@ main .shipped-file :not(pre) > code {
 }
 
 .shipped-users {
-    border-color: color-mix(in srgb, var(--teal) 35%, transparent);
     background: var(--teal-soft);
 }
 
@@ -1117,7 +1099,6 @@ main .shipped-file :not(pre) > code {
 }
 
 .shipped-users li {
-    border-top-color: color-mix(in srgb, var(--teal) 20%, transparent);
     font: 600 18px/1.5 var(--font-mono);
 }
 
@@ -1130,22 +1111,12 @@ main .shipped-file :not(pre) > code {
 .shipped-platforms {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0;
-    margin: clamp(28px, 4vw, 40px) 0 0;
-    border-top: 1px solid var(--line-strong);
-}
-
-.shipped-platforms div {
-    padding: 18px 24px 0 0;
-}
-
-.shipped-platforms div + div {
-    padding-left: 24px;
-    border-left: 1px solid var(--line);
+    gap: 24px 40px;
+    margin: var(--space-block) 0 0;
 }
 
 .shipped-platforms dt {
-    margin: 0 0 4px;
+    margin: 0 0 6px;
     font-weight: 600;
 }
 
@@ -1156,7 +1127,7 @@ main .shipped-file :not(pre) > code {
 }
 
 .shipped-more {
-    margin: 28px 0 0;
+    margin: 40px 0 0;
 }
 
 @media (max-width: 860px) {
@@ -1178,11 +1149,6 @@ main .shipped-file :not(pre) > code {
     .shipped-platforms {
         grid-template-columns: minmax(0, 1fr);
     }
-
-    .shipped-platforms div + div {
-        padding-left: 0;
-        border-left: 0;
-    }
 }
 
 /* Pillars */
@@ -1190,17 +1156,7 @@ main .shipped-file :not(pre) > code {
 .pillars {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0;
-    border-top: 2px solid var(--ink);
-}
-
-.pillar {
-    padding: 22px 26px 8px 0;
-}
-
-.pillar + .pillar {
-    padding-left: 26px;
-    border-left: 1px solid var(--line);
+    gap: 36px 44px;
 }
 
 .pillar-number {
@@ -1209,7 +1165,7 @@ main .shipped-file :not(pre) > code {
 }
 
 .pillar h3 {
-    margin: 14px 0 10px;
+    margin: 16px 0 10px;
     font-size: 23px;
 }
 
@@ -1223,32 +1179,11 @@ main .shipped-file :not(pre) > code {
     .pillars {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-
-    .pillar:nth-child(3) {
-        padding-left: 0;
-        border-left: 0;
-    }
-
-    .pillar:nth-child(n+3) {
-        margin-top: 18px;
-        border-top: 1px solid var(--line);
-    }
 }
 
 @media (max-width: 600px) {
     .pillars {
         grid-template-columns: 1fr;
-    }
-
-    .pillar + .pillar {
-        margin-top: 0;
-        padding-left: 0;
-        border-left: 0;
-        border-top: 1px solid var(--line);
-    }
-
-    .pillar {
-        padding-bottom: 18px;
     }
 }
 
@@ -1258,7 +1193,7 @@ main .shipped-file :not(pre) > code {
     display: grid;
     grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
     align-items: center;
-    gap: clamp(32px, 5vw, 72px);
+    gap: var(--space-block) clamp(32px, 5vw, 72px);
 }
 
 .split-wide-code {
@@ -1271,7 +1206,7 @@ main .shipped-file :not(pre) > code {
 }
 
 .split-text h2 {
-    margin-bottom: 20px;
+    margin-bottom: 28px;
 }
 
 .split-code figure.code {
@@ -1320,8 +1255,8 @@ main .shipped-file :not(pre) > code {
 .steps {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 18px;
-    margin: 28px 0 0;
+    gap: 28px 20px;
+    margin: 40px 0 0;
     padding: 0;
     list-style: none;
     counter-reset: step;
@@ -1377,7 +1312,7 @@ main .shipped-file :not(pre) > code {
 .api-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px;
+    gap: 18px;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -1387,30 +1322,32 @@ main .shipped-file :not(pre) > code {
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding: 20px 20px 18px;
-    border: 1px solid var(--line);
+    padding: 24px 22px 20px;
     border-radius: var(--radius);
     background: var(--card);
     color: var(--ink-2);
     text-decoration: none;
-    transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+    transition: transform .15s ease, box-shadow .15s ease;
 }
 
 .api-card:hover {
-    border-color: var(--accent);
     color: var(--ink-2);
     box-shadow: var(--shadow-small);
     transform: translateY(-2px);
 }
 
+.api-card:hover h3 {
+    color: var(--accent);
+}
+
 .api-card h3 {
-    margin: 0 0 6px;
+    margin: 0 0 8px;
     font-size: 21px;
 }
 
 .api-card p {
     flex: 1;
-    margin: 0 0 16px;
+    margin: 0 0 18px;
     font-size: 15px;
     line-height: 1.5;
 }
@@ -1455,9 +1392,8 @@ main .shipped-file :not(pre) > code {
 .tab-list {
     display: flex;
     gap: 4px;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
     padding: 4px;
-    border: 1px solid var(--line);
     border-radius: 12px;
     background: var(--paper-2);
     width: fit-content;
@@ -1502,20 +1438,19 @@ html:not(.js) .tab-panel[hidden] {
 /* Getting started */
 
 .start-steps {
+    display: grid;
+    gap: var(--space-block);
     margin: 0;
     padding: 0;
     list-style: none;
     counter-reset: start;
-    border-bottom: 1px solid var(--line-strong);
 }
 
 .start-steps li {
     display: grid;
     grid-template-columns: 72px minmax(0, 2fr) minmax(0, 3fr);
-    gap: 12px 32px;
+    gap: 18px 32px;
     align-items: start;
-    padding: 30px 0;
-    border-top: 1px solid var(--line-strong);
     counter-increment: start;
 }
 
@@ -1529,7 +1464,7 @@ html:not(.js) .tab-panel[hidden] {
 }
 
 .start-steps h3 {
-    margin: 4px 0 8px;
+    margin: 4px 0 12px;
     font-size: 26px;
 }
 
@@ -1575,18 +1510,9 @@ html:not(.js) .tab-panel[hidden] {
 .demo {
     display: flex;
     flex-direction: column;
-    padding: 26px 24px 22px;
-    border-top: 3px solid var(--ink);
-    background: linear-gradient(var(--paper-2), transparent 70%);
-    border-radius: 0 0 18px 18px;
-}
-
-.demo:nth-child(2) {
-    border-top-color: var(--accent-fill);
-}
-
-.demo:nth-child(3) {
-    border-top-color: var(--teal);
+    padding: 32px 26px 26px;
+    background: var(--paper-2);
+    border-radius: 18px;
 }
 
 .demo-stack {
@@ -1596,13 +1522,13 @@ html:not(.js) .tab-panel[hidden] {
 }
 
 .demo h3 {
-    margin: 8px 0 10px;
+    margin: 10px 0 12px;
     font-size: 30px;
 }
 
 .demo p:not(.demo-stack) {
     flex: 1;
-    margin: 0 0 18px;
+    margin: 0 0 22px;
     color: var(--ink-2);
     font-size: 16px;
 }
@@ -1629,8 +1555,7 @@ html:not(.js) .tab-panel[hidden] {
 }
 
 .split-text p.phone-note {
-    padding-left: 14px;
-    border-left: 3px solid var(--ochre);
+    color: var(--ink-3);
     font-size: 16px;
 }
 
@@ -1706,21 +1631,14 @@ html:not(.js) .tab-panel[hidden] {
 .stats {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0;
-    margin-bottom: 36px;
-    border-block: 1px solid var(--line-strong);
+    gap: 32px 40px;
+    margin-bottom: var(--space-block);
 }
 
 .stat {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 22px 24px 22px 0;
-}
-
-.stat + .stat {
-    padding-left: 24px;
-    border-left: 1px solid var(--line);
+    gap: 8px;
 }
 
 .stat strong {
@@ -1744,14 +1662,13 @@ html:not(.js) .tab-panel[hidden] {
 }
 
 .status-card {
-    padding: 24px 26px;
-    border: 1px solid var(--line);
+    padding: 32px 30px;
     border-radius: 18px;
     background: var(--card);
 }
 
 .status-card h3 {
-    margin: 0 0 14px;
+    margin: 0 0 18px;
     font-size: 23px;
 }
 
@@ -1763,8 +1680,7 @@ html:not(.js) .tab-panel[hidden] {
 
 .status-card li {
     position: relative;
-    padding: 8px 0 8px 30px;
-    border-top: 1px solid var(--line);
+    padding: 7px 0 7px 30px;
     color: var(--ink-2);
     font-size: 16px;
 }
@@ -1772,7 +1688,7 @@ html:not(.js) .tab-panel[hidden] {
 .status-card li::before {
     position: absolute;
     left: 0;
-    top: 8px;
+    top: 7px;
     display: grid;
     place-items: center;
     width: 20px;
@@ -1798,19 +1714,12 @@ html:not(.js) .tab-panel[hidden] {
     .status-columns {
         grid-template-columns: minmax(0, 1fr);
     }
-
-    .stat + .stat {
-        padding-left: 0;
-        border-left: 0;
-        border-top: 1px solid var(--line);
-    }
 }
 
 /* Closing */
 
 .closing {
-    padding: clamp(64px, 9vw, 104px) 0;
-    border-top: 1px solid var(--line);
+    padding: var(--space-section) 0;
     background:
         radial-gradient(50rem 20rem at 50% 120%, color-mix(in srgb, var(--accent-fill) 14%, transparent), transparent 70%);
     text-align: center;
