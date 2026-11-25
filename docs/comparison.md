@@ -1,20 +1,20 @@
 # Compared to NativePHP and Symfony UX
 
-Two projects stand next to Nativella. [NativePHP](https://nativephp.com) also runs PHP inside a desktop or phone application. [Symfony UX Native](https://symfony.com/bundles/ux-native/current/index.html), the part of Symfony UX that reaches phones, leaves PHP on your server and puts a native shell around your website.
+Two projects stand next to Nativella. [NativePHP](https://nativephp.com) also runs PHP inside a desktop or phone application. [UX Native](https://symfony.com/bundles/ux-native/current/index.html), the part of Symfony UX that reaches phones, leaves PHP on your server and puts a native shell around your website.
 
 They make different bets:
 
 - NativePHP turns a Laravel application into a native one, with Electron on computers and native views on phones. It is the mature one, and the one to pick today for Windows, macOS or the stores.
-- Symfony UX Native keeps your website where it is, and gives it an app on iOS and Android.
+- UX Native keeps your website where it is, and gives it an app on iOS and Android.
 - Nativella takes a PHP application as it is, whatever its framework, and runs it on the user's machine, in the system webview, without a web server. It is the youngest of the three.
 
 All are open source, under the MIT license. NativePHP adds paid extras: Bifrost, its build and deployment service, and premium plugins.
 
-This page compares Nativella 0.5, NativePHP Desktop 2.4, NativePHP Mobile 4.7 and Symfony UX Native 3.7, as of November 2026. What it says about the others comes from their documentation and sources, and from the [measures](#size-memory-and-cpu) below. Both move fast, so check their documentation before you decide.
+This page compares Nativella 0.5, NativePHP Desktop 2.4, NativePHP Mobile 4.7 and UX Native 3.7, as of November 2026. What it says about the others comes from their documentation and sources, and from the [measures](#size-memory-and-cpu) below. Both move fast, so check their documentation before you decide.
 
 ## At a glance
 
-| | Nativella | NativePHP Desktop | NativePHP Mobile | Symfony UX Native |
+| | Nativella | NativePHP Desktop | NativePHP Mobile | UX Native |
 |---|---|---|---|---|
 | Status | Experimental | Production-ready, says [its roadmap](https://nativephp.com/docs/desktop/2/getting-started/status) | Made for the stores | Experimental |
 | Platforms | Linux and macOS, not every API of macOS tried. Windows untested, Android and iOS experimental (see [Platforms](limitations.md#platforms)) | Windows, macOS, Linux | iOS, Android | iOS, Android |
@@ -46,7 +46,7 @@ It is the closest project: PHP on the user's device, a static build of it from [
 - NativePHP [packages for the App Store and Google Play](https://nativephp.com/docs/mobile/4/publishing/introduction). Nativella writes APKs, which Google Play does not take, and no Nativella iOS app has run on a device yet.
 - NativePHP's native features come as [plugins](https://nativephp.com/docs/mobile/4/plugins/introduction), Composer packages that carry Swift and Kotlin code, and you can write your own. They include push notifications. Nativella's [phone APIs](phone-apis.md) are a fixed set, in its template, without push notifications.
 
-## Symfony UX Native
+## UX Native
 
 Symfony UX is a family of front-end packages. One of them compares with Nativella: UX Native, which is experimental too.
 
@@ -95,11 +95,11 @@ The gap comes from two choices. NativePHP compresses its native libraries, which
 
 NativePHP leaves intl out on Android unless you ask for it, with `native:install --with-icu`. Nativella's releases carry it, but you can customize PHP to save room. A [template with your own PHP](custom-php.md#on-phones), without intl, drops the 36 MB of ICU from every APK made from it. That size comes from the library, as this APK was not measured. It takes a build from the repository, until an application [picks its extensions](limitations.md#roadmap). Neither was measured for memory or CPU on a phone.
 
-With Symfony UX Native, PHP takes the memory and the CPU of your server, for all your users, and the phone only runs the shell and a web view. Its apps were not measured.
+With UX Native, PHP takes the memory and the CPU of your server, for all your users, and the phone only runs the shell and a web view. Its apps were not measured.
 
 ## Customizing PHP
 
-| | Nativella | NativePHP Desktop | NativePHP Mobile | Symfony UX Native |
+| | Nativella | NativePHP Desktop | NativePHP Mobile | UX Native |
 |---|---|---|---|---|
 | Version | 8.5 | 8.3, 8.4 or 8.5, from the machine that builds | 8.3, 8.4 or 8.5, from the machine that builds or from `nativephp.lock` | The one of your server |
 | Extensions | [A fixed list](building.md#the-php-inside) | [A fixed list](https://github.com/NativePHP/php-bin/blob/main/php-extensions.txt), with gd, bz2 and sockets on top of Nativella's | [A fixed list](https://nativephp.com/docs/mobile/4/architecture/embedded-php), with intl optional on Android | Any |
@@ -111,5 +111,5 @@ Both Nativella and NativePHP Desktop build PHP with static-php-cli, but they do 
 ## Which one?
 
 - Pick NativePHP for a Laravel application that must ship now, on Windows, on macOS or in the stores, or for native views on a phone.
-- Pick Symfony UX Native for a Symfony website with accounts and shared data that wants an app on phones and stays online.
+- Pick UX Native for a Symfony website with accounts and shared data that wants an app on phones and stays online.
 - Pick Nativella for a PHP application whose data lives on the user's machine, with any framework or none, when you want your pages as they are, a lighter application on computers, no port on the machine, and no Mac or Android Studio to build for phones. Read [Limitations and roadmap](limitations.md) first, because it is experimental and Linux is the only computer it is tested on.
