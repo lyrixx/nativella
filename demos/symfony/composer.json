@@ -27,9 +27,9 @@
         "symfony/twig-bundle": "8.1.*",
         "symfony/validator": "8.1.*",
         "symfony/yaml": "8.1.*",
-        "twig/extra-bundle": "^2.12|^3.0",
-        "twig/markdown-extra": "^3.29",
-        "twig/twig": "^2.12|^3.0"
+        "twig/extra-bundle": "^2.12|^3.31",
+        "twig/markdown-extra": "^3.31.1",
+        "twig/twig": "^2.12|^3.31.1"
     },
     "config": {
         "allow-plugins": {
